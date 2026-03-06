@@ -1,0 +1,17 @@
+[project]
+name = "content-discovery-agent"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=0.84.0",
+    "feedparser>=6.0.12",
+    "groq>=1.0.0",
+    "openai>=2.26.0",
+    "requests>=2.32.5",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]

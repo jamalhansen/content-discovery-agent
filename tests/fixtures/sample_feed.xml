@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Tech Blog</title>
+    <link>https://example.com</link>
+    <description>A test RSS feed</description>
+
+    <item>
+      <title>Building a Local RAG Pipeline with Ollama</title>
+      <link>https://example.com/rag-ollama</link>
+      <description>Step-by-step walkthrough of a retrieval-augmented generation pipeline using only local models.</description>
+    </item>
+
+    <item>
+      <title>DuckDB 1.2 Released</title>
+      <link>https://example.com/duckdb-1-2</link>
+      <description>Release notes for DuckDB 1.2 covering new SQL features and performance improvements.</description>
+    </item>
+
+    <item>
+      <title>Pydantic v2 Migration Guide</title>
+      <link>https://example.com/pydantic-v2</link>
+      <description>How to migrate your Python models from Pydantic v1 to v2 with minimal changes.</description>
+    </item>
+
+    <item>
+      <title>Best Hiking Trails in Patagonia</title>
+      <link>https://example.com/patagonia-trails</link>
+      <description>A travel guide to the most scenic hiking routes in the Patagonia region.</description>
+    </item>
+
+    <item>
+      <title>Introduction to Vector Databases for RAG</title>
+      <link>https://example.com/vector-db-rag</link>
+      <description>Overview of vector database options like Chroma, Pinecone, and pgvector for RAG applications.</description>
+    </item>
+
+    <item>
+      <title>Top 10 Pasta Recipes of 2026</title>
+      <link>https://example.com/pasta-recipes</link>
+      <description>Our editors pick the best pasta dishes of the year from Italian kitchens around the world.</description>
+    </item>
+  </channel>
+</rss>
