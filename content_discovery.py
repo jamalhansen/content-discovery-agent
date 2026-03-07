@@ -196,8 +196,10 @@ def cmd_run(args: argparse.Namespace) -> None:
         if args.verbose:
             print(f"  [{result.score:.2f}] {item.title[:70]}")
 
-        # Store every successfully scored item (above or below threshold)
-        # so it won't be re-scored next run
+        # Store every successfully scored item so it won't be re-scored next run.
+        # Items below threshold are immediately dismissed — they're kept for
+        # deduplication and as negative few-shot examples, but never surface
+        # for interactive review.
         if not args.dry_run:
             store.upsert_item(
                 url=item.url,
@@ -210,6 +212,8 @@ def cmd_run(args: argparse.Namespace) -> None:
                 fetched_at=today,
                 path=args.store,
             )
+            if result.score < args.threshold:
+                store.mark_item(item.url, "dismissed", args.store)
 
         if result.score >= args.threshold:
             candidates.append(InboxEntry(
