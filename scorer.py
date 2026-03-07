@@ -11,8 +11,8 @@ SYSTEM_PROMPT = """You are a content relevance scorer. Given a feed item and a d
   - 0.0-0.3: not relevant or only tangentially related
   - 0.4-0.6: somewhat relevant, touches on related areas
   - 0.7-1.0: highly relevant, directly addresses their interests or current work
-- tags: array of 1-3 short strings describing what this item is actually about (e.g. ["sql", "query optimization"] or ["local AI", "ollama"]). These are descriptive, not from a fixed list.
-- summary: one sentence describing what this item is about.
+- tags: array of at most 2 short strings describing what this item is about (e.g. ["sql", "query optimization"] or ["local AI", "ollama"]).
+- summary: one sentence (maximum 20 words) describing what this item is about.
 
 Return only valid JSON. No preamble, no explanation."""
 
@@ -63,7 +63,7 @@ def parse_response(raw: str) -> ScoredItem | None:
         data = json.loads(text)
         return ScoredItem(
             score=float(data["score"]),
-            tags=list(data.get("tags", []))[:3],  # enforce 1-3 tag limit
+            tags=list(data.get("tags", []))[:2],  # enforce 2-tag limit
             summary=str(data.get("summary", "")),
         )
     except (json.JSONDecodeError, KeyError, ValueError) as e:

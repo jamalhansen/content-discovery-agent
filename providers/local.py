@@ -25,9 +25,11 @@ class LocalProvider(BaseProvider):
                 {"role": "user", "content": user_message},
             ],
             "stream": False,
+            # Constrained generation: model cannot emit EOS until all JSON
+            # brackets are closed, so the response is always complete.
+            "format": "json",
             "options": {
-                # Cap output so a verbose model never truncates mid-JSON.
-                # 300 tokens is ~3× the expected response size.
+                # Hard cap on output tokens as a secondary safety net.
                 "num_predict": 300,
             },
         }
