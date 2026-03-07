@@ -63,7 +63,7 @@ def parse_response(raw: str) -> ScoredItem | None:
         data = json.loads(text)
         return ScoredItem(
             score=float(data["score"]),
-            tags=list(data.get("tags", [])),
+            tags=list(data.get("tags", []))[:3],  # enforce 1-3 tag limit
             summary=str(data.get("summary", "")),
         )
     except (json.JSONDecodeError, KeyError, ValueError) as e:

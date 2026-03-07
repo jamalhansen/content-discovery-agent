@@ -25,6 +25,11 @@ class LocalProvider(BaseProvider):
                 {"role": "user", "content": user_message},
             ],
             "stream": False,
+            "options": {
+                # Cap output so a verbose model never truncates mid-JSON.
+                # 300 tokens is ~3× the expected response size.
+                "num_predict": 300,
+            },
         }
         try:
             resp = requests.post(url, json=payload, timeout=120)

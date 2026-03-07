@@ -74,6 +74,12 @@ class TestParseResponse:
         assert result is not None
         assert result.score == 0.0
 
+    def test_excess_tags_capped_at_three(self):
+        raw = '{"score": 0.8, "tags": ["a", "b", "c", "d", "e", "f", "g"], "summary": "Too many tags."}'
+        result = parse_response(raw)
+        assert result is not None
+        assert result.tags == ["a", "b", "c"]
+
 
 class TestScoreItem:
     def test_returns_scored_item(self):
