@@ -15,6 +15,13 @@ class TestBuildUserMessage:
         assert "My Title" in msg
         assert "My Desc" in msg
 
+    def test_truncates_long_description(self):
+        long_desc = "x" * 2000
+        msg = build_user_message("Title", long_desc, PROFILE)
+        # Only first 500 chars should appear; the rest must be absent
+        assert "x" * 500 in msg
+        assert "x" * 501 not in msg
+
     def test_includes_kept_examples(self):
         examples = {"kept": ["Great Python Article", "DuckDB Deep Dive"], "dismissed": []}
         msg = build_user_message("Title", "Desc", PROFILE, examples=examples)

@@ -42,7 +42,10 @@ def build_user_message(
             dismissed_lines = "\n".join(f'- "{t}"' for t in dismissed)
             parts.append(f"Recent items dismissed:\n{dismissed_lines}")
 
-    parts.append(f"Title: {title}\nDescription: {description}")
+    # Truncate long descriptions — full article text floods the context window
+    # and causes small models to ignore the JSON format instruction.
+    desc = description[:500] if len(description) > 500 else description
+    parts.append(f"Title: {title}\nDescription: {desc}")
     return "\n\n".join(parts)
 
 
