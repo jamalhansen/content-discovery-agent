@@ -127,21 +127,39 @@ def mark_item(url: str, status: str, path: str) -> None:
 def get_examples(n: int, path: str) -> dict[str, list[str]]:
     """Return {'kept': [titles], 'dismissed': [titles]}, most recent first.
 
-    n is the per-category limit. Returns empty lists when no data exists —
-    never raises. Used to build few-shot context for the scorer.
+    n is the per-category limit. At most 3 titles from any single source are
+    included, so a prolific blog reviewed in a single session cannot dominate
+    the few-shot window. A candidate pool of 5× n is fetched to give the
+    diversity filter enough to work with.
+
+    Returns empty lists when no data exists — never raises.
     """
+    _PER_SOURCE = 3
+
+    def _diverse(rows: list) -> list[str]:
+        source_counts: dict[str, int] = {}
+        result = []
+        for row in rows:
+            src = row["source"]
+            if source_counts.get(src, 0) < _PER_SOURCE:
+                result.append(row["title"])
+                source_counts[src] = source_counts.get(src, 0) + 1
+                if len(result) >= n:
+                    break
+        return result
+
     with _connect(path) as conn:
         kept = conn.execute(
-            "SELECT title FROM items WHERE status = 'kept' "
+            "SELECT title, source FROM items WHERE status = 'kept' "
             "ORDER BY reviewed_at DESC LIMIT ?",
-            (n,),
+            (n * 5,),
         ).fetchall()
         dismissed = conn.execute(
-            "SELECT title FROM items WHERE status = 'dismissed' "
+            "SELECT title, source FROM items WHERE status = 'dismissed' "
             "ORDER BY reviewed_at DESC LIMIT ?",
-            (n,),
+            (n * 5,),
         ).fetchall()
     return {
-        "kept": [row["title"] for row in kept],
-        "dismissed": [row["title"] for row in dismissed],
+        "kept": _diverse(kept),
+        "dismissed": _diverse(dismissed),
     }

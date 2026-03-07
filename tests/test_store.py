@@ -188,11 +188,32 @@ class TestGetExamples:
     def test_respects_n_limit(self, tmp_path):
         path = db(tmp_path)
         init_db(path)
+        # Use distinct sources so the per-source cap does not interfere
         for i in range(8):
-            upsert_item(**make_item(url=f"https://x.com/{i}", title=f"Article {i}"), path=path)
+            upsert_item(**make_item(url=f"https://x.com/{i}", title=f"Article {i}",
+                                   source=f"Blog {i}"), path=path)
             mark_item(f"https://x.com/{i}", "kept", path)
         result = get_examples(3, path)
         assert len(result["kept"]) == 3
+
+    def test_limits_per_source_to_three(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        # Flood the recent window with 7 items from the same blog
+        for i in range(7):
+            upsert_item(**make_item(url=f"https://a.com/{i}", title=f"Blog A Post {i}",
+                                   source="Blog A"), path=path)
+            mark_item(f"https://a.com/{i}", "kept", path)
+        # Add 3 items from a second blog
+        for i in range(3):
+            upsert_item(**make_item(url=f"https://b.com/{i}", title=f"Blog B Post {i}",
+                                   source="Blog B"), path=path)
+            mark_item(f"https://b.com/{i}", "kept", path)
+        result = get_examples(10, path)
+        a_titles = [t for t in result["kept"] if t.startswith("Blog A")]
+        b_titles = [t for t in result["kept"] if t.startswith("Blog B")]
+        assert len(a_titles) <= 3
+        assert len(b_titles) > 0
 
     def test_most_recent_first(self, tmp_path):
         path = db(tmp_path)
