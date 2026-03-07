@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Content discovery agent — local config (use .content-discovery.toml.example as a template)
+.content-discovery.toml
+
+# Claude Code project notes (session memory, local settings)
+.claude/

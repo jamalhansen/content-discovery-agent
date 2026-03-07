@@ -2,16 +2,41 @@ import pytest
 from unittest.mock import MagicMock
 from scorer import build_user_message, parse_response, score_item, ScoredItem
 
+PROFILE = "I write and teach SQL and Python for developers. I'm interested in local AI and LLMs."
+
 
 class TestBuildUserMessage:
-    def test_includes_topics(self):
-        msg = build_user_message("Title", "Desc", ["python", "llm"])
-        assert "python, llm" in msg
+    def test_includes_profile(self):
+        msg = build_user_message("Title", "Desc", PROFILE)
+        assert PROFILE in msg
 
     def test_includes_title_and_description(self):
-        msg = build_user_message("My Title", "My Desc", ["python"])
+        msg = build_user_message("My Title", "My Desc", PROFILE)
         assert "My Title" in msg
         assert "My Desc" in msg
+
+    def test_includes_kept_examples(self):
+        examples = {"kept": ["Great Python Article", "DuckDB Deep Dive"], "dismissed": []}
+        msg = build_user_message("Title", "Desc", PROFILE, examples=examples)
+        assert "Recent items kept:" in msg
+        assert '"Great Python Article"' in msg
+        assert '"DuckDB Deep Dive"' in msg
+
+    def test_includes_dismissed_examples(self):
+        examples = {"kept": [], "dismissed": ["Pasta Recipes 2026"]}
+        msg = build_user_message("Title", "Desc", PROFILE, examples=examples)
+        assert "Recent items dismissed:" in msg
+        assert '"Pasta Recipes 2026"' in msg
+
+    def test_no_examples_section_when_none(self):
+        msg = build_user_message("Title", "Desc", PROFILE, examples=None)
+        assert "Recent items kept:" not in msg
+        assert "Recent items dismissed:" not in msg
+
+    def test_no_examples_section_when_empty(self):
+        msg = build_user_message("Title", "Desc", PROFILE, examples={"kept": [], "dismissed": []})
+        assert "Recent items kept:" not in msg
+        assert "Recent items dismissed:" not in msg
 
 
 class TestParseResponse:
@@ -54,21 +79,29 @@ class TestScoreItem:
     def test_returns_scored_item(self):
         provider = MagicMock()
         provider.complete.return_value = '{"score": 0.9, "tags": ["python"], "summary": "Great."}'
-        result = score_item(provider, "Python Tips", "Tips for Python", ["python"])
+        result = score_item(provider, "Python Tips", "Tips for Python", PROFILE)
         assert isinstance(result, ScoredItem)
         assert result.score == 0.9
 
     def test_returns_none_on_invalid_response(self):
         provider = MagicMock()
         provider.complete.return_value = "I cannot score this."
-        result = score_item(provider, "Title", "Desc", ["python"])
+        result = score_item(provider, "Title", "Desc", PROFILE)
         assert result is None
 
     def test_provider_called_with_prompts(self):
         provider = MagicMock()
         provider.complete.return_value = '{"score": 0.5, "tags": [], "summary": "Ok."}'
-        score_item(provider, "Title", "Desc", ["python", "llm"])
+        score_item(provider, "Title", "Desc", PROFILE)
         provider.complete.assert_called_once()
         _, user_msg = provider.complete.call_args[0]
-        assert "python, llm" in user_msg
+        assert PROFILE in user_msg
         assert "Title" in user_msg
+
+    def test_passes_examples_to_message(self):
+        provider = MagicMock()
+        provider.complete.return_value = '{"score": 0.8, "tags": ["python"], "summary": "Good."}'
+        examples = {"kept": ["A Kept Article"], "dismissed": []}
+        score_item(provider, "Title", "Desc", PROFILE, examples=examples)
+        _, user_msg = provider.complete.call_args[0]
+        assert "A Kept Article" in user_msg

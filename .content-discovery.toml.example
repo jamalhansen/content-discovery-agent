@@ -1,0 +1,34 @@
+# Content Discovery Agent configuration
+# Copy this file to .content-discovery.toml and edit to your liking.
+# .content-discovery.toml is gitignored — safe to put personal URLs and interests here.
+
+[feeds]
+urls = [
+    "https://simonwillison.net/atom/everything/",
+    "https://realpython.com/atom.xml",
+    "https://news.ycombinator.com/rss",
+    "https://pycoders.com/feed/index.xml",
+    "https://duckdb.org/feed.xml",
+    "https://ollama.com/blog/rss",
+]
+
+[interests]
+# Describe what you care about in plain prose. The LLM uses this directly.
+# Adding a topic is as simple as mentioning it here.
+profile = """
+I'm interested in Python, SQL, data engineering, local AI, and LLMs.
+I follow technical writing craft and practical developer tooling.
+"""
+
+[settings]
+# Minimum relevance score to include an item (0.0–1.0)
+threshold = 0.7
+
+# Default LLM provider: local, anthropic, groq, deepseek
+provider = "local"
+
+# Path to your Obsidian vault root (overrides OBSIDIAN_VAULT_PATH env var)
+# vault_path = "~/vaults/MyVault/"
+
+# Path to the finds inbox, relative to vault root
+inbox_path = "_finds/00-inbox.md"

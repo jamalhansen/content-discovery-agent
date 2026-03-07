@@ -1,14 +1,17 @@
 # Content Discovery Agent
 
-CLI tool that monitors RSS feeds, scores each item for relevance using an LLM, and appends candidates to an Obsidian finds inbox. Designed to run on a cron schedule.
+CLI tool that monitors RSS feeds, scores each item for relevance using an LLM, and surfaces candidates for review. Designed to run on a cron schedule.
 
 ## What It Does
 
 1. Fetches items from a configured list of RSS feeds
-2. Scores each item's relevance to your topic tags via an LLM
-3. Filters out items below a relevance threshold
-4. Appends surviving items to `_finds/00-inbox.md` in your Obsidian vault
-5. Tracks seen items to avoid duplicates across runs
+2. Scores each item against a natural language interest profile via an LLM
+3. Stores candidates in a local SQLite database
+4. Skips items already seen in previous runs (deduplication)
+5. Lets you review candidates interactively — keep or dismiss each one
+6. Writes only the items you keep to your Obsidian inbox
+
+The scorer improves over time: after you review items, your kept/dismissed history is used as few-shot examples in subsequent scoring runs.
 
 ## Installation
 
@@ -17,65 +20,105 @@ CLI tool that monitors RSS feeds, scores each item for relevance using an LLM, a
 uv sync
 ```
 
-## Usage
+## Workflow
+
+### 1. Fetch and score
 
 ```bash
-# Run with default settings (Ollama, all configured feeds)
+# Run against all configured feeds (Ollama by default)
 uv run content_discovery.py
 
-# Dry run — print candidates without writing to inbox
+# Dry run — print candidates, write nothing
 uv run content_discovery.py --dry-run
 
-# Use a cloud provider
-uv run content_discovery.py --provider anthropic
-uv run content_discovery.py --provider groq
-uv run content_discovery.py --provider deepseek
+# Single feed, cloud provider
+uv run content_discovery.py --feed https://simonwillison.net/atom/everything/ --provider anthropic
 
-# Process a single feed
-uv run content_discovery.py --feed https://simonwillison.net/atom/everything/
-
-# Adjust relevance threshold
-uv run content_discovery.py --threshold 0.7
-
-# Verbose: show scores for all items
-uv run content_discovery.py --verbose
-
-# Skip deduplication (re-score everything)
-uv run content_discovery.py --no-dedup
-
-# Custom vault and inbox path
-uv run content_discovery.py --vault-path ~/vaults/MyVault/ --inbox-path _finds/00-inbox.md
+# Limit items scored (useful for testing)
+uv run content_discovery.py --cached --limit 20
 ```
+
+### 2. Review
+
+```bash
+uv run content_discovery.py --review
+```
+
+Shows each candidate one at a time:
+
+```
+[1/8]  Agentic manual testing
+  Source:  Simon Willison's Weblog
+  Score:   0.90  |  Tags: #testing #agentic-engineering #ai
+  Summary: Using coding agents for manual testing to catch issues automated tests miss.
+  URL:     https://simonwillison.net/...
+  >
+```
+
+Commands: `y` keep · `n` dismiss · `s` stop · `o` open URL in browser
+
+Kept items are written to your Obsidian inbox. Dismissed items are recorded and used to improve future scoring.
 
 ## CLI Reference
 
-| Argument       | Short | Default                      | Description                                              |
-|----------------|-------|------------------------------|----------------------------------------------------------|
-| `--provider`   | `-p`  | `local`                      | LLM backend: `local`, `anthropic`, `groq`, `deepseek`   |
-| `--model`      | `-m`  | provider default             | Override the default model for the chosen provider       |
-| `--dry-run`    | `-n`  | false                        | Print candidates to stdout instead of writing to inbox   |
-| `--feed`       | `-f`  | none                         | Process a single feed URL instead of the full list       |
-| `--threshold`  | `-t`  | `0.6`                        | Minimum relevance score (0.0–1.0) to include an item     |
-| `--vault-path` | `-v`  | env or `~/vaults/BrainSync/` | Path to the Obsidian vault root                          |
-| `--inbox-path` |       | `_finds/00-inbox.md`         | Inbox path relative to vault root                        |
-| `--no-dedup`   |       | false                        | Disable seen-item tracking, re-score everything          |
-| `--verbose`    |       | false                        | Show scores for all items, not just candidates           |
+| Argument       | Short | Default              | Description                                            |
+|----------------|-------|----------------------|--------------------------------------------------------|
+| `--provider`   | `-p`  | `local`              | LLM backend: `local`, `anthropic`, `groq`, `deepseek` |
+| `--model`      | `-m`  | provider default     | Override the default model for the chosen provider     |
+| `--dry-run`    | `-n`  | false                | Print candidates to stdout; write nothing              |
+| `--review`     |       | false                | Interactively review pending items                     |
+| `--feed`       | `-f`  | none                 | Process a single feed URL                              |
+| `--threshold`  | `-t`  | `0.7`                | Minimum relevance score (0.0–1.0)                      |
+| `--vault-path` | `-v`  | `OBSIDIAN_VAULT_PATH`| Path to the Obsidian vault root                        |
+| `--inbox-path` |       | `_finds/00-inbox.md` | Inbox path relative to vault root                      |
+| `--no-dedup`   |       | false                | Re-score items already seen                            |
+| `--verbose`    |       | false                | Show scores for all items, not just candidates         |
+| `--cached`     |       | false                | Use cached feed responses when available               |
+| `--limit`      | `-l`  | none                 | Cap number of items scored (after deduplication)       |
+| `--store`      |       | `~/.content-discovery.db` | Path to the SQLite database                       |
 
 ## Configuration
 
-Edit `config.py` to set your feeds and topic tags:
+All personal settings live in `.content-discovery.toml` (gitignored). Copy the example to get started:
 
-```python
-FEEDS = [
+```bash
+cp .content-discovery.toml.example .content-discovery.toml
+```
+
+### Feeds
+
+```toml
+[feeds]
+urls = [
     "https://simonwillison.net/atom/everything/",
-    "https://news.ycombinator.com/rss",
+    "https://jvns.ca/atom.xml",
     # ...
 ]
+```
 
-TOPIC_TAGS = [
-    "python", "sql", "duckdb", "local-ai", "llm",
-    "data-engineering", "vector-databases", "rag", "ollama", "pydantic",
-]
+### Interest Profile
+
+Instead of keyword tags, the scorer uses a prose description of your interests. Edit this to tune what gets surfaced:
+
+```toml
+[interests]
+profile = """
+I write and teach SQL and Python for working developers. I'm interested in local-first AI,
+LLM systems and evaluation, DuckDB, and practical data engineering. I also follow technical
+writing craft and note-taking workflows.
+"""
+```
+
+The profile is passed directly to the LLM on every scoring run. Adding a topic is as simple as mentioning it here.
+
+### Settings
+
+```toml
+[settings]
+threshold = 0.7         # minimum score to store a candidate
+provider = "local"      # default LLM backend
+inbox_path = "_finds/00-inbox.md"
+# vault_path = "~/vaults/MyVault/"
 ```
 
 ## Environment Variables
@@ -90,12 +133,18 @@ TOPIC_TAGS = [
 
 ## Providers
 
-| Provider    | Default Model              | Notes                              |
-|-------------|----------------------------|------------------------------------|
-| `local`     | `llama3.2:3b`              | Requires Ollama running locally    |
-| `anthropic` | `claude-haiku-4-5-20251001`| Requires `ANTHROPIC_API_KEY`       |
-| `groq`      | `llama-3.3-70b-versatile`  | Requires `GROQ_API_KEY`            |
-| `deepseek`  | `deepseek-chat`            | Requires `DEEPSEEK_API_KEY`        |
+| Provider    | Default Model               | Notes                           |
+|-------------|-----------------------------|---------------------------------|
+| `local`     | `llama3.2:3b`               | Requires Ollama running locally |
+| `anthropic` | `claude-haiku-4-5-20251001` | Requires `ANTHROPIC_API_KEY`    |
+| `groq`      | `llama-3.3-70b-versatile`   | Requires `GROQ_API_KEY`         |
+| `deepseek`  | `deepseek-chat`             | Requires `DEEPSEEK_API_KEY`     |
+
+## How Scoring Improves Over Time
+
+On each run, the scorer pulls your 10 most recently kept and 10 most recently dismissed item titles from the database and includes them as few-shot examples in the prompt. The model sees your actual behaviour rather than just a description of your interests.
+
+The system works without any review history — it starts with the interest profile alone and gets sharper as you review more items.
 
 ## Scheduling
 
@@ -105,16 +154,20 @@ Run via cron twice daily:
 0 8,17 * * * cd ~/projects/content-discovery-agent && uv run content_discovery.py >> ~/.content-discovery.log 2>&1
 ```
 
+Review whenever convenient — pending items accumulate in the database until you triage them.
+
 ## Project Structure
 
 ```
 content-discovery-agent/
-  content_discovery.py    # CLI entrypoint
-  config.py               # Feeds, topic tags, defaults
+  content_discovery.py    # CLI entrypoint (run + review commands)
+  config.py               # Feeds, interest profile, defaults, env vars
+  store.py                # SQLite storage layer
   scorer.py               # Prompt construction and JSON parsing
-  feed_reader.py          # feedparser wrapper and deduplication
+  feed_reader.py          # feedparser wrapper
+  feed_cache.py           # Feed response caching
   inbox_writer.py         # Obsidian inbox append logic
-  state.py                # Seen-item tracking (JSON file)
+  state.py                # Legacy JSON dedup (superseded by store.py)
   providers/
     __init__.py           # PROVIDERS dict
     base.py               # Abstract provider interface
@@ -126,10 +179,13 @@ content-discovery-agent/
     test_scorer.py
     test_feed_reader.py
     test_inbox_writer.py
+    test_store.py
     test_state.py
     fixtures/
       sample_feed.xml
       sample_scored.json
+  .content-discovery.toml         # Your personal config (gitignored)
+  .content-discovery.toml.example # Template
 ```
 
 ## Running Tests

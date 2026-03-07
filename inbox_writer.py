@@ -25,6 +25,7 @@ class InboxEntry:
             self.fetched = date.today().isoformat()
 
     def format(self) -> str:
+        """Markdown format for writing to Obsidian (bold field labels)."""
         tag_str = " ".join(f"#{t}" for t in self.tags) if self.tags else ""
         return (
             f"- [ ] [{self.title}]({self.url})\n"
@@ -33,6 +34,18 @@ class InboxEntry:
             f"  - **Tags**: {tag_str}\n"
             f"  - **Summary**: {self.summary}\n"
             f"  - **Fetched**: {self.fetched}"
+        )
+
+    def format_plain(self) -> str:
+        """Plain-text format for terminal output (no markdown bold)."""
+        tag_str = " ".join(f"#{t}" for t in self.tags) if self.tags else ""
+        return (
+            f"- [ ] [{self.title}]({self.url})\n"
+            f"  - Source: {self.source}\n"
+            f"  - Score: {self.score:.2f}\n"
+            f"  - Tags: {tag_str}\n"
+            f"  - Summary: {self.summary}\n"
+            f"  - Fetched: {self.fetched}"
         )
 
 

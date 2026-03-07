@@ -5,12 +5,14 @@ from providers.base import BaseProvider
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are a content relevance scorer. Given a feed item and a list of topic tags,
-return a JSON object with these fields:
+SYSTEM_PROMPT = """You are a content relevance scorer. Given a feed item and a description of someone's interests, return a JSON object with exactly these fields:
 
-- score: float between 0.0 and 1.0 representing how relevant this item is to the topics
-- tags: list of matching topic tags from the provided list (empty list if none)
-- summary: one sentence describing what this item is about
+- score: float 0.0-1.0 representing how relevant this item is to the person's interests:
+  - 0.0-0.3: not relevant or only tangentially related
+  - 0.4-0.6: somewhat relevant, touches on related areas
+  - 0.7-1.0: highly relevant, directly addresses their interests or current work
+- tags: array of 1-3 short strings describing what this item is actually about (e.g. ["sql", "query optimization"] or ["local AI", "ollama"]). These are descriptive, not from a fixed list.
+- summary: one sentence describing what this item is about.
 
 Return only valid JSON. No preamble, no explanation."""
 
@@ -22,9 +24,26 @@ class ScoredItem:
     summary: str
 
 
-def build_user_message(title: str, description: str, topic_tags: list[str]) -> str:
-    topics = ", ".join(topic_tags)
-    return f"Topics: {topics}\n\nTitle: {title}\nDescription: {description}"
+def build_user_message(
+    title: str,
+    description: str,
+    interest_profile: str,
+    examples: dict | None = None,
+) -> str:
+    parts = [f"Interests: {interest_profile}"]
+
+    if examples:
+        kept = examples.get("kept", [])
+        dismissed = examples.get("dismissed", [])
+        if kept:
+            kept_lines = "\n".join(f'- "{t}"' for t in kept)
+            parts.append(f"Recent items kept:\n{kept_lines}")
+        if dismissed:
+            dismissed_lines = "\n".join(f'- "{t}"' for t in dismissed)
+            parts.append(f"Recent items dismissed:\n{dismissed_lines}")
+
+    parts.append(f"Title: {title}\nDescription: {description}")
+    return "\n\n".join(parts)
 
 
 def parse_response(raw: str) -> ScoredItem | None:
@@ -56,8 +75,13 @@ def score_item(
     provider: BaseProvider,
     title: str,
     description: str,
-    topic_tags: list[str],
+    interest_profile: str,
+    examples: dict | None = None,
 ) -> ScoredItem | None:
-    user_message = build_user_message(title, description, topic_tags)
-    raw = provider.complete(SYSTEM_PROMPT, user_message)
+    user_message = build_user_message(title, description, interest_profile, examples)
+    try:
+        raw = provider.complete(SYSTEM_PROMPT, user_message)
+    except RuntimeError as e:
+        logger.warning("Provider error scoring '%s': %s", title[:60], e)
+        return None
     return parse_response(raw)

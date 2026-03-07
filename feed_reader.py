@@ -1,8 +1,13 @@
 import logging
 from dataclasses import dataclass
 import feedparser
+import requests
 
 logger = logging.getLogger(__name__)
+
+_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; content-discovery-agent/1.0; +https://github.com/local-first/content-discovery-agent)"
+}
 
 
 @dataclass
@@ -16,9 +21,14 @@ class FeedItem:
 def fetch_feed(feed_url: str) -> list[FeedItem]:
     """Fetch and parse an RSS/Atom feed. Returns list of FeedItems."""
     try:
-        parsed = feedparser.parse(feed_url)
-    except Exception as e:
+        resp = requests.get(feed_url, headers=_HEADERS, timeout=15)
+        resp.raise_for_status()
+        parsed = feedparser.parse(resp.content)
+    except requests.RequestException as e:
         logger.error("Error fetching feed %s: %s", feed_url, e)
+        return []
+    except Exception as e:
+        logger.error("Error parsing feed %s: %s", feed_url, e)
         return []
 
     if parsed.bozo and not parsed.entries:

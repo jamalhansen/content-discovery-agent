@@ -27,9 +27,11 @@ class LocalProvider(BaseProvider):
             "stream": False,
         }
         try:
-            resp = requests.post(url, json=payload, timeout=30)
+            resp = requests.post(url, json=payload, timeout=120)
             resp.raise_for_status()
             return resp.json()["message"]["content"]
+        except requests.exceptions.Timeout:
+            raise RuntimeError(f"Ollama request timed out for model '{self.model}'.")
         except requests.exceptions.ConnectionError:
             raise RuntimeError(
                 f"Cannot connect to Ollama at {OLLAMA_HOST}. Is Ollama running?"

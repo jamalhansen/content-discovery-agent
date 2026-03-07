@@ -1,6 +1,11 @@
 import os
+import tomllib
+from pathlib import Path
 
-FEEDS = [
+_PROJECT_ROOT = Path(__file__).parent
+_CONFIG_FILE = _PROJECT_ROOT / ".content-discovery.toml"
+
+_FALLBACK_FEEDS = [
     "https://simonwillison.net/atom/everything/",
     "https://realpython.com/atom.xml",
     "https://news.ycombinator.com/rss",
@@ -9,22 +14,32 @@ FEEDS = [
     "https://ollama.com/blog/rss",
 ]
 
-TOPIC_TAGS = [
-    "python",
-    "sql",
-    "duckdb",
-    "local-ai",
-    "llm",
-    "data-engineering",
-    "vector-databases",
-    "rag",
-    "ollama",
-    "pydantic",
-]
+_FALLBACK_PROFILE = (
+    "I'm interested in Python, SQL, data engineering, local AI, and LLMs."
+)
 
-DEFAULT_THRESHOLD = 0.6
-DEFAULT_PROVIDER = "local"
-DEFAULT_VAULT_PATH = os.environ.get("OBSIDIAN_VAULT_PATH", "~/vaults/BrainSync/")
-DEFAULT_INBOX_PATH = "_finds/00-inbox.md"
-STATE_FILE_PATH = os.path.expanduser("~/.content-discovery-state.json")
+
+def _load_toml() -> dict:
+    if _CONFIG_FILE.exists():
+        with open(_CONFIG_FILE, "rb") as f:
+            return tomllib.load(f)
+    return {}
+
+
+_cfg = _load_toml()
+
+FEEDS: list[str] = _cfg.get("feeds", {}).get("urls", _FALLBACK_FEEDS)
+INTEREST_PROFILE: str = _cfg.get("interests", {}).get("profile", _FALLBACK_PROFILE)
+
+_settings = _cfg.get("settings", {})
+DEFAULT_THRESHOLD: float = _settings.get("threshold", 0.6)
+DEFAULT_PROVIDER: str = _settings.get("provider", "local")
+DEFAULT_INBOX_PATH: str = _settings.get("inbox_path", "_finds/00-inbox.md")
+
+# env var wins over toml so machine-specific paths stay out of the committed file
+DEFAULT_VAULT_PATH: str | None = (
+    os.environ.get("OBSIDIAN_VAULT_PATH") or _settings.get("vault_path") or None
+)
+
+STORE_PATH = os.path.expanduser("~/.content-discovery.db")
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
