@@ -41,5 +41,10 @@ DEFAULT_VAULT_PATH: str | None = (
     os.environ.get("OBSIDIAN_VAULT_PATH") or _settings.get("vault_path") or None
 )
 
-STORE_PATH = os.path.expanduser("~/.content-discovery.db")
+# env var wins over toml so machine-specific paths (e.g. a Syncthing folder) stay out of the committed file
+STORE_PATH = os.path.expanduser(
+    os.environ.get("CONTENT_DISCOVERY_STORE")
+    or _settings.get("store")
+    or "~/.content-discovery.db"
+)
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")

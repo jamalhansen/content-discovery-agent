@@ -123,13 +123,14 @@ inbox_path = "_finds/00-inbox.md"
 
 ## Environment Variables
 
-| Variable              | Purpose           | Example                  |
-|-----------------------|-------------------|--------------------------|
-| `OBSIDIAN_VAULT_PATH` | Vault root path   | `~/vaults/BrainSync/`    |
-| `ANTHROPIC_API_KEY`   | Anthropic API key | `sk-ant-...`             |
-| `GROQ_API_KEY`        | Groq API key      | `gsk_...`                |
-| `DEEPSEEK_API_KEY`    | DeepSeek API key  | `sk-...`                 |
-| `OLLAMA_HOST`         | Ollama server URL | `http://localhost:11434` |
+| Variable                   | Purpose                            | Example                         |
+|----------------------------|------------------------------------|---------------------------------|
+| `OBSIDIAN_VAULT_PATH`      | Vault root path                    | `~/vaults/BrainSync/`           |
+| `CONTENT_DISCOVERY_STORE`  | SQLite DB path (machine-specific)  | `~/sync/content-discovery/store.db` |
+| `ANTHROPIC_API_KEY`        | Anthropic API key                  | `sk-ant-...`                    |
+| `GROQ_API_KEY`             | Groq API key                       | `gsk_...`                       |
+| `DEEPSEEK_API_KEY`         | DeepSeek API key                   | `sk-...`                        |
+| `OLLAMA_HOST`              | Ollama server URL                  | `http://localhost:11434`        |
 
 ## Providers
 
@@ -146,12 +147,69 @@ On each run, the scorer pulls your 10 most recently kept and 10 most recently di
 
 The system works without any review history — it starts with the interest profile alone and gets sharper as you review more items.
 
+## Multi-machine Sync
+
+The database is a single SQLite file. [Syncthing](https://syncthing.net) keeps it in sync across machines with no cloud dependency — devices discover each other automatically on your local network, and via Syncthing's free relay servers when on different networks.
+
+### Setup
+
+**1. Create a dedicated sync folder on each machine:**
+
+```bash
+mkdir -p ~/sync/content-discovery
+```
+
+**2. Set the store path in `.content-discovery.toml`:**
+
+```toml
+[settings]
+store = "~/sync/content-discovery/store.db"
+```
+
+**3. Install Syncthing:**
+
+```bash
+# macOS
+brew install syncthing
+
+# Raspberry Pi / Debian
+sudo apt install syncthing
+```
+
+**4. Start Syncthing and open the web UI:**
+
+```bash
+syncthing &
+open http://127.0.0.1:8384
+```
+
+**5. Pair devices and share the folder:**
+
+- Copy the Device ID from one machine's web UI (Actions → Show ID)
+- On the other machine, go to Add Remote Device and paste the ID
+- Share the `~/sync/content-discovery/` folder with the remote device on both sides
+- Syncthing will sync the folder automatically whenever both machines are reachable
+
+### Single-writer discipline
+
+SQLite handles one writer at a time. For a personal tool with twice-daily cron runs and manual review, this is never a real problem in practice — just avoid running the cron job on two machines simultaneously. The simplest approach: configure the cron job on one machine only, and run manually from others when you want local Ollama.
+
+### Adding a Raspberry Pi later
+
+A Pi makes a good always-on persistence node — it keeps the DB current so whichever Mac comes online next syncs immediately. Add it to Syncthing like any other device, then optionally move the cron job there (using a cloud provider like Groq or Anthropic) so scoring happens regardless of whether your Macs are awake.
+
 ## Scheduling
 
-Run via cron twice daily:
+Run via cron twice daily. Configure the cron job on **one machine** to avoid concurrent writes:
 
 ```
 0 8,17 * * * cd ~/projects/content-discovery-agent && uv run content_discovery.py >> ~/.content-discovery.log 2>&1
+```
+
+To use a cloud provider in the cron job (required if running on a Pi or a machine without Ollama):
+
+```
+0 8,17 * * * cd ~/projects/content-discovery-agent && uv run content_discovery.py --provider groq >> ~/.content-discovery.log 2>&1
 ```
 
 Review whenever convenient — pending items accumulate in the database until you triage them.

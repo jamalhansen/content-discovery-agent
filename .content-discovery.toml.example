@@ -32,3 +32,8 @@ provider = "local"
 
 # Path to the finds inbox, relative to vault root
 inbox_path = "_finds/00-inbox.md"
+
+# Path to the SQLite database (default: ~/.content-discovery.db)
+# For multi-machine sync with Syncthing, point this at your shared sync folder.
+# The CONTENT_DISCOVERY_STORE env var overrides this if set.
+# store = "~/sync/content-discovery/store.db"
