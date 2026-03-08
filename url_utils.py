@@ -10,8 +10,8 @@ _TRACKING_PARAMS: frozenset[str] = frozenset({
     "fbclid",       # Facebook
     "gclid",        # Google Ads
     "mc_eid",       # Mailchimp
-    "ref",          # generic referrer token
-    "source",       # generic source token
+    # NOTE: "ref" and "source" intentionally excluded — too generic.
+    # e.g. GitHub uses ?ref=main for branch refs; many sites use ?source= legitimately.
 })
 
 
