@@ -1,0 +1,33 @@
+[
+  {
+    "id": "111111111111111111",
+    "uri": "https://mastodon.social/users/user1/statuses/111111111111111111",
+    "url": "https://mastodon.social/@user1/111111111111111111",
+    "content": "<p>Great article about DuckDB performance! <a href=\"https://motherduck.com/blog/duckdb-1-2-release/\">motherduck.com/blog/duckdb-1-2-release</a></p>",
+    "card": {
+      "url": "https://motherduck.com/blog/duckdb-1-2-release/",
+      "title": "DuckDB 1.2 Performance Deep Dive",
+      "description": "A detailed look at the performance improvements in DuckDB 1.2.",
+      "type": "link"
+    }
+  },
+  {
+    "id": "222222222222222222",
+    "uri": "https://mastodon.social/users/user2/statuses/222222222222222222",
+    "url": "https://mastodon.social/@user2/222222222222222222",
+    "content": "<p>Python 3.14 brings some great new features <a href=\"https://docs.python.org/3.14/whatsnew/3.14.html\">docs.python.org/3.14/whatsnew/3.14.html</a></p>",
+    "card": {
+      "url": "https://docs.python.org/3.14/whatsnew/3.14.html",
+      "title": "What's New in Python 3.14",
+      "description": "An overview of new features and improvements in Python 3.14.",
+      "type": "link"
+    }
+  },
+  {
+    "id": "333333333333333333",
+    "uri": "https://fosstodon.org/users/user3/statuses/333333333333333333",
+    "url": "https://fosstodon.org/@user3/333333333333333333",
+    "content": "<p>Just some thoughts about DuckDB, no link card here.</p>",
+    "card": null
+  }
+]

@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 import feedparser
 import requests
+from url_utils import clean_url
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ def fetch_feed(feed_url: str) -> list[FeedItem]:
     items = []
     for entry in parsed.entries:
         title = entry.get("title", "").strip()
-        url = entry.get("link", "").strip()
+        url = clean_url(entry.get("link", "").strip())
         # Try summary, then content, then fallback to empty
         description = entry.get("summary", "")
         if not description and entry.get("content"):

@@ -13,6 +13,7 @@ SYSTEM_PROMPT = """You are a content relevance scorer. Given a feed item and a d
   - 0.7-1.0: highly relevant, directly addresses their interests or current work
 - tags: array of at most 2 short strings describing what this item is about (e.g. ["sql", "query optimization"] or ["local AI", "ollama"]).
 - summary: one sentence (maximum 20 words) describing what this item is about.
+- language: two-letter ISO 639-1 code for the article's language (e.g. "en", "ru", "de", "fr", "zh").
 
 Return only valid JSON. No preamble, no explanation."""
 
@@ -22,6 +23,7 @@ class ScoredItem:
     score: float
     tags: list[str]
     summary: str
+    language: str = "en"
 
 
 def build_user_message(
@@ -68,6 +70,7 @@ def parse_response(raw: str) -> ScoredItem | None:
             score=float(data["score"]),
             tags=list(data.get("tags", []))[:2],  # enforce 2-tag limit
             summary=str(data.get("summary", "")),
+            language=str(data.get("language", "en")).lower()[:2],
         )
     except (json.JSONDecodeError, KeyError, ValueError) as e:
         logger.warning("Failed to parse scorer response: %s | Raw: %s", e, raw[:200])

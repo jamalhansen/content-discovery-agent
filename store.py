@@ -124,6 +124,108 @@ def mark_item(url: str, status: str, path: str) -> None:
         )
 
 
+def dismiss_items_by_urls(urls: list[str], path: str) -> int:
+    """Bulk-dismiss a list of URLs that currently have status='new'.
+
+    Only affects items with status='new' — kept items are never touched.
+    Returns the number of rows actually updated.
+    """
+    if not urls:
+        return 0
+    now = datetime.now(timezone.utc).isoformat()
+    placeholders = ",".join("?" * len(urls))
+    with _connect(path) as conn:
+        # placeholders contains only '?' characters; URL values are parameterized — not an injection risk
+        query = f"UPDATE items SET status = 'dismissed', reviewed_at = ? WHERE url IN ({placeholders}) AND status = 'new'"  # nosec B608
+        cursor = conn.execute(query, [now, *urls])
+    return cursor.rowcount
+
+
+def get_status_summary(path: str) -> list[dict]:
+    """Return per-status counts and avg scores.
+
+    Each dict has keys: status, count, avg_score.
+    """
+    with _connect(path) as conn:
+        rows = conn.execute(
+            """
+            SELECT status,
+                   COUNT(*)        AS count,
+                   ROUND(AVG(score), 2) AS avg_score
+            FROM items
+            GROUP BY status
+            ORDER BY count DESC
+            """
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_daily_counts(path: str, days: int = 7) -> list[dict]:
+    """Return per-day item counts for the last N days.
+
+    Each dict has keys: date, total, new, kept, dismissed.
+    """
+    with _connect(path) as conn:
+        rows = conn.execute(
+            """
+            SELECT fetched_at AS date,
+                   COUNT(*)                                   AS total,
+                   SUM(CASE WHEN status='new'       THEN 1 ELSE 0 END) AS new,
+                   SUM(CASE WHEN status='kept'      THEN 1 ELSE 0 END) AS kept,
+                   SUM(CASE WHEN status='dismissed' THEN 1 ELSE 0 END) AS dismissed
+            FROM items
+            GROUP BY fetched_at
+            ORDER BY fetched_at DESC
+            LIMIT ?
+            """,
+            (days,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_source_stats(path: str, min_items: int = 5) -> list[dict]:
+    """Return sources sorted by avg score descending (min_items threshold).
+
+    Each dict has keys: source, count, avg_score.
+    """
+    with _connect(path) as conn:
+        rows = conn.execute(
+            """
+            SELECT source,
+                   COUNT(*)             AS count,
+                   ROUND(AVG(score), 2) AS avg_score
+            FROM items
+            GROUP BY source
+            HAVING count >= ?
+            ORDER BY avg_score DESC
+            """,
+            (min_items,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_tag_counts(path: str, status: str = "kept", limit: int = 15) -> list[dict]:
+    """Return most common tags from items of the given status.
+
+    Parses the JSON tags column and counts individual tag occurrences.
+    Each dict has keys: tag, count.
+    """
+    with _connect(path) as conn:
+        rows = conn.execute(
+            "SELECT tags FROM items WHERE status = ?", (status,)
+        ).fetchall()
+
+    counts: dict[str, int] = {}
+    for row in rows:
+        for tag in json.loads(row["tags"]):
+            tag = tag.strip().lower()
+            if tag:
+                counts[tag] = counts.get(tag, 0) + 1
+
+    sorted_tags = sorted(counts.items(), key=lambda x: x[1], reverse=True)
+    return [{"tag": tag, "count": count} for tag, count in sorted_tags[:limit]]
+
+
 def get_examples(n: int, path: str) -> dict[str, list[str]]:
     """Return {'kept': [titles], 'dismissed': [titles]}, most recent first.
 
@@ -163,3 +265,42 @@ def get_examples(n: int, path: str) -> dict[str, list[str]]:
         "kept": _diverse(kept),
         "dismissed": _diverse(dismissed),
     }
+
+
+def get_score_distribution(path: str, status: str = "new") -> list[dict]:
+    """Return score counts in 0.1-wide buckets for items of the given status.
+
+    Each dict has keys: bucket (lower bound, e.g. "0.7"), count.
+    Buckets are returned sorted ascending (0.0 → 0.9).
+    Score 1.0 is counted in the 0.9 bucket.
+    """
+    with _connect(path) as conn:
+        rows = conn.execute(
+            "SELECT score FROM items WHERE status = ?", (status,)
+        ).fetchall()
+
+    buckets: dict[str, int] = {f"{i / 10:.1f}": 0 for i in range(10)}
+    for row in rows:
+        idx = min(int(row["score"] * 10), 9)
+        buckets[f"{idx / 10:.1f}"] += 1
+    return [{"bucket": k, "count": v} for k, v in sorted(buckets.items())]
+
+
+def update_item_score(
+    *,
+    url: str,
+    score: float,
+    tags: list[str],
+    summary: str,
+    path: str,
+) -> None:
+    """Update the score, tags, and summary of an existing item.
+
+    Does not change the item's status — the caller is responsible for
+    dismissing items that fall below threshold after rescoring.
+    """
+    with _connect(path) as conn:
+        conn.execute(
+            "UPDATE items SET score = ?, tags = ?, summary = ? WHERE url = ?",
+            (score, json.dumps(tags), summary, url),
+        )

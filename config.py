@@ -48,3 +48,16 @@ STORE_PATH = os.path.expanduser(
     or "~/.content-discovery.db"
 )
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+
+_social_cfg = _cfg.get("social", {})
+SOCIAL_KEYWORDS: list[str] = _social_cfg.get("keywords", [])
+SOCIAL_MASTODON_INSTANCES: list[str] = _social_cfg.get("mastodon_instances", ["mastodon.social"])
+# Additional domains to skip when fetching article metadata (on top of built-in defaults).
+# Subdomain matching is automatic — blocking "example.com" also blocks "sub.example.com".
+SOCIAL_BLOCKED_DOMAINS: frozenset[str] = frozenset(_social_cfg.get("blocked_domains", []))
+
+# Bluesky App Password auth (optional but recommended — unauthenticated search
+# has intermittently returned 403 from public.api.bsky.app).
+# Generate an App Password in Bluesky → Settings → Privacy and Security → App Passwords.
+BLUESKY_HANDLE: str = os.environ.get("BLUESKY_HANDLE", "")
+BLUESKY_APP_PASSWORD: str = os.environ.get("BLUESKY_APP_PASSWORD", "")

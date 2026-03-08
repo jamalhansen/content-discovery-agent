@@ -2,30 +2,33 @@ Content Discovery Agent
 
 ## Project Overview
 
-CLI tool that monitors RSS feeds, scores each item for relevance using an LLM, and stores candidates in SQLite for interactive review. Runs on a schedule. The user reviews candidates in the terminal and decides what gets written to the Obsidian inbox.
+CLI tool that monitors RSS feeds and social platforms (Bluesky, Mastodon), scores each item for relevance using an LLM, and stores candidates in SQLite for interactive review. Runs on a cron schedule. The user reviews candidates in the terminal and decides what gets written to the Obsidian inbox.
 
-The LLM's job is narrow: read a feed item's title and description, score its relevance against a natural language interest profile, generate a one-line summary, and return structured JSON. No complex reasoning, no long context. A small local model handles this easily.
+The LLM's job is narrow: read a feed item's title and description, score its relevance against a natural language interest profile, detect the article's language, generate a one-line summary, and return structured JSON. No complex reasoning, no long context. A small local model handles this easily.
 
 ## What This Tool Does
 
-1. Fetches items from a configured list of RSS feeds
-2. Sends each item to an LLM with a relevance-scoring prompt (interest profile + few-shot examples)
-3. Stores all scored items above the threshold in a local SQLite database
-4. Skips items already in the database (deduplication)
-5. User runs `--review` to triage candidates interactively (y/n/s/o)
-6. Kept items are written to the Obsidian inbox; dismissed items become negative examples for future runs
+1. Fetches items from configured RSS feeds, Bluesky keyword searches, and Mastodon hashtag timelines
+2. Strips UTM and other tracking parameters from all URLs before storing
+3. Skips items from blocked domains (Medium network + user-configured list)
+4. Sends each item to an LLM with a relevance-scoring prompt (interest profile + few-shot examples)
+5. Dismisses non-English items and items below the score threshold automatically
+6. Stores all scored items in a local SQLite database (deduplication — won't re-score on next run)
+7. User runs `--review` to triage candidates interactively (y/n/s/o)
+8. Kept items are written to the Obsidian inbox; dismissed items become negative examples for future runs
 
 ## Architecture
 
 ```
 content-discovery-agent/
-  content_discovery.py    # CLI entrypoint (argparse) — run + review commands
-  store.py                # SQLite storage layer — items, dedup, examples
-  scorer.py               # Prompt construction + response parsing
-  feed_reader.py          # feedparser wrapper
-  feed_cache.py           # Feed response caching
+  content_discovery.py    # CLI entrypoint (argparse) — all commands
+  store.py                # SQLite storage layer — items, dedup, examples, reports
+  scorer.py               # Prompt construction + response parsing (score, tags, summary, language)
+  feed_reader.py          # feedparser wrapper + FeedItem dataclass
+  feed_cache.py           # RSS and social response caching (12h TTL)
   inbox_writer.py         # Obsidian inbox append logic (used at review time)
-  config.py               # Feeds, interest profile, defaults, env vars
+  config.py               # Feeds, interest profile, social config, defaults, env vars
+  url_utils.py            # clean_url() — strips UTM and tracking query params
   state.py                # Legacy JSON dedup — superseded by store.py, kept for compat
   providers/
     __init__.py           # PROVIDERS dict
@@ -34,15 +37,28 @@ content-discovery-agent/
     anthropic_provider.py # Anthropic API (Claude)
     groq_provider.py      # Groq API
     deepseek_provider.py  # DeepSeek API
+  social/
+    __init__.py           # SOCIAL_READERS dict
+    base.py               # Abstract SocialReader interface
+    article_fetcher.py    # Fetch article metadata (title, description) from URLs
+    bluesky.py            # Bluesky AT Protocol reader (authenticated search)
+    mastodon.py           # Mastodon REST API reader (hashtag timelines)
   tests/
     test_scorer.py
-    test_feed_reader.py
-    test_inbox_writer.py
     test_store.py
+    test_feed_reader.py
+    test_feed_cache.py
+    test_inbox_writer.py
+    test_article_fetcher.py
+    test_social_bluesky.py
+    test_social_mastodon.py
     test_state.py
     fixtures/
       sample_feed.xml
       sample_scored.json
+      sample_article.html
+      sample_bluesky_response.json
+      sample_mastodon_response.json
   .content-discovery.toml         # User config (gitignored)
   .content-discovery.toml.example # Template
 ```
@@ -50,8 +66,11 @@ content-discovery-agent/
 ## CLI Interface
 
 ```bash
-# Fetch and score all configured feeds (stores to DB)
+# Fetch and score RSS feeds (default)
 uv run content_discovery.py
+
+# Include social sources
+uv run content_discovery.py --sources rss,bluesky,mastodon
 
 # Dry run — print candidates, write nothing
 uv run content_discovery.py --dry-run
@@ -59,33 +78,56 @@ uv run content_discovery.py --dry-run
 # Limit items scored (useful for testing)
 uv run content_discovery.py --cached --limit 20
 
-# Single feed
-uv run content_discovery.py --feed https://simonwillison.net/atom/everything/
-
-# Cloud provider
-uv run content_discovery.py --provider anthropic
+# Single feed, specific provider
+uv run content_discovery.py --feed https://simonwillison.net/atom/everything/ --provider anthropic
 
 # Review pending items interactively
 uv run content_discovery.py --review
+
+# Print feed trend report (source quality, score distribution, top tags)
+uv run content_discovery.py --report
+
+# Re-score all pending items with current profile + examples
+uv run content_discovery.py --rescore --provider groq
+
+# Dismiss pending items from blocked domains
+uv run content_discovery.py --purge-blocked --dry-run
+uv run content_discovery.py --purge-blocked
+
+# Dismiss pending items from a specific source (partial match, case-insensitive)
+uv run content_discovery.py --dismiss-source "Habr"
+
+# Validate all configured RSS feeds
+uv run content_discovery.py --check-feeds
+
+# Clear response cache
+uv run content_discovery.py --clear-cache
 ```
 
 ## Arguments Reference
 
-| Argument       | Short | Default                   | Description                                                   |
-| -------------- | ----- | ------------------------- | ------------------------------------------------------------- |
-| `--provider`   | `-p`  | `local`                   | LLM backend: local, anthropic, groq, deepseek                 |
-| `--model`      | `-m`  | provider-specific         | Override the default model for the chosen provider            |
-| `--dry-run`    | `-n`  | false                     | Print candidates to stdout; write nothing                     |
-| `--review`     |       | false                     | Interactively review pending items (y/n/s/o)                  |
-| `--feed`       | `-f`  | none                      | Process a single feed URL instead of the full configured list |
-| `--threshold`  | `-t`  | `0.7`                     | Minimum relevance score (0.0-1.0) to store a candidate        |
-| `--vault-path` | `-v`  | env or config             | Path to the Obsidian vault root                               |
-| `--inbox-path` |       | `_finds/00-inbox.md`      | Path to the finds inbox, relative to vault root               |
-| `--no-dedup`   |       | false                     | Disable seen-item tracking, re-score everything               |
-| `--verbose`    |       | false                     | Print scores for all items, not just those above threshold    |
-| `--cached`     |       | false                     | Use cached feed responses if available                        |
-| `--limit`      | `-l`  | none                      | Cap items sent for scoring (after deduplication)              |
-| `--store`      |       | `~/.content-discovery.db` | Path to the SQLite database                                   |
+| Argument           | Short | Default                   | Description                                                   |
+| ------------------ | ----- | ------------------------- | ------------------------------------------------------------- |
+| `--provider`       | `-p`  | `local`                   | LLM backend: local, anthropic, groq, deepseek                 |
+| `--model`          | `-m`  | provider-specific         | Override the default model for the chosen provider            |
+| `--dry-run`        | `-n`  | false                     | Print candidates to stdout; write nothing                     |
+| `--review`         |       | false                     | Interactively review pending items (y/n/s/o)                  |
+| `--report`         |       | false                     | Feed trend report: source quality, score distribution, tags   |
+| `--rescore`        |       | false                     | Re-score all pending items with current profile and examples  |
+| `--purge-blocked`  |       | false                     | Dismiss pending items from blocked domains (supports --dry-run)|
+| `--dismiss-source` |       | none                      | Dismiss pending items whose source contains QUERY             |
+| `--check-feeds`    |       | false                     | Fetch all configured feeds and report their status            |
+| `--sources`        | `-s`  | `rss`                     | Comma-separated: rss, bluesky, mastodon                       |
+| `--feed`           | `-f`  | none                      | Process a single feed URL instead of the full configured list |
+| `--threshold`      | `-t`  | `0.7`                     | Minimum relevance score (0.0-1.0) to store a candidate        |
+| `--vault-path`     | `-v`  | env or config             | Path to the Obsidian vault root                               |
+| `--inbox-path`     |       | `_finds/00-inbox.md`      | Path to the finds inbox, relative to vault root               |
+| `--no-dedup`       |       | false                     | Disable seen-item tracking, re-score everything               |
+| `--verbose`        |       | false                     | Print scores for all items, not just those above threshold    |
+| `--cached`         |       | false                     | Use cached feed responses if available                        |
+| `--clear-cache`    |       | false                     | Delete all cached responses and exit                          |
+| `--limit`          | `-l`  | none                      | Cap items sent for scoring (after deduplication)              |
+| `--store`          |       | `~/.content-discovery.db` | Path to the SQLite database                                   |
 
 ## Configuration
 
@@ -112,6 +154,17 @@ I write and teach SQL and Python for working developers...
 """
 ```
 
+### Social Sources
+
+```toml
+[social]
+keywords = ["duckdb", "python", "local ai", "ollama", "sql"]
+mastodon_instances = ["mastodon.social", "fosstodon.org"]
+
+# Extra domains to block (Medium network is blocked by default)
+blocked_domains = ["nytimes.com", "youtube.com", "bsky.app"]
+```
+
 ### Settings
 
 ```toml
@@ -119,18 +172,22 @@ I write and teach SQL and Python for working developers...
 threshold = 0.7
 provider = "local"
 inbox_path = "_finds/00-inbox.md"
+store = "~/sync/content-discovery/store.db"
 # vault_path = "~/vaults/BrainSync/"
 ```
 
 ## Environment Variables
 
-| Variable              | Purpose           | Example                  |
-| --------------------- | ----------------- | ------------------------ |
-| `OBSIDIAN_VAULT_PATH` | Vault root path   | `~/vaults/BrainSync/`    |
-| `ANTHROPIC_API_KEY`   | Anthropic API key | `sk-ant-...`             |
-| `GROQ_API_KEY`        | Groq API key      | `gsk_...`                |
-| `DEEPSEEK_API_KEY`    | DeepSeek API key  | `sk-...`                 |
-| `OLLAMA_HOST`         | Ollama server URL | `http://localhost:11434` |
+| Variable               | Purpose                                       | Example                             |
+| ---------------------- | --------------------------------------------- | ----------------------------------- |
+| `OBSIDIAN_VAULT_PATH`  | Vault root path                               | `~/vaults/BrainSync/`               |
+| `ANTHROPIC_API_KEY`    | Anthropic API key                             | `sk-ant-...`                        |
+| `GROQ_API_KEY`         | Groq API key                                  | `gsk_...`                           |
+| `DEEPSEEK_API_KEY`     | DeepSeek API key                              | `sk-...`                            |
+| `OLLAMA_HOST`          | Ollama server URL                             | `http://localhost:11434`            |
+| `BLUESKY_HANDLE`       | Bluesky handle for authenticated search       | `you.bsky.social`                   |
+| `BLUESKY_APP_PASSWORD` | Bluesky App Password (not your main password) | `xxxx-xxxx-xxxx-xxxx`               |
+| `CONTENT_DISCOVERY_STORE` | SQLite DB path                             | `~/sync/content-discovery/store.db` |
 
 ## Provider Interface
 
@@ -153,50 +210,27 @@ Default models per provider:
 
 ## The Scoring Prompt
 
-**System prompt:**
-
-```
-You are a content relevance scorer. Given a feed item and a description of someone's interests,
-return a JSON object with exactly these fields:
-
-- score: float 0.0-1.0 representing how relevant this item is to the person's interests
-- tags: array of 1-3 short strings describing what this item is actually about (descriptive, not from a fixed list)
-- summary: one sentence describing what this item is about.
-
-Return only valid JSON. No preamble, no explanation.
-```
-
-**User message format** (with few-shot examples when review history exists):
-
-```
-Interests: {interest_profile}
-
-Recent items kept:
-- "Title A"
-- "Title B"
-
-Recent items dismissed:
-- "Title C"
-
-Title: {item.title}
-Description: {item.description}
-```
-
-**Expected response:**
+The LLM returns a JSON object with four fields:
 
 ```json
 {
   "score": 0.85,
-  "tags": ["local AI", "ollama", "RAG"],
-  "summary": "A practical guide to building RAG pipelines with local models."
+  "tags": ["local AI", "ollama"],
+  "summary": "A practical guide to building RAG pipelines with local models.",
+  "language": "en"
 }
 ```
 
-Strip markdown fences before parsing. If the response is not valid JSON, log the raw output and skip the item.
+- **score** 0.0–1.0: relevance to the interest profile
+- **tags**: at most 2 short descriptive strings
+- **summary**: one sentence, max 20 words
+- **language**: ISO 639-1 two-letter code — non-English items are auto-dismissed
+
+Few-shot examples from the review history (up to 10 kept + 10 dismissed titles) are included in the user message so the model learns from your actual behaviour over time.
 
 ## SQLite Store
 
-`store.py` is the primary storage and deduplication layer. DB path: `~/.content-discovery.db`.
+`store.py` is the primary storage and deduplication layer. DB path configured via `[settings] store` or `CONTENT_DISCOVERY_STORE`.
 
 ```
 items table
@@ -208,11 +242,26 @@ items table
 
 Key functions:
 - `init_db(path)` — create table if not exists, idempotent
-- `is_seen(url, path)` — dedup check (replaces state.py)
+- `is_seen(url, path)` — dedup check
 - `upsert_item(...)` — INSERT OR IGNORE (never overwrites kept/dismissed)
 - `get_new_items(path)` — returns status='new', ordered by score DESC
 - `mark_item(url, status, path)` — update status + reviewed_at
-- `get_examples(n, path)` — returns `{'kept': [...titles], 'dismissed': [...titles]}` for few-shot prompt
+- `dismiss_items_by_urls(urls, path)` — bulk dismiss by URL list
+- `update_item_score(url, score, tags, summary, path)` — update scoring fields (used by --rescore)
+- `get_examples(n, path)` — `{'kept': [...titles], 'dismissed': [...titles]}` for few-shot prompt
+- `get_status_summary(path)` — per-status counts and avg scores
+- `get_daily_counts(path, days)` — per-day item counts for report
+- `get_source_stats(path, min_items)` — sources ranked by avg score
+- `get_tag_counts(path, status, limit)` — most common tags for a given status
+- `get_score_distribution(path, status)` — item counts in 0.1-wide score buckets
+
+## URL Cleaning
+
+`url_utils.clean_url()` strips tracking query parameters from all URLs before they are stored. Applied to both RSS item links and social-sourced URLs.
+
+Stripped params: `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, `fbclid`, `gclid`, `mc_eid`, `ref`, `source`.
+
+Non-tracking query parameters are preserved.
 
 ## Inbox Format
 
@@ -222,7 +271,7 @@ Only kept items reach the Obsidian inbox (written at review time):
 - [ ] [Item Title](https://item-url.com)
   - **Source**: Simon Willison's Weblog
   - **Score**: 0.85
-  - **Tags**: #local-ai #llm #rag
+  - **Tags**: #local-ai #llm
   - **Summary**: A practical guide to building RAG pipelines with local models.
   - **Fetched**: 2026-03-07
 ```
@@ -232,7 +281,8 @@ The inbox file is append-only. Created with a header if it does not exist.
 ## Error Handling
 
 - Feed unreachable: log and continue with remaining feeds
-- LLM returns invalid JSON: log raw response, skip the item (item not stored, not marked seen — will retry next run)
+- LLM returns invalid JSON: log raw response, skip the item (item not stored — will retry next run)
+- Non-English article: stored dismissed automatically (not surfaced for review)
 - Provider unavailable (Ollama not running, bad API key): fail fast before fetching any feeds
 - Vault path missing: checked at review time before writing, not at score time
 - `--dry-run`: skips DB write entirely, prints candidates to stdout only
@@ -243,17 +293,23 @@ The inbox file is append-only. Created with a header if it does not exist.
 uv run pytest
 ```
 
-- `test_scorer.py` — prompt construction, JSON parsing, few-shot examples
-- `test_store.py` — SQLite round-trips, dedup, mark, get_examples
+178 tests across 9 test files. All use `tmp_path` for file I/O; no real network calls; no real DB.
+
+- `test_scorer.py` — prompt construction, JSON parsing, language field, few-shot examples
+- `test_store.py` — SQLite round-trips, dedup, mark, examples, report queries, score distribution
 - `test_feed_reader.py` — feedparser wrapper, item extraction
+- `test_feed_cache.py` — cache save/load, TTL expiry
 - `test_inbox_writer.py` — append-to-existing, create-new, checkbox format
+- `test_article_fetcher.py` — metadata extraction, blocked domains, URL validation, clean_url
+- `test_social_bluesky.py` — AT Protocol reader, auth, URL extraction, deduplication
+- `test_social_mastodon.py` — hashtag timeline reader, multi-instance, deduplication
 - `test_state.py` — legacy JSON state (kept for compat)
-- All tests use `tmp_path` for file I/O; no real network calls; no real DB
 
 ## Dependencies
 
 - `feedparser` — RSS/Atom parsing
-- `requests` — Ollama HTTP API
+- `requests` — HTTP for feeds, Ollama API, social APIs
+- `beautifulsoup4` — HTML parsing for article metadata extraction
 - `anthropic` — Anthropic provider
 - `groq` — Groq provider
 - `openai` — DeepSeek provider (OpenAI-compatible API)
@@ -266,49 +322,6 @@ uv run pytest
 0 8,17 * * * cd ~/projects/content-discovery-agent && uv run content_discovery.py >> ~/.content-discovery.log 2>&1
 ```
 
+Configure the cron job on **one machine only** to avoid concurrent SQLite writes. Use a cloud provider (`--provider groq`) when running on a machine without Ollama.
+
 Review separately whenever convenient — pending items accumulate in the DB until triaged.
-
----
-
-## Phase 2: Social Feed Sources
-
-RSS covers most of the content worth tracking, but some good signal lives on social platforms.
-
-### Bluesky
-
-Public AT Protocol API, no authentication required.
-
-```
-GET https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor=handle.bsky.social
-GET https://public.api.bsky.app/xrpc/app.bsky.feed.searchPosts?q=duckdb
-```
-
-### Mastodon
-
-Public REST API, no authentication for public timelines.
-
-```
-GET https://mastodon.social/api/v1/timelines/tag/duckdb
-GET https://mastodon.social/api/v1/accounts/{id}/statuses
-```
-
-### Phase 2 Architecture
-
-```
-content-discovery-agent/
-  social/
-    __init__.py
-    base.py       # Abstract SocialReader interface
-    bluesky.py    # AT Protocol reader
-    mastodon.py   # Mastodon REST API reader
-```
-
-All social readers normalize to the same `FeedItem` datatype. The scorer, store, and inbox writer are unchanged.
-
-**New CLI flag:**
-
-```bash
-uv run content_discovery.py --sources rss,bluesky,mastodon
-```
-
-Default stays RSS-only so existing cron jobs are unaffected.

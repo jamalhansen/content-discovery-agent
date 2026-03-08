@@ -1,11 +1,11 @@
 # Content Discovery Agent
 
-CLI tool that monitors RSS feeds, scores each item for relevance using an LLM, and surfaces candidates for review. Designed to run on a cron schedule.
+CLI tool that monitors RSS feeds and social media for articles relevant to your interests, scores each item using an LLM, and surfaces candidates for interactive review. Designed to run on a cron schedule.
 
 ## What It Does
 
-1. Fetches items from a configured list of RSS feeds
-2. Scores each item against a natural language interest profile via an LLM
+1. Fetches items from configured RSS feeds, Bluesky keyword searches, and Mastodon hashtag timelines
+2. Scores each article against a natural language interest profile via an LLM
 3. Stores candidates in a local SQLite database
 4. Skips items already seen in previous runs (deduplication)
 5. Lets you review candidates interactively — keep or dismiss each one
@@ -25,8 +25,11 @@ uv sync
 ### 1. Fetch and score
 
 ```bash
-# Run against all configured feeds (Ollama by default)
+# RSS feeds only (default)
 uv run content_discovery.py
+
+# Include Bluesky and Mastodon as additional sources
+uv run content_discovery.py --sources rss,bluesky,mastodon
 
 # Dry run — print candidates, write nothing
 uv run content_discovery.py --dry-run
@@ -59,23 +62,113 @@ Commands: `y` keep · `n` dismiss · `s` stop · `o` open URL in browser
 
 Kept items are written to your Obsidian inbox. Dismissed items are recorded and used to improve future scoring.
 
+### 3. Report
+
+```bash
+uv run content_discovery.py --report
+```
+
+Prints a summary of feed performance pulled from the database:
+
+```
+════════════════════════════════════════════════════════════
+  Content Discovery — Feed Report
+════════════════════════════════════════════════════════════
+
+  Overview                           Items  Avg score
+────────────────────────────────────────────────────────────
+  Pending                              229       0.83
+  Kept                                  50       0.83
+  Dismissed                            493       0.39
+  Total                                772
+
+  Activity — last 7 days
+  Top sources by avg score
+  Low-signal sources  (high volume, low avg score — where to cut feeds)
+  Most common tags in kept items
+  Pending queue — top 5 items waiting for review
+```
+
+Useful for tuning the feed list: sources with low avg scores are burning scoring budget without surfacing relevant content.
+
+### 4. Purge blocked domains
+
+```bash
+# Preview what would be dismissed (safe — writes nothing)
+uv run content_discovery.py --purge-blocked --dry-run
+
+# Dismiss all pending items whose URLs match the current blocklist
+uv run content_discovery.py --purge-blocked
+```
+
+Useful after updating `blocked_domains` in your config: any items already in the pending queue from newly-blocked domains are dismissed in bulk without going through interactive review. Only `status='new'` items are affected — kept items are never touched.
+
+### 5. Rescore pending items
+
+```bash
+# Preview what would change (no writes)
+uv run content_discovery.py --rescore --dry-run --verbose
+
+# Re-score all pending items with current profile
+uv run content_discovery.py --rescore --provider groq
+```
+
+Re-scores every pending item using the current interest profile and your latest review history as few-shot examples. Useful after significantly editing your profile or after accumulating a lot of review history. Items that fall below threshold (or are detected as non-English) are dismissed. Accepts `--limit` and `--verbose`.
+
+### 6. Dismiss by source
+
+```bash
+# Preview
+uv run content_discovery.py --dismiss-source "Habr" --dry-run
+
+# Dismiss
+uv run content_discovery.py --dismiss-source "Habr"
+```
+
+Dismisses all pending items whose source name contains the query string (case-insensitive). Useful after seeing a low-signal source in `--report` — dismiss its backlog before removing it from your feed list.
+
+### 7. Feed health check
+
+```bash
+uv run content_discovery.py --check-feeds
+```
+
+Fetches every configured RSS feed and reports how many items it returned. Flags feeds that return nothing or fail to load — useful for catching broken or moved feeds before they silently drop off.
+
+### 8. Cache management
+
+```bash
+# Fetch and cache responses (auto-expires after 12 hours)
+uv run content_discovery.py --cached --sources rss,bluesky
+
+# Wipe all cached responses manually
+uv run content_discovery.py --clear-cache
+```
+
 ## CLI Reference
 
-| Argument       | Short | Default              | Description                                            |
-|----------------|-------|----------------------|--------------------------------------------------------|
-| `--provider`   | `-p`  | `local`              | LLM backend: `local`, `anthropic`, `groq`, `deepseek` |
-| `--model`      | `-m`  | provider default     | Override the default model for the chosen provider     |
-| `--dry-run`    | `-n`  | false                | Print candidates to stdout; write nothing              |
-| `--review`     |       | false                | Interactively review pending items                     |
-| `--feed`       | `-f`  | none                 | Process a single feed URL                              |
-| `--threshold`  | `-t`  | `0.7`                | Minimum relevance score (0.0–1.0)                      |
-| `--vault-path` | `-v`  | `OBSIDIAN_VAULT_PATH`| Path to the Obsidian vault root                        |
-| `--inbox-path` |       | `_finds/00-inbox.md` | Inbox path relative to vault root                      |
-| `--no-dedup`   |       | false                | Re-score items already seen                            |
-| `--verbose`    |       | false                | Show scores for all items, not just candidates         |
-| `--cached`     |       | false                | Use cached feed responses when available               |
-| `--limit`      | `-l`  | none                 | Cap number of items scored (after deduplication)       |
-| `--store`      |       | `~/.content-discovery.db` | Path to the SQLite database                       |
+| Argument        | Short | Default               | Description                                                      |
+|-----------------|-------|-----------------------|------------------------------------------------------------------|
+| `--provider`    | `-p`  | `local`               | LLM backend: `local`, `anthropic`, `groq`, `deepseek`           |
+| `--model`       | `-m`  | provider default      | Override the default model for the chosen provider               |
+| `--dry-run`     | `-n`  | false                 | Print candidates to stdout; write nothing                        |
+| `--review`      |       | false                 | Interactively review pending items                               |
+| `--report`          |       | false                 | Print feed trend report: source quality, score distribution, tags |
+| `--rescore`         |       | false                 | Re-score all pending items with current profile and examples      |
+| `--purge-blocked`   |       | false                 | Dismiss pending items from blocked domains (supports `--dry-run`) |
+| `--dismiss-source`  |       | none                  | Dismiss pending items whose source contains QUERY (case-insensitive) |
+| `--check-feeds`     |       | false                 | Fetch all configured feeds and report their status                |
+| `--sources`         | `-s`  | `rss`                 | Comma-separated sources: `rss`, `bluesky`, `mastodon`            |
+| `--feed`        | `-f`  | none                  | Process a single RSS feed URL (overrides configured feed list)   |
+| `--threshold`   | `-t`  | `0.7`                 | Minimum relevance score (0.0–1.0)                                |
+| `--vault-path`  | `-v`  | `OBSIDIAN_VAULT_PATH` | Path to the Obsidian vault root                                  |
+| `--inbox-path`  |       | `_finds/00-inbox.md`  | Inbox path relative to vault root                                |
+| `--no-dedup`    |       | false                 | Re-score items already seen                                      |
+| `--verbose`     |       | false                 | Show scores for all items, not just candidates                   |
+| `--cached`      |       | false                 | Use cached responses when available; cache expires after 12 hours|
+| `--clear-cache` |       | false                 | Delete all cached responses and exit                             |
+| `--limit`       | `-l`  | none                  | Cap number of items scored (after deduplication)                 |
+| `--store`       |       | `~/.content-discovery.db` | Path to the SQLite database                                 |
 
 ## Configuration
 
@@ -111,6 +204,36 @@ writing craft and note-taking workflows.
 
 The profile is passed directly to the LLM on every scoring run. Adding a topic is as simple as mentioning it here.
 
+### Social Sources
+
+Configure keywords for Bluesky search and Mastodon hashtag timelines. Multi-word keywords work as-is in Bluesky; spaces are stripped for Mastodon hashtags (`"local ai"` → `#localai`).
+
+```toml
+[social]
+keywords = ["duckdb", "python", "local ai", "ollama", "sql"]
+mastodon_instances = ["mastodon.social", "fosstodon.org"]
+
+# Extra domains to skip on top of the built-in blocklist.
+# Subdomain matching is automatic — "nytimes.com" also blocks "www.nytimes.com".
+blocked_domains = ["nytimes.com", "wsj.com", "youtube.com", "youtu.be"]
+```
+
+Social sources are only used when `--sources` includes `bluesky` or `mastodon`. The default (`rss`) leaves existing cron jobs unaffected.
+
+#### Domain blocklist
+
+The article fetcher skips known bot-blocking and low-signal domains before making any HTTP request. The following are blocked by default (no config needed):
+
+| Domain | Reason |
+|---|---|
+| `medium.com` + subdomains | Blocks scrapers; includes `username.medium.com` |
+| `towardsdatascience.com` | Medium publication |
+| `betterprogramming.pub` | Medium publication |
+| `plainenglish.io` + subdomains | Medium publication network |
+| `levelup.gitconnected.com` | Medium publication |
+
+Add any others in `[social] blocked_domains`. Common additions: `nytimes.com`, `wsj.com`, `youtube.com`, `youtu.be`, `x.com`, `bsky.app` (Bluesky search pages), `jobsfordevelopers.com`.
+
 ### Settings
 
 ```toml
@@ -123,14 +246,18 @@ inbox_path = "_finds/00-inbox.md"
 
 ## Environment Variables
 
-| Variable                   | Purpose                            | Example                         |
-|----------------------------|------------------------------------|---------------------------------|
-| `OBSIDIAN_VAULT_PATH`      | Vault root path                    | `~/vaults/BrainSync/`           |
-| `CONTENT_DISCOVERY_STORE`  | SQLite DB path (machine-specific)  | `~/sync/content-discovery/store.db` |
-| `ANTHROPIC_API_KEY`        | Anthropic API key                  | `sk-ant-...`                    |
-| `GROQ_API_KEY`             | Groq API key                       | `gsk_...`                       |
-| `DEEPSEEK_API_KEY`         | DeepSeek API key                   | `sk-...`                        |
-| `OLLAMA_HOST`              | Ollama server URL                  | `http://localhost:11434`        |
+| Variable                   | Purpose                                      | Example                             |
+|----------------------------|----------------------------------------------|-------------------------------------|
+| `OBSIDIAN_VAULT_PATH`      | Vault root path                              | `~/vaults/BrainSync/`               |
+| `CONTENT_DISCOVERY_STORE`  | SQLite DB path (machine-specific)            | `~/sync/content-discovery/store.db` |
+| `ANTHROPIC_API_KEY`        | Anthropic API key                            | `sk-ant-...`                        |
+| `GROQ_API_KEY`             | Groq API key                                 | `gsk_...`                           |
+| `DEEPSEEK_API_KEY`         | DeepSeek API key                             | `sk-...`                            |
+| `OLLAMA_HOST`              | Ollama server URL                            | `http://localhost:11434`            |
+| `BLUESKY_HANDLE`           | Bluesky handle for authenticated search      | `you.bsky.social`                   |
+| `BLUESKY_APP_PASSWORD`     | Bluesky App Password (not your main password)| `xxxx-xxxx-xxxx-xxxx`               |
+
+> **Bluesky auth note:** Bluesky's public search endpoint (`public.api.bsky.app`) intermittently returns 403 for unauthenticated requests. Setting `BLUESKY_HANDLE` and `BLUESKY_APP_PASSWORD` switches to authenticated requests which are reliably served. Generate an App Password in Bluesky → Settings → Privacy and Security → App Passwords.
 
 ## Providers
 
@@ -206,7 +333,7 @@ Run via cron twice daily. Configure the cron job on **one machine** to avoid con
 0 8,17 * * * cd ~/projects/content-discovery-agent && uv run content_discovery.py >> ~/.content-discovery.log 2>&1
 ```
 
-To use a cloud provider in the cron job (required if running on a Pi or a machine without Ollama):
+To use a cloud provider (required if running on a Pi or a machine without Ollama):
 
 ```
 0 8,17 * * * cd ~/projects/content-discovery-agent && uv run content_discovery.py --provider groq >> ~/.content-discovery.log 2>&1
@@ -218,14 +345,20 @@ Review whenever convenient — pending items accumulate in the database until yo
 
 ```
 content-discovery-agent/
-  content_discovery.py    # CLI entrypoint (run + review commands)
-  config.py               # Feeds, interest profile, defaults, env vars
+  content_discovery.py    # CLI entrypoint (all commands)
+  config.py               # Feeds, interest profile, social config, defaults, env vars
   store.py                # SQLite storage layer
-  scorer.py               # Prompt construction and JSON parsing
+  scorer.py               # Prompt construction and JSON parsing (score, tags, summary, language)
   feed_reader.py          # feedparser wrapper
-  feed_cache.py           # Feed response caching
+  feed_cache.py           # RSS and social response caching (12h TTL)
   inbox_writer.py         # Obsidian inbox append logic
-  state.py                # Legacy JSON dedup (superseded by store.py)
+  url_utils.py            # clean_url() — strips UTM and tracking params
+  social/
+    __init__.py           # SOCIAL_READERS dict
+    base.py               # Abstract SocialReader interface
+    article_fetcher.py    # Fetch article metadata (title, description) from URLs
+    bluesky.py            # Bluesky AT Protocol reader
+    mastodon.py           # Mastodon REST API reader
   providers/
     __init__.py           # PROVIDERS dict
     base.py               # Abstract provider interface
@@ -236,12 +369,18 @@ content-discovery-agent/
   tests/
     test_scorer.py
     test_feed_reader.py
+    test_feed_cache.py
     test_inbox_writer.py
     test_store.py
-    test_state.py
+    test_article_fetcher.py
+    test_social_bluesky.py
+    test_social_mastodon.py
     fixtures/
       sample_feed.xml
       sample_scored.json
+      sample_article.html
+      sample_bluesky_response.json
+      sample_mastodon_response.json
   .content-discovery.toml         # Your personal config (gitignored)
   .content-discovery.toml.example # Template
 ```

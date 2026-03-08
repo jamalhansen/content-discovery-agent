@@ -48,15 +48,16 @@ class TestBuildUserMessage:
 
 class TestParseResponse:
     def test_valid_json(self):
-        raw = '{"score": 0.85, "tags": ["python", "llm"], "summary": "A guide."}'
+        raw = '{"score": 0.85, "tags": ["python", "llm"], "summary": "A guide.", "language": "en"}'
         result = parse_response(raw)
         assert result is not None
         assert result.score == 0.85
         assert result.tags == ["python", "llm"]
         assert result.summary == "A guide."
+        assert result.language == "en"
 
     def test_strips_markdown_fences(self):
-        raw = '```json\n{"score": 0.5, "tags": [], "summary": "Meh."}\n```'
+        raw = '```json\n{"score": 0.5, "tags": [], "summary": "Meh.", "language": "en"}\n```'
         result = parse_response(raw)
         assert result is not None
         assert result.score == 0.5
@@ -66,35 +67,54 @@ class TestParseResponse:
         assert result is None
 
     def test_missing_score_returns_none(self):
-        result = parse_response('{"tags": [], "summary": "No score."}')
+        result = parse_response('{"tags": [], "summary": "No score.", "language": "en"}')
         assert result is None
 
     def test_empty_tags(self):
-        raw = '{"score": 0.1, "tags": [], "summary": "Irrelevant."}'
+        raw = '{"score": 0.1, "tags": [], "summary": "Irrelevant.", "language": "en"}'
         result = parse_response(raw)
         assert result is not None
         assert result.tags == []
 
     def test_score_zero(self):
-        raw = '{"score": 0.0, "tags": [], "summary": "Not relevant."}'
+        raw = '{"score": 0.0, "tags": [], "summary": "Not relevant.", "language": "en"}'
         result = parse_response(raw)
         assert result is not None
         assert result.score == 0.0
 
     def test_excess_tags_capped_at_two(self):
-        raw = '{"score": 0.8, "tags": ["a", "b", "c", "d", "e", "f", "g"], "summary": "Too many tags."}'
+        raw = '{"score": 0.8, "tags": ["a", "b", "c", "d", "e", "f", "g"], "summary": "Too many tags.", "language": "en"}'
         result = parse_response(raw)
         assert result is not None
         assert result.tags == ["a", "b"]
+
+    def test_non_english_language_parsed(self):
+        raw = '{"score": 0.7, "tags": ["python"], "summary": "Руководство по Python.", "language": "ru"}'
+        result = parse_response(raw)
+        assert result is not None
+        assert result.language == "ru"
+
+    def test_missing_language_defaults_to_en(self):
+        raw = '{"score": 0.7, "tags": ["python"], "summary": "A guide."}'
+        result = parse_response(raw)
+        assert result is not None
+        assert result.language == "en"
+
+    def test_language_normalised_to_lowercase(self):
+        raw = '{"score": 0.7, "tags": [], "summary": "Guide.", "language": "DE"}'
+        result = parse_response(raw)
+        assert result is not None
+        assert result.language == "de"
 
 
 class TestScoreItem:
     def test_returns_scored_item(self):
         provider = MagicMock()
-        provider.complete.return_value = '{"score": 0.9, "tags": ["python"], "summary": "Great."}'
+        provider.complete.return_value = '{"score": 0.9, "tags": ["python"], "summary": "Great.", "language": "en"}'
         result = score_item(provider, "Python Tips", "Tips for Python", PROFILE)
         assert isinstance(result, ScoredItem)
         assert result.score == 0.9
+        assert result.language == "en"
 
     def test_returns_none_on_invalid_response(self):
         provider = MagicMock()
@@ -104,7 +124,7 @@ class TestScoreItem:
 
     def test_provider_called_with_prompts(self):
         provider = MagicMock()
-        provider.complete.return_value = '{"score": 0.5, "tags": [], "summary": "Ok."}'
+        provider.complete.return_value = '{"score": 0.5, "tags": [], "summary": "Ok.", "language": "en"}'
         score_item(provider, "Title", "Desc", PROFILE)
         provider.complete.assert_called_once()
         _, user_msg = provider.complete.call_args[0]
@@ -113,8 +133,15 @@ class TestScoreItem:
 
     def test_passes_examples_to_message(self):
         provider = MagicMock()
-        provider.complete.return_value = '{"score": 0.8, "tags": ["python"], "summary": "Good."}'
+        provider.complete.return_value = '{"score": 0.8, "tags": ["python"], "summary": "Good.", "language": "en"}'
         examples = {"kept": ["A Kept Article"], "dismissed": []}
         score_item(provider, "Title", "Desc", PROFILE, examples=examples)
         _, user_msg = provider.complete.call_args[0]
         assert "A Kept Article" in user_msg
+
+    def test_system_prompt_includes_language_field(self):
+        provider = MagicMock()
+        provider.complete.return_value = '{"score": 0.5, "tags": [], "summary": "Ok.", "language": "en"}'
+        score_item(provider, "Title", "Desc", PROFILE)
+        system_prompt, _ = provider.complete.call_args[0]
+        assert "language" in system_prompt

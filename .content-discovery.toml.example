@@ -37,3 +37,28 @@ inbox_path = "_finds/00-inbox.md"
 # For multi-machine sync with Syncthing, point this at your shared sync folder.
 # The CONTENT_DISCOVERY_STORE env var overrides this if set.
 # store = "~/sync/content-discovery/store.db"
+
+[social]
+# Keywords used to search Bluesky and Mastodon hashtag timelines.
+# Multi-word keywords work in Bluesky search; spaces are stripped for Mastodon hashtags.
+# ("local ai" → searches Bluesky for "local ai", Mastodon for #localai)
+keywords = ["duckdb", "python", "local ai", "ollama", "sql"]
+
+# Mastodon instances to search. Any public instance works — no auth required.
+mastodon_instances = ["mastodon.social", "fosstodon.org"]
+
+# Additional domains to skip when fetching article URLs from social posts.
+# Medium and its publication network are blocked by default (no need to list them here).
+# Add any other paywalled or bot-blocking sites you want to skip.
+# Subdomain matching is automatic — "nytimes.com" also blocks "www.nytimes.com".
+blocked_domains = []
+
+# Bluesky authentication (recommended).
+# Bluesky's public search endpoint intermittently returns 403 for unauthenticated
+# requests. Set BLUESKY_HANDLE and BLUESKY_APP_PASSWORD as environment variables
+# (not here — keep credentials out of config files).
+#
+# Generate an App Password in Bluesky → Settings → Privacy and Security → App Passwords.
+# Then add to your shell profile:
+#   export BLUESKY_HANDLE=you.bsky.social
+#   export BLUESKY_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx

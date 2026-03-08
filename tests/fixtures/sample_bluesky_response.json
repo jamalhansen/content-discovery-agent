@@ -1,0 +1,57 @@
+{
+  "posts": [
+    {
+      "uri": "at://did:plc:abc123/app.bsky.feed.post/1",
+      "cid": "bafyabc123",
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "text": "Great article about DuckDB 1.2!"
+      },
+      "embed": {
+        "$type": "app.bsky.embed.external#view",
+        "external": {
+          "uri": "https://duckdb.org/2026/02/05/announcing-duckdb-1.2.0.html",
+          "title": "Announcing DuckDB 1.2.0",
+          "description": "DuckDB 1.2.0 release notes and highlights."
+        }
+      }
+    },
+    {
+      "uri": "at://did:plc:def456/app.bsky.feed.post/2",
+      "cid": "bafydef456",
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "text": "Great Python DuckDB tutorial https://realpython.com/python-duckdb/",
+        "facets": [
+          {
+            "$type": "app.bsky.richtext.facet",
+            "features": [
+              {
+                "$type": "app.bsky.richtext.facet#link",
+                "uri": "https://realpython.com/python-duckdb/"
+              }
+            ],
+            "index": {"byteStart": 29, "byteEnd": 68}
+          }
+        ]
+      }
+    },
+    {
+      "uri": "at://did:plc:ghi789/app.bsky.feed.post/3",
+      "cid": "bafyghi789",
+      "record": {
+        "$type": "app.bsky.feed.post",
+        "text": "Also sharing this DuckDB release post"
+      },
+      "embed": {
+        "$type": "app.bsky.embed.external#view",
+        "external": {
+          "uri": "https://duckdb.org/2026/02/05/announcing-duckdb-1.2.0.html",
+          "title": "Announcing DuckDB 1.2.0",
+          "description": "Duplicate URL — should be deduplicated."
+        }
+      }
+    }
+  ],
+  "hitsTotal": 3
+}
