@@ -64,7 +64,8 @@ class TestAppendToInbox:
         append_to_inbox(vault, "_finds/00-inbox.md", [entry])
 
         content = open(os.path.join(vault, "_finds/00-inbox.md")).read()
-        assert "[Read in Reader](https://read.readwise.io/new/https://example.com/item)" in content
+        # Uses readwise.io/save?url= endpoint (same as the browser bookmarklet)
+        assert "[Read in Reader](https://readwise.io/save?url=https%3A%2F%2Fexample.com%2Fitem)" in content
 
     def test_published_date_included_when_present(self, tmp_path):
         vault = str(tmp_path / "vault")

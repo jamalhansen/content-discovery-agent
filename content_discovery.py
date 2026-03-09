@@ -651,6 +651,7 @@ def cmd_migrate_inbox(args: argparse.Namespace) -> None:
     for already-written items). Supports --dry-run.
     """
     import re
+    from urllib.parse import quote
     validate_vault(args)
     full_path = os.path.join(os.path.expanduser(args.vault_path), args.inbox_path)
 
@@ -676,15 +677,13 @@ def cmd_migrate_inbox(args: argparse.Namespace) -> None:
         print("No items in old format found — nothing to migrate.")
         return
 
-    reader_base = "https://read.readwise.io/new/"
-
     def _replace(m: re.Match) -> str:
         title, url, source, score, tags, summary, fetched = m.groups()
         try:
             score_str = f"{float(score):.2f}"
         except ValueError:
             score_str = score
-        reader_url = f"{reader_base}{url}"
+        reader_url = f"https://readwise.io/save?url={quote(url, safe='')}"
         return (
             f"- [{title}]({url}) · [Read in Reader]({reader_url})\n"
             f"  - **Source**: {source}\n"

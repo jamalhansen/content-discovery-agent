@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
 from datetime import date
+from urllib.parse import quote
 
 INBOX_HEADER = """# Finds Inbox
 
@@ -9,7 +10,16 @@ Items below were surfaced by the content discovery agent. Review, promote to a f
 ---
 """
 
-_READER_BASE = "https://read.readwise.io/new/"
+_READER_SAVE = "https://readwise.io/save?url="
+
+
+def _reader_url(url: str) -> str:
+    """Return a Readwise Reader save-URL for the given article URL.
+
+    Uses the readwise.io/save?url= endpoint (same as the browser bookmarklet).
+    The article URL is percent-encoded as a query parameter value.
+    """
+    return _READER_SAVE + quote(url, safe="")
 
 
 @dataclass
@@ -30,7 +40,7 @@ class InboxEntry:
     def format(self) -> str:
         """Markdown format for writing to Obsidian (bold field labels)."""
         tag_str = " ".join(f"#{t}" for t in self.tags) if self.tags else ""
-        reader_url = f"{_READER_BASE}{self.url}"
+        reader_url = _reader_url(self.url)
         published_line = f"\n  - **Published**: {self.published}" if self.published else ""
         return (
             f"- [{self.title}]({self.url}) · [Read in Reader]({reader_url})\n"
@@ -45,7 +55,7 @@ class InboxEntry:
     def format_plain(self) -> str:
         """Plain-text format for terminal output (no markdown bold)."""
         tag_str = " ".join(f"#{t}" for t in self.tags) if self.tags else ""
-        reader_url = f"{_READER_BASE}{self.url}"
+        reader_url = _reader_url(self.url)
         published_line = f"\n  Published: {self.published}" if self.published else ""
         return (
             f"- [{self.title}]({self.url}) · [Read in Reader]({reader_url})\n"
