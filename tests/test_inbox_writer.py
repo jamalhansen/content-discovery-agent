@@ -47,14 +47,42 @@ class TestAppendToInbox:
         assert "New Item" in content
         assert "# Finds Inbox" in content  # header preserved
 
-    def test_checkbox_format(self, tmp_path):
+    def test_bullet_format_not_checkbox(self, tmp_path):
         vault = str(tmp_path / "vault")
         os.makedirs(vault)
         entry = make_entry()
         append_to_inbox(vault, "_finds/00-inbox.md", [entry])
 
         content = open(os.path.join(vault, "_finds/00-inbox.md")).read()
-        assert "- [ ] [Test Item](https://example.com/item)" in content
+        assert "- [Test Item](https://example.com/item)" in content
+        assert "- [ ]" not in content
+
+    def test_readwise_reader_link_present(self, tmp_path):
+        vault = str(tmp_path / "vault")
+        os.makedirs(vault)
+        entry = make_entry()
+        append_to_inbox(vault, "_finds/00-inbox.md", [entry])
+
+        content = open(os.path.join(vault, "_finds/00-inbox.md")).read()
+        assert "[Read in Reader](https://read.readwise.io/new/https://example.com/item)" in content
+
+    def test_published_date_included_when_present(self, tmp_path):
+        vault = str(tmp_path / "vault")
+        os.makedirs(vault)
+        entry = make_entry(published="2026-02-15")
+        append_to_inbox(vault, "_finds/00-inbox.md", [entry])
+
+        content = open(os.path.join(vault, "_finds/00-inbox.md")).read()
+        assert "**Published**: 2026-02-15" in content
+
+    def test_published_date_omitted_when_empty(self, tmp_path):
+        vault = str(tmp_path / "vault")
+        os.makedirs(vault)
+        entry = make_entry(published="")
+        append_to_inbox(vault, "_finds/00-inbox.md", [entry])
+
+        content = open(os.path.join(vault, "_finds/00-inbox.md")).read()
+        assert "Published" not in content
 
     def test_tags_formatted_with_hash(self, tmp_path):
         vault = str(tmp_path / "vault")

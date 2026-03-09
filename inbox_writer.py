@@ -9,6 +9,8 @@ Items below were surfaced by the content discovery agent. Review, promote to a f
 ---
 """
 
+_READER_BASE = "https://read.readwise.io/new/"
+
 
 @dataclass
 class InboxEntry:
@@ -19,6 +21,7 @@ class InboxEntry:
     tags: list[str]
     summary: str
     fetched: str = ""
+    published: str = ""  # ISO date e.g. "2026-03-07", empty if unavailable
 
     def __post_init__(self):
         if not self.fetched:
@@ -27,25 +30,29 @@ class InboxEntry:
     def format(self) -> str:
         """Markdown format for writing to Obsidian (bold field labels)."""
         tag_str = " ".join(f"#{t}" for t in self.tags) if self.tags else ""
+        reader_url = f"{_READER_BASE}{self.url}"
+        published_line = f"\n  - **Published**: {self.published}" if self.published else ""
         return (
-            f"- [ ] [{self.title}]({self.url})\n"
+            f"- [{self.title}]({self.url}) · [Read in Reader]({reader_url})\n"
             f"  - **Source**: {self.source}\n"
             f"  - **Score**: {self.score:.2f}\n"
             f"  - **Tags**: {tag_str}\n"
-            f"  - **Summary**: {self.summary}\n"
+            f"  - **Summary**: {self.summary}"
+            f"{published_line}\n"
             f"  - **Fetched**: {self.fetched}"
         )
 
     def format_plain(self) -> str:
         """Plain-text format for terminal output (no markdown bold)."""
         tag_str = " ".join(f"#{t}" for t in self.tags) if self.tags else ""
+        reader_url = f"{_READER_BASE}{self.url}"
+        published_line = f"\n  Published: {self.published}" if self.published else ""
         return (
-            f"- [ ] [{self.title}]({self.url})\n"
-            f"  - Source: {self.source}\n"
-            f"  - Score: {self.score:.2f}\n"
-            f"  - Tags: {tag_str}\n"
-            f"  - Summary: {self.summary}\n"
-            f"  - Fetched: {self.fetched}"
+            f"- [{self.title}]({self.url}) · [Read in Reader]({reader_url})\n"
+            f"  Source: {self.source}  |  Score: {self.score:.2f}  |  Tags: {tag_str}\n"
+            f"  Summary: {self.summary}"
+            f"{published_line}\n"
+            f"  Fetched: {self.fetched}"
         )
 
 

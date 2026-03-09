@@ -50,6 +50,16 @@ class TestFetchFeed:
         rag_item = next(i for i in items if "RAG" in i.title)
         assert "retrieval-augmented" in rag_item.description.lower()
 
+    def test_published_date_extracted_when_present(self, sample_feed_mock):
+        items = fetch_feed(SAMPLE_FEED_URL)
+        duckdb_item = next(i for i in items if "DuckDB" in i.title)
+        assert duckdb_item.published == "2026-03-07"
+
+    def test_published_empty_when_absent(self, sample_feed_mock):
+        items = fetch_feed(SAMPLE_FEED_URL)
+        rag_item = next(i for i in items if i.title == "Building a Local RAG Pipeline with Ollama")
+        assert rag_item.published == ""
+
 
 class TestFilterNewItems:
     def test_filters_seen_urls(self):

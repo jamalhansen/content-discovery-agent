@@ -110,6 +110,18 @@ def fetch_article_metadata(
             meta_desc = soup.find("meta", attrs={"name": "description"})
             description = meta_desc.get("content", "").strip() if meta_desc else ""
 
+        # Published date: article:published_time → datePublished (ISO 8601, truncated to date)
+        pub_meta = (
+            soup.find("meta", attrs={"property": "article:published_time"})
+            or soup.find("meta", attrs={"name": "datePublished"})
+            or soup.find("meta", attrs={"property": "og:article:published_time"})
+        )
+        published = ""
+        if pub_meta:
+            raw = pub_meta.get("content", "").strip()
+            if raw:
+                published = raw[:10]  # "2026-03-07T10:00:00Z" → "2026-03-07"
+
         source = urlparse(url).netloc
 
         return FeedItem(
@@ -117,6 +129,7 @@ def fetch_article_metadata(
             description=description,
             url=url,
             source=source,
+            published=published,
         )
 
     except Exception as e:

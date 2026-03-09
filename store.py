@@ -30,18 +30,19 @@ logger = logging.getLogger(__name__)
 
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS items (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    url         TEXT    NOT NULL UNIQUE,
-    title       TEXT    NOT NULL,
-    source      TEXT    NOT NULL,
-    description TEXT    NOT NULL DEFAULT '',
-    score       REAL    NOT NULL,
-    tags        TEXT    NOT NULL DEFAULT '[]',
-    summary     TEXT    NOT NULL DEFAULT '',
-    status      TEXT    NOT NULL DEFAULT 'new'
-                        CHECK(status IN ('new', 'kept', 'dismissed')),
-    fetched_at  TEXT    NOT NULL,
-    reviewed_at TEXT    DEFAULT NULL
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    url          TEXT    NOT NULL UNIQUE,
+    title        TEXT    NOT NULL,
+    source       TEXT    NOT NULL,
+    description  TEXT    NOT NULL DEFAULT '',
+    score        REAL    NOT NULL,
+    tags         TEXT    NOT NULL DEFAULT '[]',
+    summary      TEXT    NOT NULL DEFAULT '',
+    status       TEXT    NOT NULL DEFAULT 'new'
+                         CHECK(status IN ('new', 'kept', 'dismissed')),
+    fetched_at   TEXT    NOT NULL,
+    published_at TEXT    NOT NULL DEFAULT '',
+    reviewed_at  TEXT    DEFAULT NULL
 )
 """
 
@@ -53,9 +54,18 @@ def _connect(path: str) -> sqlite3.Connection:
 
 
 def init_db(path: str) -> None:
-    """Create the items table if it does not exist. Safe to call on every run."""
+    """Create the items table if it does not exist. Safe to call on every run.
+
+    Also runs lightweight schema migrations for existing databases:
+    - Adds published_at column if absent (added after initial release).
+    """
     with _connect(path) as conn:
         conn.execute(_CREATE_TABLE)
+        # Migration: add published_at for existing DBs that predate this column.
+        try:
+            conn.execute("ALTER TABLE items ADD COLUMN published_at TEXT NOT NULL DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def is_seen(url: str, path: str) -> bool:
@@ -77,6 +87,7 @@ def upsert_item(
     tags: list[str],
     summary: str,
     fetched_at: str,
+    published_at: str = "",
     path: str,
 ) -> None:
     """Insert a new item. Silently ignores duplicate URLs (INSERT OR IGNORE).
@@ -88,10 +99,10 @@ def upsert_item(
         conn.execute(
             """
             INSERT OR IGNORE INTO items
-                (url, title, source, description, score, tags, summary, fetched_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (url, title, source, description, score, tags, summary, fetched_at, published_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (url, title, source, description, score, json.dumps(tags), summary, fetched_at),
+            (url, title, source, description, score, json.dumps(tags), summary, fetched_at, published_at),
         )
 
 

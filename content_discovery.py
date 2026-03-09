@@ -142,6 +142,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Re-score all pending items with the current interest profile and examples",
     )
+    parser.add_argument(
+        "--migrate-inbox",
+        action="store_true",
+        help="Reformat existing inbox items to the current format (bullet, Reader link)",
+    )
     return parser.parse_args()
 
 
@@ -324,6 +329,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                 tags=result.tags,
                 summary=result.summary,
                 fetched_at=today,
+                published_at=item.published,
                 path=args.store,
             )
             if not is_english or result.score < args.threshold:
@@ -341,6 +347,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                 score=result.score,
                 tags=result.tags,
                 summary=result.summary,
+                published=item.published,
             ))
 
     if not candidates:
@@ -636,6 +643,68 @@ def cmd_rescore(args: argparse.Namespace) -> None:
         print(f"\nDone. Kept pending: {updated}, Dismissed: {dismissed}, Skipped: {skipped}.")
 
 
+def cmd_migrate_inbox(args: argparse.Namespace) -> None:
+    """Reformat existing inbox items to the current format.
+
+    Converts old checkbox items (- [ ] [...]) to regular bullets with a
+    Readwise Reader link. Does not add Published lines (date unavailable
+    for already-written items). Supports --dry-run.
+    """
+    import re
+    validate_vault(args)
+    full_path = os.path.join(os.path.expanduser(args.vault_path), args.inbox_path)
+
+    if not os.path.exists(full_path):
+        print(f"Inbox file not found: {full_path}")
+        return
+
+    with open(full_path) as f:
+        content = f.read()
+
+    pattern = re.compile(
+        r'- \[ \] \[(.+?)\]\((.+?)\)\n'
+        r'  - \*\*Source\*\*: (.+?)\n'
+        r'  - \*\*Score\*\*: (.+?)\n'
+        r'  - \*\*Tags\*\*: (.*?)\n'
+        r'  - \*\*Summary\*\*: (.+?)\n'
+        r'  - \*\*Fetched\*\*: ([^\n]+)',
+        re.MULTILINE,
+    )
+
+    matches = pattern.findall(content)
+    if not matches:
+        print("No items in old format found — nothing to migrate.")
+        return
+
+    reader_base = "https://read.readwise.io/new/"
+
+    def _replace(m: re.Match) -> str:
+        title, url, source, score, tags, summary, fetched = m.groups()
+        try:
+            score_str = f"{float(score):.2f}"
+        except ValueError:
+            score_str = score
+        reader_url = f"{reader_base}{url}"
+        return (
+            f"- [{title}]({url}) · [Read in Reader]({reader_url})\n"
+            f"  - **Source**: {source}\n"
+            f"  - **Score**: {score_str}\n"
+            f"  - **Tags**: {tags}\n"
+            f"  - **Summary**: {summary}\n"
+            f"  - **Fetched**: {fetched}"
+        )
+
+    new_content = pattern.sub(_replace, content)
+
+    if args.dry_run:
+        print(f"Would migrate {len(matches)} item(s) — dry run, nothing written.")
+        return
+
+    with open(full_path, "w") as f:
+        f.write(new_content)
+    print(f"Migrated {len(matches)} item(s) to new format.")
+
+
 def cmd_review(args: argparse.Namespace) -> None:
     """Interactively review pending items; write kept items to Obsidian."""
     store.init_db(args.store)
@@ -674,6 +743,7 @@ def cmd_review(args: argparse.Namespace) -> None:
                     tags=item["tags"],
                     summary=item["summary"],
                     fetched=item["fetched_at"],
+                    published=item.get("published_at", ""),
                 ))
                 print("  ✓ Kept.\n")
                 break
@@ -717,7 +787,9 @@ def main() -> None:
         print("Cache cleared.")
         return
 
-    if args.purge_blocked:
+    if args.migrate_inbox:
+        cmd_migrate_inbox(args)
+    elif args.purge_blocked:
         cmd_purge_blocked(args)
     elif args.dismiss_source:
         cmd_dismiss_source(args)

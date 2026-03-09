@@ -1,5 +1,6 @@
 import logging
-from dataclasses import dataclass
+import time as _time
+from dataclasses import dataclass, field
 import feedparser
 import requests
 from url_utils import clean_url
@@ -17,6 +18,7 @@ class FeedItem:
     description: str
     url: str
     source: str
+    published: str = ""  # ISO date e.g. "2026-03-07", empty if unavailable
 
 
 def fetch_feed(feed_url: str) -> list[FeedItem]:
@@ -50,11 +52,15 @@ def fetch_feed(feed_url: str) -> list[FeedItem]:
         if not url:
             continue
 
+        pub_struct = entry.get("published_parsed") or entry.get("updated_parsed")
+        published = _time.strftime("%Y-%m-%d", pub_struct) if pub_struct else ""
+
         items.append(FeedItem(
             title=title,
             description=description,
             url=url,
             source=feed_title,
+            published=published,
         ))
 
     return items

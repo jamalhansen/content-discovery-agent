@@ -51,6 +51,20 @@ class TestFetchArticleMetadata:
         assert item is not None
         assert item.source == "duckdb.org"
 
+    def test_extracts_article_published_time(self):
+        with patch("social.article_fetcher.requests.get", return_value=_mock_response(SAMPLE_HTML)):
+            item = fetch_article_metadata("https://duckdb.org/article")
+
+        assert item is not None
+        assert item.published == "2026-02-15"
+
+    def test_published_empty_when_no_date_meta(self):
+        with patch("social.article_fetcher.requests.get", return_value=_mock_response(FALLBACK_HTML)):
+            item = fetch_article_metadata("https://example.com/page")
+
+        assert item is not None
+        assert item.published == ""
+
     def test_url_is_preserved(self):
         url = "https://duckdb.org/2026/02/05/release.html"
         with patch("social.article_fetcher.requests.get", return_value=_mock_response(SAMPLE_HTML)):

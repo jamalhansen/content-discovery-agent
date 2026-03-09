@@ -42,6 +42,29 @@ class TestInitDb:
         init_db(path)
         init_db(path)  # must not raise
 
+    def test_migration_adds_published_at_to_existing_db(self, tmp_path):
+        """init_db should add published_at column to a DB that lacks it."""
+        path = db(tmp_path)
+        # Create table without published_at (simulates pre-migration DB)
+        conn = sqlite3.connect(path)
+        conn.execute("""
+            CREATE TABLE items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT NOT NULL UNIQUE, title TEXT NOT NULL,
+                source TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+                score REAL NOT NULL, tags TEXT NOT NULL DEFAULT '[]',
+                summary TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'new',
+                fetched_at TEXT NOT NULL, reviewed_at TEXT DEFAULT NULL
+            )
+        """)
+        conn.commit()
+        conn.close()
+        init_db(path)  # should add published_at without raising
+        conn = sqlite3.connect(path)
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
+        conn.close()
+        assert "published_at" in cols
+
 
 class TestIsSeen:
     def test_false_for_unknown_url(self, tmp_path):
@@ -82,6 +105,20 @@ class TestUpsertItem:
         upsert_item(**make_item(tags=["duckdb", "sql", "python"]), path=path)
         rows = get_new_items(path)
         assert rows[0]["tags"] == ["duckdb", "sql", "python"]
+
+    def test_published_at_stored_and_retrieved(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        upsert_item(**make_item(), published_at="2026-02-15", path=path)
+        rows = get_new_items(path)
+        assert rows[0]["published_at"] == "2026-02-15"
+
+    def test_published_at_defaults_to_empty_string(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        upsert_item(**make_item(), path=path)
+        rows = get_new_items(path)
+        assert rows[0]["published_at"] == ""
 
     def test_default_status_is_new(self, tmp_path):
         path = db(tmp_path)
