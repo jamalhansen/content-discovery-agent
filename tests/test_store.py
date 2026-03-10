@@ -237,6 +237,23 @@ class TestGetExamples:
         result = get_examples(3, path)
         assert len(result["kept"]) == 3
 
+    def test_separate_n_dismissed(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        # 6 kept items across distinct sources
+        for i in range(6):
+            upsert_item(**make_item(url=f"https://k.com/{i}", title=f"Kept {i}",
+                                   source=f"KBlog {i}"), path=path)
+            mark_item(f"https://k.com/{i}", "kept", path)
+        # 10 dismissed items across distinct sources
+        for i in range(10):
+            upsert_item(**make_item(url=f"https://d.com/{i}", title=f"Dismissed {i}",
+                                   source=f"DBlog {i}"), path=path)
+            mark_item(f"https://d.com/{i}", "dismissed", path)
+        result = get_examples(3, path, n_dismissed=8)
+        assert len(result["kept"]) == 3
+        assert len(result["dismissed"]) == 8
+
     def test_limits_per_source_to_three(self, tmp_path):
         path = db(tmp_path)
         init_db(path)

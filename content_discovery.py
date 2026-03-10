@@ -157,7 +157,7 @@ def cmd_run(
     )
 
     store.init_db(store_path)
-    examples = store.get_examples(10, store_path)
+    examples = store.get_examples(20, store_path, n_dismissed=40)
 
     source_list = [s.strip() for s in sources.split(",")]
     _run_seen: set[str] = set()
@@ -624,7 +624,7 @@ def cmd_rescore(
     llm_provider = _make_provider(provider, model)
 
     store.init_db(store_path)
-    examples = store.get_examples(10, store_path)
+    examples = store.get_examples(20, store_path, n_dismissed=40)
     pending = store.get_new_items(store_path)
 
     if not pending:

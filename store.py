@@ -237,19 +237,30 @@ def get_tag_counts(path: str, status: str = "kept", limit: int = 15) -> list[dic
     return [{"tag": tag, "count": count} for tag, count in sorted_tags[:limit]]
 
 
-def get_examples(n: int, path: str) -> dict[str, list[str]]:
+def get_examples(
+    n: int,
+    path: str,
+    n_dismissed: int | None = None,
+) -> dict[str, list[str]]:
     """Return {'kept': [titles], 'dismissed': [titles]}, most recent first.
 
-    n is the per-category limit. At most 3 titles from any single source are
-    included, so a prolific blog reviewed in a single session cannot dominate
-    the few-shot window. A candidate pool of 5× n is fetched to give the
-    diversity filter enough to work with.
+    n controls the kept limit; n_dismissed controls the dismissed limit
+    (defaults to n if not supplied). Separate limits let you weight the
+    dismissed side more heavily — useful when dismissed items far outnumber
+    kept ones and you want the model to see more negative signal.
+
+    At most 3 titles from any single source are included per category, so a
+    prolific blog reviewed in a single session cannot dominate the few-shot
+    window. A candidate pool of 5× n is fetched to give the diversity filter
+    enough to work with.
 
     Returns empty lists when no data exists — never raises.
     """
+    n_kept = n
+    n_dis = n_dismissed if n_dismissed is not None else n
     _PER_SOURCE = 3
 
-    def _diverse(rows: list) -> list[str]:
+    def _diverse(rows: list, limit: int) -> list[str]:
         source_counts: dict[str, int] = {}
         result = []
         for row in rows:
@@ -257,7 +268,7 @@ def get_examples(n: int, path: str) -> dict[str, list[str]]:
             if source_counts.get(src, 0) < _PER_SOURCE:
                 result.append(row["title"])
                 source_counts[src] = source_counts.get(src, 0) + 1
-                if len(result) >= n:
+                if len(result) >= limit:
                     break
         return result
 
@@ -265,16 +276,16 @@ def get_examples(n: int, path: str) -> dict[str, list[str]]:
         kept = conn.execute(
             "SELECT title, source FROM items WHERE status = 'kept' "
             "ORDER BY reviewed_at DESC LIMIT ?",
-            (n * 5,),
+            (n_kept * 5,),
         ).fetchall()
         dismissed = conn.execute(
             "SELECT title, source FROM items WHERE status = 'dismissed' "
             "ORDER BY reviewed_at DESC LIMIT ?",
-            (n * 5,),
+            (n_dis * 5,),
         ).fetchall()
     return {
-        "kept": _diverse(kept),
-        "dismissed": _diverse(dismissed),
+        "kept": _diverse(kept, n_kept),
+        "dismissed": _diverse(dismissed, n_dis),
     }
 
 
