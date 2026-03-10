@@ -1,7 +1,7 @@
 import json
 import logging
 from dataclasses import dataclass
-from providers.base import BaseProvider
+from local_first_common.providers.base import BaseProvider
 
 logger = logging.getLogger(__name__)
 
