@@ -30,6 +30,7 @@ _cfg = _load_toml()
 
 FEEDS: list[str] = _cfg.get("feeds", {}).get("urls", _FALLBACK_FEEDS)
 INTEREST_PROFILE: str = _cfg.get("interests", {}).get("profile", _FALLBACK_PROFILE)
+INTEREST_EXCLUSIONS: str = _cfg.get("interests", {}).get("exclusions", "")
 
 _settings = _cfg.get("settings", {})
 DEFAULT_THRESHOLD: float = _settings.get("threshold", 0.6)

@@ -20,6 +20,15 @@ I'm interested in Python, SQL, data engineering, local AI, and LLMs.
 I follow technical writing craft and practical developer tooling.
 """
 
+# Optional: topics, formats, and sources to score low.
+# Included in every prompt as "Not interested in: <exclusions>".
+# Use this to suppress content that keeps scoring high but you always dismiss.
+# exclusions = """
+# JavaScript/React/CSS tutorials, YouTube videos, job listings,
+# non-English content, personal lifestyle newsletters,
+# security CVE feeds, generic "AI is changing everything" opinion pieces.
+# """
+
 [settings]
 # Minimum relevance score to include an item (0.0–1.0)
 threshold = 0.7

@@ -18,6 +18,7 @@ from config import (
     DEFAULT_THRESHOLD,
     DEFAULT_VAULT_PATH,
     FEEDS,
+    INTEREST_EXCLUSIONS,
     INTEREST_PROFILE,
     SOCIAL_BLOCKED_DOMAINS,
     SOCIAL_KEYWORDS,
@@ -268,7 +269,7 @@ def cmd_run(
     today = date.today().isoformat()
 
     for item in all_new_items:
-        result = score_item(llm_provider, item.title, item.description, INTEREST_PROFILE, examples)
+        result = score_item(llm_provider, item.title, item.description, INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS)
         if result is None:
             skipped_count += 1
             logging.warning("Skipped (invalid LLM response): %s", item.title[:70])
@@ -640,7 +641,7 @@ def cmd_rescore(
     updated = dismissed = skipped = 0
 
     for item in pending:
-        result = score_item(llm_provider, item["title"], item["description"], INTEREST_PROFILE, examples)
+        result = score_item(llm_provider, item["title"], item["description"], INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS)
         if result is None:
             skipped += 1
             logging.warning("Skipped (invalid LLM response): %s", item["title"][:70])

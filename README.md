@@ -26,25 +26,25 @@ uv sync
 
 ```bash
 # RSS feeds only (default)
-uv run content_discovery.py
+uv run content_discovery.py run
 
 # Include Bluesky and Mastodon as additional sources
-uv run content_discovery.py --sources rss,bluesky,mastodon
+uv run content_discovery.py run --sources rss,bluesky,mastodon
 
 # Dry run — print candidates, write nothing
-uv run content_discovery.py --dry-run
+uv run content_discovery.py run --dry-run
 
 # Single feed, cloud provider
-uv run content_discovery.py --feed https://simonwillison.net/atom/everything/ --provider anthropic
+uv run content_discovery.py run --feed https://simonwillison.net/atom/everything/ --provider anthropic
 
 # Limit items scored (useful for testing)
-uv run content_discovery.py --cached --limit 20
+uv run content_discovery.py run --cached --limit 20
 ```
 
 ### 2. Review
 
 ```bash
-uv run content_discovery.py --review
+uv run content_discovery.py review
 ```
 
 Shows each candidate one at a time:
@@ -65,7 +65,7 @@ Kept items are written to your Obsidian inbox. Dismissed items are recorded and 
 ### 3. Report
 
 ```bash
-uv run content_discovery.py --report
+uv run content_discovery.py report
 ```
 
 Prints a summary of feed performance pulled from the database:
@@ -95,10 +95,10 @@ Useful for tuning the feed list: sources with low avg scores are burning scoring
 
 ```bash
 # Preview what would be dismissed (safe — writes nothing)
-uv run content_discovery.py --purge-blocked --dry-run
+uv run content_discovery.py purge-blocked --dry-run
 
 # Dismiss all pending items whose URLs match the current blocklist
-uv run content_discovery.py --purge-blocked
+uv run content_discovery.py purge-blocked
 ```
 
 Useful after updating `blocked_domains` in your config: any items already in the pending queue from newly-blocked domains are dismissed in bulk without going through interactive review. Only `status='new'` items are affected — kept items are never touched.
@@ -107,10 +107,10 @@ Useful after updating `blocked_domains` in your config: any items already in the
 
 ```bash
 # Preview what would change (no writes)
-uv run content_discovery.py --rescore --dry-run --verbose
+uv run content_discovery.py rescore --dry-run --verbose
 
 # Re-score all pending items with current profile
-uv run content_discovery.py --rescore --provider groq
+uv run content_discovery.py rescore --provider groq
 ```
 
 Re-scores every pending item using the current interest profile and your latest review history as few-shot examples. Useful after significantly editing your profile or after accumulating a lot of review history. Items that fall below threshold (or are detected as non-English) are dismissed. Accepts `--limit` and `--verbose`.
@@ -119,10 +119,10 @@ Re-scores every pending item using the current interest profile and your latest 
 
 ```bash
 # Preview
-uv run content_discovery.py --dismiss-source "Habr" --dry-run
+uv run content_discovery.py dismiss-source "Habr" --dry-run
 
 # Dismiss
-uv run content_discovery.py --dismiss-source "Habr"
+uv run content_discovery.py dismiss-source "Habr"
 ```
 
 Dismisses all pending items whose source name contains the query string (case-insensitive). Useful after seeing a low-signal source in `--report` — dismiss its backlog before removing it from your feed list.
@@ -130,7 +130,7 @@ Dismisses all pending items whose source name contains the query string (case-in
 ### 7. Feed health check
 
 ```bash
-uv run content_discovery.py --check-feeds
+uv run content_discovery.py check-feeds
 ```
 
 Fetches every configured RSS feed and reports how many items it returned. Flags feeds that return nothing or fail to load — useful for catching broken or moved feeds before they silently drop off.
@@ -139,36 +139,51 @@ Fetches every configured RSS feed and reports how many items it returned. Flags 
 
 ```bash
 # Fetch and cache responses (auto-expires after 12 hours)
-uv run content_discovery.py --cached --sources rss,bluesky
+uv run content_discovery.py run --cached --sources rss,bluesky
 
 # Wipe all cached responses manually
-uv run content_discovery.py --clear-cache
+uv run content_discovery.py clear-cache
 ```
 
 ## CLI Reference
 
-| Argument        | Short | Default               | Description                                                      |
-|-----------------|-------|-----------------------|------------------------------------------------------------------|
-| `--provider`    | `-p`  | `local`               | LLM backend: `local`, `anthropic`, `groq`, `deepseek`           |
-| `--model`       | `-m`  | provider default      | Override the default model for the chosen provider               |
-| `--dry-run`     | `-n`  | false                 | Print candidates to stdout; write nothing                        |
-| `--review`      |       | false                 | Interactively review pending items                               |
-| `--report`          |       | false                 | Print feed trend report: source quality, score distribution, tags |
-| `--rescore`         |       | false                 | Re-score all pending items with current profile and examples      |
-| `--purge-blocked`   |       | false                 | Dismiss pending items from blocked domains (supports `--dry-run`) |
-| `--dismiss-source`  |       | none                  | Dismiss pending items whose source contains QUERY (case-insensitive) |
-| `--check-feeds`     |       | false                 | Fetch all configured feeds and report their status                |
-| `--sources`         | `-s`  | `rss`                 | Comma-separated sources: `rss`, `bluesky`, `mastodon`            |
-| `--feed`        | `-f`  | none                  | Process a single RSS feed URL (overrides configured feed list)   |
-| `--threshold`   | `-t`  | `0.7`                 | Minimum relevance score (0.0–1.0)                                |
-| `--vault-path`  | `-v`  | `OBSIDIAN_VAULT_PATH` | Path to the Obsidian vault root                                  |
-| `--inbox-path`  |       | `_finds/00-inbox.md`  | Inbox path relative to vault root                                |
-| `--no-dedup`    |       | false                 | Re-score items already seen                                      |
-| `--verbose`     |       | false                 | Show scores for all items, not just candidates                   |
-| `--cached`      |       | false                 | Use cached responses when available; cache expires after 12 hours|
-| `--clear-cache` |       | false                 | Delete all cached responses and exit                             |
-| `--limit`       | `-l`  | none                  | Cap number of items scored (after deduplication)                 |
-| `--store`       |       | `~/.content-discovery.db` | Path to the SQLite database                                 |
+The CLI uses subcommands. Run any command with `--help` to see its options.
+
+### Commands
+
+| Command | Description |
+|---|---|
+| `run` | Fetch feeds, score items, store candidates (default operation) |
+| `review` | Interactively triage pending items; write kept items to Obsidian |
+| `report` | Feed trend report: source quality, score distribution, top tags |
+| `rescore` | Re-score all pending items with current profile and examples |
+| `purge-blocked` | Dismiss pending items from blocked domains |
+| `dismiss-source QUERY` | Dismiss pending items whose source contains QUERY |
+| `check-feeds` | Fetch all configured feeds and report their status |
+| `clear-cache` | Delete all cached feed and social responses |
+| `migrate-inbox` | Reformat existing inbox items to the current format |
+
+### `run` options
+
+| Option | Short | Default | Description |
+|---|---|---|---|
+| `--provider` | `-p` | `local` | LLM backend: `local`, `anthropic`, `groq`, `deepseek` |
+| `--model` | `-m` | provider default | Override the default model for the chosen provider |
+| `--sources` | `-s` | `rss` | Comma-separated: `rss`, `bluesky`, `mastodon` |
+| `--feed` | `-f` | none | Process a single RSS feed URL instead of the configured list |
+| `--threshold` | `-t` | `0.7` | Minimum relevance score (0.0–1.0) |
+| `--dry-run` | `-n` | false | Print candidates to stdout; write nothing |
+| `--cached` | | false | Use cached responses when available (12h TTL) |
+| `--limit` | `-l` | none | Cap items scored after deduplication |
+| `--no-dedup` | | false | Re-score items already seen |
+| `--verbose` | | false | Show scores for all items, not just candidates |
+| `--vault-path` | `-v` | `OBSIDIAN_VAULT_PATH` | Path to the Obsidian vault root |
+| `--inbox-path` | | `_finds/00-inbox.md` | Inbox path relative to vault root |
+| `--store` | | `~/.content-discovery.db` | Path to the SQLite database |
+
+### Shared options
+
+`--provider`, `--model`, `--threshold`, `--dry-run`, `--limit`, `--verbose`, and `--store` are also available on `rescore`. `--dry-run` and `--store` are available on `purge-blocked` and `dismiss-source`. `--store` is available on `review` and `report`.
 
 ## Configuration
 
@@ -203,6 +218,23 @@ writing craft and note-taking workflows.
 ```
 
 The profile is passed directly to the LLM on every scoring run. Adding a topic is as simple as mentioning it here.
+
+### Exclusions
+
+An optional prose list of topics, formats, and sources you don't want surfaced. Included in every prompt as "Not interested in: ..." alongside the interest profile. Use this to suppress content that scores high but you consistently dismiss.
+
+```toml
+[interests]
+profile = """..."""
+
+exclusions = """
+JavaScript/React/CSS tutorials, YouTube videos, job listings,
+non-English content, personal lifestyle newsletters,
+security CVE feeds, generic AI opinion pieces without technical depth.
+"""
+```
+
+After adding exclusions, run `rescore` to apply them to your existing pending queue.
 
 ### Social Sources
 
@@ -330,13 +362,13 @@ A Pi makes a good always-on persistence node — it keeps the DB current so whic
 Run via cron twice daily. Configure the cron job on **one machine** to avoid concurrent writes:
 
 ```
-0 8,17 * * * cd ~/projects/content-discovery-agent && uv run content_discovery.py >> ~/.content-discovery.log 2>&1
+0 8,17 * * * cd ~/projects/content-discovery-agent && uv run content_discovery.py run >> ~/.content-discovery.log 2>&1
 ```
 
 To use a cloud provider (required if running on a Pi or a machine without Ollama):
 
 ```
-0 8,17 * * * cd ~/projects/content-discovery-agent && uv run content_discovery.py --provider groq >> ~/.content-discovery.log 2>&1
+0 8,17 * * * cd ~/projects/content-discovery-agent && uv run content_discovery.py run --provider groq >> ~/.content-discovery.log 2>&1
 ```
 
 Review whenever convenient — pending items accumulate in the database until you triage them.

@@ -45,6 +45,23 @@ class TestBuildUserMessage:
         assert "Recent items kept:" not in msg
         assert "Recent items dismissed:" not in msg
 
+    def test_includes_exclusions_when_provided(self):
+        excl = "JavaScript tutorials, YouTube videos, job listings"
+        msg = build_user_message("Title", "Desc", PROFILE, exclusions=excl)
+        assert "Not interested in:" in msg
+        assert excl in msg
+
+    def test_no_exclusions_section_when_empty(self):
+        msg = build_user_message("Title", "Desc", PROFILE, exclusions="")
+        assert "Not interested in:" not in msg
+
+    def test_exclusions_appear_after_profile(self):
+        excl = "React tutorials"
+        msg = build_user_message("Title", "Desc", PROFILE, exclusions=excl)
+        profile_pos = msg.index(PROFILE)
+        excl_pos = msg.index(excl)
+        assert profile_pos < excl_pos
+
 
 class TestParseResponse:
     def test_valid_json(self):

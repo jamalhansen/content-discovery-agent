@@ -30,9 +30,13 @@ def build_user_message(
     title: str,
     description: str,
     interest_profile: str,
+    exclusions: str = "",
     examples: dict | None = None,
 ) -> str:
     parts = [f"Interests: {interest_profile}"]
+
+    if exclusions:
+        parts.append(f"Not interested in: {exclusions}")
 
     if examples:
         kept = examples.get("kept", [])
@@ -83,8 +87,9 @@ def score_item(
     description: str,
     interest_profile: str,
     examples: dict | None = None,
+    exclusions: str = "",
 ) -> ScoredItem | None:
-    user_message = build_user_message(title, description, interest_profile, examples)
+    user_message = build_user_message(title, description, interest_profile, exclusions, examples)
     try:
         raw = provider.complete(SYSTEM_PROMPT, user_message)
     except RuntimeError as e:

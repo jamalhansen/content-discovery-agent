@@ -65,69 +65,74 @@ content-discovery-agent/
 
 ## CLI Interface
 
+The CLI uses Typer subcommands. All options are per-command (not global).
+
 ```bash
 # Fetch and score RSS feeds (default)
-uv run content_discovery.py
+uv run content_discovery.py run
 
 # Include social sources
-uv run content_discovery.py --sources rss,bluesky,mastodon
+uv run content_discovery.py run --sources rss,bluesky,mastodon
 
 # Dry run — print candidates, write nothing
-uv run content_discovery.py --dry-run
+uv run content_discovery.py run --dry-run
 
 # Limit items scored (useful for testing)
-uv run content_discovery.py --cached --limit 20
+uv run content_discovery.py run --cached --limit 20
 
 # Single feed, specific provider
-uv run content_discovery.py --feed https://simonwillison.net/atom/everything/ --provider anthropic
+uv run content_discovery.py run --feed https://simonwillison.net/atom/everything/ --provider anthropic
 
 # Review pending items interactively
-uv run content_discovery.py --review
+uv run content_discovery.py review
 
 # Print feed trend report (source quality, score distribution, top tags)
-uv run content_discovery.py --report
+uv run content_discovery.py report
 
 # Re-score all pending items with current profile + examples
-uv run content_discovery.py --rescore --provider groq
+uv run content_discovery.py rescore --provider groq
 
 # Dismiss pending items from blocked domains
-uv run content_discovery.py --purge-blocked --dry-run
-uv run content_discovery.py --purge-blocked
+uv run content_discovery.py purge-blocked --dry-run
+uv run content_discovery.py purge-blocked
 
 # Dismiss pending items from a specific source (partial match, case-insensitive)
-uv run content_discovery.py --dismiss-source "Habr"
+uv run content_discovery.py dismiss-source "Habr"
 
 # Validate all configured RSS feeds
-uv run content_discovery.py --check-feeds
+uv run content_discovery.py check-feeds
 
 # Clear response cache
-uv run content_discovery.py --clear-cache
+uv run content_discovery.py clear-cache
 ```
 
 ## Arguments Reference
 
-| Argument           | Short | Default                   | Description                                                   |
+Options are per-subcommand. `run` has the full set; other commands accept subsets.
+
+### `run` options
+
+| Option             | Short | Default                   | Description                                                   |
 | ------------------ | ----- | ------------------------- | ------------------------------------------------------------- |
 | `--provider`       | `-p`  | `local`                   | LLM backend: local, anthropic, groq, deepseek                 |
 | `--model`          | `-m`  | provider-specific         | Override the default model for the chosen provider            |
-| `--dry-run`        | `-n`  | false                     | Print candidates to stdout; write nothing                     |
-| `--review`         |       | false                     | Interactively review pending items (y/n/s/o)                  |
-| `--report`         |       | false                     | Feed trend report: source quality, score distribution, tags   |
-| `--rescore`        |       | false                     | Re-score all pending items with current profile and examples  |
-| `--purge-blocked`  |       | false                     | Dismiss pending items from blocked domains (supports --dry-run)|
-| `--dismiss-source` |       | none                      | Dismiss pending items whose source contains QUERY             |
-| `--check-feeds`    |       | false                     | Fetch all configured feeds and report their status            |
 | `--sources`        | `-s`  | `rss`                     | Comma-separated: rss, bluesky, mastodon                       |
 | `--feed`           | `-f`  | none                      | Process a single feed URL instead of the full configured list |
 | `--threshold`      | `-t`  | `0.7`                     | Minimum relevance score (0.0-1.0) to store a candidate        |
-| `--vault-path`     | `-v`  | env or config             | Path to the Obsidian vault root                               |
-| `--inbox-path`     |       | `_finds/00-inbox.md`      | Path to the finds inbox, relative to vault root               |
+| `--dry-run`        | `-n`  | false                     | Print candidates to stdout; write nothing                     |
+| `--cached`         |       | false                     | Use cached feed responses if available                        |
+| `--limit`          | `-l`  | none                      | Cap items sent for scoring (after deduplication)              |
 | `--no-dedup`       |       | false                     | Disable seen-item tracking, re-score everything               |
 | `--verbose`        |       | false                     | Print scores for all items, not just those above threshold    |
-| `--cached`         |       | false                     | Use cached feed responses if available                        |
-| `--clear-cache`    |       | false                     | Delete all cached responses and exit                          |
-| `--limit`          | `-l`  | none                      | Cap items sent for scoring (after deduplication)              |
+| `--vault-path`     | `-v`  | env or config             | Path to the Obsidian vault root                               |
+| `--inbox-path`     |       | `_finds/00-inbox.md`      | Path to the finds inbox, relative to vault root               |
 | `--store`          |       | `~/.content-discovery.db` | Path to the SQLite database                                   |
+
+### Other commands
+
+`rescore` accepts: `--provider`, `--model`, `--threshold`, `--dry-run`, `--limit`, `--verbose`, `--store`
+`purge-blocked`, `dismiss-source` accept: `--dry-run`, `--store`
+`review`, `report` accept: `--store` (and `--vault-path`, `--inbox-path` for `review`)
 
 ## Configuration
 
@@ -152,6 +157,9 @@ Scoring uses a natural language prose description instead of keyword tags. The L
 profile = """
 I write and teach SQL and Python for working developers...
 """
+
+# Optional: topics/formats to score low. Sent as "Not interested in: ..."
+# exclusions = "JavaScript tutorials, YouTube videos, job listings, CVE feeds"
 ```
 
 ### Social Sources
