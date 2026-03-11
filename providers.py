@@ -1,20 +1,9 @@
 """Project-level providers shim.
 
-Imports from the shared local-first-common library and maps "local" to
-OllamaProvider so existing config (provider = "local") continues to work.
+Wraps local-first-common's PROVIDERS and adds a "local" alias for OllamaProvider
+so existing config files using `provider = "local"` continue to work.
 """
-from local_first_common.providers import (
-    OllamaProvider,
-    AnthropicProvider,
-    GroqProvider,
-    DeepSeekProvider,
-)
+from local_first_common.providers import PROVIDERS as _PROVIDERS, OllamaProvider
 
-PROVIDERS = {
-    "local": OllamaProvider,
-    "anthropic": AnthropicProvider,
-    "groq": GroqProvider,
-    "deepseek": DeepSeekProvider,
-}
-
-__all__ = ["PROVIDERS", "OllamaProvider", "AnthropicProvider", "GroqProvider", "DeepSeekProvider"]
+# "local" is a legacy alias preserved for backward compatibility with config files
+PROVIDERS = {**_PROVIDERS, "local": OllamaProvider}
