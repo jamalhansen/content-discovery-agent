@@ -153,7 +153,35 @@ uv run content_discovery.py save https://example.com/article --dry-run
 
 For links you find outside the normal feed pipeline. The item is stored as `kept` immediately (no review step), written to the inbox in the standard format, and becomes a positive few-shot example for future scoring runs. Already-seen URLs are skipped cleanly.
 
-### 9. Cache management
+### 9. Backup and restore
+
+```bash
+# Back up the database (timestamped file, safe to run any time)
+uv run content_discovery.py backup
+
+# Back up to a custom directory
+uv run content_discovery.py backup --backup-dir ~/Dropbox/backups
+
+# Restore interactively — lists available backups, prompts for selection
+uv run content_discovery.py restore
+
+# Restore most recent backup without selecting
+uv run content_discovery.py restore --latest
+
+# Restore a specific file
+uv run content_discovery.py restore --file ~/path/to/content-discovery-2026-03-11-083000.db
+
+# Preview what would happen without writing anything
+uv run content_discovery.py restore --latest --dry-run
+```
+
+Backups are written to iCloud Drive by default (`~/Library/Mobile Documents/com~apple~CloudDocs/Backups/content-discovery/`). Each backup is a plain SQLite file named `content-discovery-YYYY-MM-DD-HHMMSS.db`. Multiple backups accumulate — delete old ones manually when no longer needed.
+
+**Restore safety:** before overwriting the current database, `restore` automatically creates a `pre-restore` safety backup in the same directory. You must type `yes` to confirm the restore.
+
+Override the default backup directory with `--backup-dir`, `[settings] backup_dir` in `.content-discovery.toml`, or the `CONTENT_DISCOVERY_BACKUP_DIR` environment variable.
+
+### 10. Cache management
 
 ```bash
 # Fetch and cache responses (auto-expires after 12 hours)
@@ -179,6 +207,8 @@ The CLI uses subcommands. Run any command with `--help` to see its options.
 | `dismiss-source QUERY` | Dismiss pending items whose source contains QUERY |
 | `check-feeds` | Fetch all configured feeds and report their status |
 | `save URL` | Fetch, score, and save a URL directly to the inbox as a kept item |
+| `backup` | Copy the database to a timestamped backup file |
+| `restore` | Restore the database from a backup (requires confirmation) |
 | `clear-cache` | Delete all cached feed and social responses |
 | `migrate-inbox` | Reformat existing inbox items to the current format |
 

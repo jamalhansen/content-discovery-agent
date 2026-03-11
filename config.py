@@ -50,6 +50,12 @@ STORE_PATH = os.path.expanduser(
 )
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
+DEFAULT_BACKUP_DIR: str = os.path.expanduser(
+    os.environ.get("CONTENT_DISCOVERY_BACKUP_DIR")
+    or _settings.get("backup_dir")
+    or "~/Library/Mobile Documents/com~apple~CloudDocs/Backups/content-discovery"
+)
+
 _social_cfg = _cfg.get("social", {})
 SOCIAL_KEYWORDS: list[str] = _social_cfg.get("keywords", [])
 SOCIAL_MASTODON_INSTANCES: list[str] = _social_cfg.get("mastodon_instances", ["mastodon.social"])

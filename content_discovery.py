@@ -13,6 +13,7 @@ import typer
 from config import (
     BLUESKY_APP_PASSWORD,
     BLUESKY_HANDLE,
+    DEFAULT_BACKUP_DIR,
     DEFAULT_INBOX_PATH,
     DEFAULT_PROVIDER,
     DEFAULT_THRESHOLD,
@@ -821,6 +822,156 @@ def cmd_save(
     )
     append_to_inbox(vault_path, inbox_path, [entry])
     typer.echo(f"Saved:  {item.title}")
+
+
+@app.command("backup", help="Back up the SQLite database to iCloud (or a custom directory).")
+def cmd_backup(
+    store_path: str = _store_opt(),
+    backup_dir: str = typer.Option(
+        DEFAULT_BACKUP_DIR, "--backup-dir", "-b",
+        help="Directory to write the backup file into",
+    ),
+):
+    """Copy the database to a timestamped file in the backup directory.
+
+    The backup filename includes the current date and time so every run
+    produces a new file and older backups are never overwritten.
+    """
+    import shutil
+    from datetime import datetime
+
+    db = os.path.expanduser(store_path)
+    if not os.path.exists(db):
+        typer.echo(f"Error: database not found at {db}", err=True)
+        raise typer.Exit(1)
+
+    dest_dir = os.path.expanduser(backup_dir)
+    os.makedirs(dest_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    dest = os.path.join(dest_dir, f"content-discovery-{timestamp}.db")
+
+    shutil.copy2(db, dest)
+    size_kb = os.path.getsize(dest) / 1024
+    typer.echo(f"Backed up to: {dest}")
+    typer.echo(f"Size: {size_kb:.1f} KB")
+
+
+@app.command("restore", help="Restore the database from a backup (requires confirmation).")
+def cmd_restore(
+    store_path: str = _store_opt(),
+    backup_dir: str = typer.Option(
+        DEFAULT_BACKUP_DIR, "--backup-dir", "-b",
+        help="Directory to look for backup files",
+    ),
+    file: Optional[str] = typer.Option(
+        None, "--file", "-f",
+        help="Exact backup file to restore (overrides --latest and interactive selection)",
+    ),
+    latest: bool = typer.Option(False, "--latest", help="Restore the most recent backup without prompting for selection"),
+    dry_run: bool = _dry_run_opt(),
+):
+    """Restore the database from a timestamped backup.
+
+    By default lists available backups and prompts you to choose one.
+    Use --latest to restore the most recent backup without selecting, or
+    --file to specify an exact path. A safety backup of the current
+    database is created before any overwrite.
+    """
+    import shutil
+    import sqlite3
+    from datetime import datetime
+    from glob import glob
+
+    db = os.path.expanduser(store_path)
+
+    # Locate the backup to restore
+    if file:
+        backup_path = os.path.expanduser(file)
+        if not os.path.exists(backup_path):
+            typer.echo(f"Error: backup file not found: {backup_path}", err=True)
+            raise typer.Exit(1)
+    else:
+        dest_dir = os.path.expanduser(backup_dir)
+        pattern = os.path.join(dest_dir, "content-discovery-*.db")
+        backups = sorted(glob(pattern), reverse=True)  # newest first
+        if not backups:
+            typer.echo(f"No backups found in {dest_dir}", err=True)
+            raise typer.Exit(1)
+
+        if latest:
+            backup_path = backups[0]
+            typer.echo(f"Most recent backup: {os.path.basename(backup_path)}")
+        else:
+            typer.echo("Available backups (newest first):\n")
+            for i, b in enumerate(backups[:10], 1):
+                size_kb = os.path.getsize(b) / 1024
+                typer.echo(f"  [{i}] {os.path.basename(b)}  ({size_kb:.1f} KB)")
+            typer.echo()
+            choice = typer.prompt("Enter number to restore (or q to quit)")
+            if choice.strip().lower() == "q":
+                raise typer.Exit(0)
+            try:
+                idx = int(choice.strip()) - 1
+                backup_path = backups[idx]
+            except (ValueError, IndexError):
+                typer.echo("Invalid selection.", err=True)
+                raise typer.Exit(1)
+
+    # Show stats comparison
+    def _item_counts(path: str) -> dict:
+        try:
+            conn = sqlite3.connect(path)
+            row = conn.execute(
+                "SELECT COUNT(*) total, "
+                "SUM(CASE WHEN status='kept' THEN 1 ELSE 0 END) kept, "
+                "SUM(CASE WHEN status='dismissed' THEN 1 ELSE 0 END) dismissed, "
+                "SUM(CASE WHEN status='new' THEN 1 ELSE 0 END) pending "
+                "FROM items"
+            ).fetchone()
+            conn.close()
+            return {"total": row[0], "kept": row[1], "dismissed": row[2], "pending": row[3]}
+        except Exception:
+            return {}
+
+    typer.echo(f"\nBackup to restore: {backup_path}")
+    backup_counts = _item_counts(backup_path)
+    if backup_counts:
+        typer.echo(f"  Backup DB : {backup_counts['total']} items  "
+                   f"({backup_counts['kept']} kept, {backup_counts['dismissed']} dismissed, "
+                   f"{backup_counts['pending']} pending)")
+
+    if os.path.exists(db):
+        current_counts = _item_counts(db)
+        if current_counts:
+            typer.echo(f"  Current DB: {current_counts['total']} items  "
+                       f"({current_counts['kept']} kept, {current_counts['dismissed']} dismissed, "
+                       f"{current_counts['pending']} pending)")
+
+    if dry_run:
+        typer.echo("\n[dry-run] Would restore the backup above. Nothing written.")
+        return
+
+    typer.echo(
+        "\n⚠️  This will OVERWRITE the current database. "
+        "A safety backup will be created first."
+    )
+    confirm = typer.prompt('Type "yes" to proceed')
+    if confirm.strip().lower() != "yes":
+        typer.echo("Aborted.")
+        raise typer.Exit(0)
+
+    # Safety backup of current DB before overwriting
+    if os.path.exists(db):
+        safety_dir = os.path.expanduser(backup_dir)
+        os.makedirs(safety_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        safety_path = os.path.join(safety_dir, f"content-discovery-{timestamp}-pre-restore.db")
+        shutil.copy2(db, safety_path)
+        typer.echo(f"\nSafety backup created: {safety_path}")
+
+    shutil.copy2(backup_path, db)
+    typer.echo(f"Restored: {backup_path} → {db}")
 
 
 @app.command("clear-cache", help="Delete all cached feed and social responses.")
