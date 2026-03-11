@@ -25,13 +25,14 @@ from config import (
     SOCIAL_MASTODON_INSTANCES,
     STORE_PATH,
 )
+from social.article_fetcher import fetch_article_metadata
 from social.bluesky import BlueskyReader
 from social.mastodon import MastodonReader
 from feed_cache import load_cached_feed, save_cached_feed, load_cached_social, save_cached_social, clear_cache
 from feed_reader import FeedItem, fetch_feed, filter_new_items
 from inbox_writer import InboxEntry, append_to_inbox
 from providers import PROVIDERS
-from scorer import score_item
+from scorer import score_item, ScoredItem
 import store
 
 app = typer.Typer(
@@ -736,6 +737,90 @@ def cmd_migrate_inbox(
     with open(full_path, "w") as f:
         f.write(new_content)
     typer.echo(f"Migrated {len(matches)} item(s) to new format.")
+
+
+@app.command("save", help="Save a URL directly to the inbox as a kept item.")
+def cmd_save(
+    url: str = typer.Argument(..., help="URL to fetch, score, and save to the inbox"),
+    provider: str = _provider_opt(),
+    model: Optional[str] = _model_opt(),
+    no_score: bool = typer.Option(False, "--no-score", help="Skip LLM scoring; store with score 1.0"),
+    vault_path: str = _vault_path_opt(),
+    inbox_path: str = _inbox_path_opt(),
+    store_path: str = _store_opt(),
+    dry_run: bool = _dry_run_opt(),
+):
+    """Fetch metadata for a URL, score it, store as kept, and write to the Obsidian inbox.
+
+    Useful for saving links you find outside the normal feed pipeline. The item
+    is stored as 'kept' immediately and becomes a positive few-shot example for
+    future scoring runs.
+    """
+    from url_utils import clean_url
+
+    store.init_db(store_path)
+
+    url = clean_url(url)
+
+    if store.is_seen(url, store_path):
+        typer.echo(f"Already in database: {url}")
+        raise typer.Exit(0)
+
+    typer.echo(f"Fetching {url} ...")
+    item = fetch_article_metadata(url, blocked_domains=SOCIAL_BLOCKED_DOMAINS)
+    if item is None:
+        typer.echo(f"Error: Could not fetch metadata for {url}", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(f"Title:  {item.title}")
+
+    if no_score:
+        scored: ScoredItem = ScoredItem(score=1.0, tags=[], summary=item.description[:100], language="en")
+    else:
+        llm_provider = _make_provider(provider, model)
+        examples = store.get_examples(20, store_path, n_dismissed=40)
+        typer.echo("Scoring ...")
+        scored = score_item(
+            llm_provider, item.title, item.description,
+            INTEREST_PROFILE, examples=examples, exclusions=INTEREST_EXCLUSIONS,
+        )
+        if scored is None:
+            typer.echo("Error: Scoring failed — LLM returned invalid response.", err=True)
+            raise typer.Exit(1)
+
+    typer.echo(f"Score:  {scored.score:.2f}  Tags: {scored.tags}")
+
+    if dry_run:
+        typer.echo("[dry-run] Would save to inbox. Nothing written.")
+        return
+
+    store.upsert_item(
+        url=item.url,
+        title=item.title,
+        source=item.source,
+        description=item.description,
+        score=scored.score,
+        tags=scored.tags,
+        summary=scored.summary,
+        fetched_at=date.today().isoformat(),
+        published_at=item.published,
+        path=store_path,
+    )
+    store.mark_item(item.url, "kept", store_path)
+
+    _validate_vault(vault_path)
+    entry = InboxEntry(
+        title=item.title,
+        url=item.url,
+        source=item.source,
+        score=scored.score,
+        tags=scored.tags,
+        summary=scored.summary,
+        fetched=date.today().isoformat(),
+        published=item.published,
+    )
+    append_to_inbox(vault_path, inbox_path, [entry])
+    typer.echo(f"Saved:  {item.title}")
 
 
 @app.command("clear-cache", help="Delete all cached feed and social responses.")
