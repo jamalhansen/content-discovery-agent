@@ -135,7 +135,25 @@ uv run content_discovery.py check-feeds
 
 Fetches every configured RSS feed and reports how many items it returned. Flags feeds that return nothing or fail to load — useful for catching broken or moved feeds before they silently drop off.
 
-### 8. Cache management
+### 8. Save a URL manually
+
+```bash
+# Fetch, score, and write directly to the Obsidian inbox
+uv run content_discovery.py save https://example.com/article
+
+# Skip LLM scoring — store with score 1.0
+uv run content_discovery.py save https://example.com/article --no-score
+
+# Use a cloud provider for scoring
+uv run content_discovery.py save https://example.com/article --provider groq
+
+# Dry run — print what would happen, write nothing
+uv run content_discovery.py save https://example.com/article --dry-run
+```
+
+For links you find outside the normal feed pipeline. The item is stored as `kept` immediately (no review step), written to the inbox in the standard format, and becomes a positive few-shot example for future scoring runs. Already-seen URLs are skipped cleanly.
+
+### 9. Cache management
 
 ```bash
 # Fetch and cache responses (auto-expires after 12 hours)
@@ -160,6 +178,7 @@ The CLI uses subcommands. Run any command with `--help` to see its options.
 | `purge-blocked` | Dismiss pending items from blocked domains |
 | `dismiss-source QUERY` | Dismiss pending items whose source contains QUERY |
 | `check-feeds` | Fetch all configured feeds and report their status |
+| `save URL` | Fetch, score, and save a URL directly to the inbox as a kept item |
 | `clear-cache` | Delete all cached feed and social responses |
 | `migrate-inbox` | Reformat existing inbox items to the current format |
 
@@ -183,7 +202,7 @@ The CLI uses subcommands. Run any command with `--help` to see its options.
 
 ### Shared options
 
-`--provider`, `--model`, `--threshold`, `--dry-run`, `--limit`, `--verbose`, and `--store` are also available on `rescore`. `--dry-run` and `--store` are available on `purge-blocked` and `dismiss-source`. `--store` is available on `review` and `report`.
+`--provider`, `--model`, `--threshold`, `--dry-run`, `--limit`, `--verbose`, and `--store` are also available on `rescore`. `--provider`, `--model`, `--no-score`, `--dry-run`, `--vault-path`, `--inbox-path`, and `--store` are available on `save`. `--dry-run` and `--store` are available on `purge-blocked` and `dismiss-source`. `--store` is available on `review` and `report`.
 
 ## Configuration
 
@@ -302,7 +321,7 @@ inbox_path = "_finds/00-inbox.md"
 
 ## How Scoring Improves Over Time
 
-On each run, the scorer pulls your 10 most recently kept and 10 most recently dismissed item titles from the database and includes them as few-shot examples in the prompt. The model sees your actual behaviour rather than just a description of your interests.
+On each run, the scorer pulls your 20 most recently kept and 40 most recently dismissed item titles from the database and includes them as few-shot examples in the prompt. Dismissed examples are weighted more heavily because they outnumber kept items and give the model sharper negative signal. The model sees your actual behaviour rather than just a description of your interests.
 
 The system works without any review history — it starts with the interest profile alone and gets sharper as you review more items.
 
