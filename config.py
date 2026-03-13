@@ -68,3 +68,5 @@ SOCIAL_BLOCKED_DOMAINS: frozenset[str] = frozenset(_social_cfg.get("blocked_doma
 # Generate an App Password in Bluesky → Settings → Privacy and Security → App Passwords.
 BLUESKY_HANDLE: str = os.environ.get("BLUESKY_HANDLE", "")
 BLUESKY_APP_PASSWORD: str = os.environ.get("BLUESKY_APP_PASSWORD", "")
+
+READWISE_TOKEN: str = os.environ.get("READWISE_TOKEN", "")

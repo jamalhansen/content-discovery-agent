@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 import logging
 import os
-import re
 import sys
 import webbrowser
 from datetime import date
 from typing import Optional
-from urllib.parse import quote
 
 import typer
 
@@ -14,13 +12,12 @@ from config import (
     BLUESKY_APP_PASSWORD,
     BLUESKY_HANDLE,
     DEFAULT_BACKUP_DIR,
-    DEFAULT_INBOX_PATH,
     DEFAULT_PROVIDER,
     DEFAULT_THRESHOLD,
-    DEFAULT_VAULT_PATH,
     FEEDS,
     INTEREST_EXCLUSIONS,
     INTEREST_PROFILE,
+    READWISE_TOKEN,
     SOCIAL_BLOCKED_DOMAINS,
     SOCIAL_KEYWORDS,
     SOCIAL_MASTODON_INSTANCES,
@@ -31,8 +28,8 @@ from social.bluesky import BlueskyReader
 from social.mastodon import MastodonReader
 from feed_cache import load_cached_feed, save_cached_feed, load_cached_social, save_cached_social, clear_cache
 from feed_reader import FeedItem, fetch_feed, filter_new_items
-from inbox_writer import InboxEntry, append_to_inbox
 from providers import PROVIDERS
+from readwise import save_to_readwise
 from scorer import score_item, ScoredItem
 import store
 
@@ -60,14 +57,6 @@ def _dry_run_opt():
 
 def _threshold_opt():
     return typer.Option(DEFAULT_THRESHOLD, "--threshold", "-t", help="Minimum relevance score 0.0-1.0")
-
-def _vault_path_opt():
-    return typer.Option(DEFAULT_VAULT_PATH or "", "--vault-path", "-v",
-                        help="Path to the Obsidian vault root (or set OBSIDIAN_VAULT_PATH env var)")
-
-def _inbox_path_opt():
-    return typer.Option(DEFAULT_INBOX_PATH, "--inbox-path",
-                        help=f"Inbox path relative to vault root (default: {DEFAULT_INBOX_PATH})")
 
 def _store_opt():
     return typer.Option(STORE_PATH, "--store", help="Path to the SQLite database")
@@ -97,18 +86,6 @@ def _validate_threshold(threshold: float) -> None:
         typer.echo(f"Error: --threshold must be between 0.0 and 1.0, got {threshold}", err=True)
         raise typer.Exit(1)
 
-def _validate_vault(vault_path: str) -> None:
-    if not vault_path:
-        typer.echo(
-            "Error: Vault path is required. Set --vault-path or OBSIDIAN_VAULT_PATH env var.",
-            err=True,
-        )
-        raise typer.Exit(1)
-    vault = os.path.expanduser(vault_path)
-    if not os.path.isdir(vault):
-        typer.echo(f"Error: Vault path does not exist: {vault}", err=True)
-        raise typer.Exit(1)
-
 def _make_provider(provider_name: str, model: Optional[str]):
     if provider_name not in PROVIDERS:
         typer.echo(f"Error: Unknown provider '{provider_name}'. Valid options: {', '.join(PROVIDERS.keys())}", err=True)
@@ -119,15 +96,14 @@ def _make_provider(provider_name: str, model: Optional[str]):
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
 
-def format_candidate(entry: InboxEntry) -> str:
-    return "\n" + entry.format_plain()
-
-def _write_to_inbox(vault_path: str, inbox_path: str, entries: list[InboxEntry]) -> None:
-    if not entries:
-        return
-    _validate_vault(vault_path)
-    append_to_inbox(vault_path, inbox_path, entries)
-    typer.echo(f"\n{len(entries)} item{'s' if len(entries) != 1 else ''} written to inbox.")
+def _validate_readwise_token(token: str) -> None:
+    if not token:
+        typer.echo(
+            "Error: READWISE_TOKEN is not set. "
+            "Get your token at https://readwise.io/access_token and set it as an env var.",
+            err=True,
+        )
+        raise typer.Exit(1)
 
 # ---------------------------------------------------------------------------
 # Commands
@@ -141,8 +117,6 @@ def cmd_run(
     feed: Optional[str] = typer.Option(None, "--feed", "-f", metavar="URL",
                                         help="Process a single feed URL instead of the full configured list"),
     threshold: float = _threshold_opt(),
-    vault_path: str = _vault_path_opt(),
-    inbox_path: str = _inbox_path_opt(),
     no_dedup: bool = _no_dedup_opt(),
     verbose: bool = _verbose_opt(),
     cached: bool = _cached_opt(),
@@ -265,7 +239,7 @@ def cmd_run(
 
     typer.echo(f"\nScoring {len(all_new_items)} item{'s' if len(all_new_items) != 1 else ''}...")
 
-    candidates: list[InboxEntry] = []
+    candidates: list[dict] = []
     scored_count = 0
     skipped_count = 0
     today = date.today().isoformat()
@@ -305,38 +279,43 @@ def cmd_run(
             continue
 
         if result.score >= threshold:
-            candidates.append(InboxEntry(
-                title=item.title,
-                url=item.url,
-                source=item.source,
-                score=result.score,
-                tags=result.tags,
-                summary=result.summary,
-                published=item.published,
-            ))
+            candidates.append({
+                "title": item.title,
+                "url": item.url,
+                "score": result.score,
+                "tags": result.tags,
+                "summary": result.summary,
+            })
 
     if not candidates:
         typer.echo(f"\nNo candidates above threshold ({threshold}).")
     else:
         typer.echo(f"\nCandidates above threshold ({threshold}):")
-        for entry in candidates:
-            typer.echo(format_candidate(entry))
+        for c in candidates:
+            tag_str = " ".join(f"#{t}" for t in c["tags"]) if c["tags"] else ""
+            typer.echo(f"\n  [{c['score']:.2f}] {c['title']}")
+            typer.echo(f"  {c['summary']}")
+            typer.echo(f"  {c['url']}  {tag_str}")
 
     if dry_run:
         typer.echo(f"\n{len(candidates)} candidates found. Dry run -- nothing written.")
     else:
-        typer.echo(f"\n{len(candidates)} candidates stored. Run --review to triage.")
+        typer.echo(f"\n{len(candidates)} candidates stored. Run review to triage.")
 
     typer.echo(f"Done. Processed: {scored_count}, Skipped: {skipped_count}")
 
 
-@app.command("review", help="Interactively review pending items; write kept items to Obsidian.")
+@app.command("review", help="Interactively review pending items; send kept items to Readwise Reader.")
 def cmd_review(
-    vault_path: str = _vault_path_opt(),
-    inbox_path: str = _inbox_path_opt(),
     store_path: str = _store_opt(),
+    readwise_token: str = typer.Option(
+        READWISE_TOKEN, "--readwise-token",
+        envvar="READWISE_TOKEN",
+        help="Readwise access token (or set READWISE_TOKEN env var)",
+    ),
 ):
-    """Interactively review pending items; write kept items to Obsidian."""
+    """Interactively review pending items; send kept items to Readwise Reader."""
+    _validate_readwise_token(readwise_token)
     store.init_db(store_path)
     pending = store.get_new_items(store_path)
 
@@ -348,7 +327,8 @@ def cmd_review(
     typer.echo(f"Reviewing {total} pending item{'s' if total != 1 else ''}.")
     typer.echo("  y = keep  |  n = dismiss  |  s = stop  |  o = open in browser\n")
 
-    kept_entries: list[InboxEntry] = []
+    kept = 0
+    dismissed = 0
 
     for i, item in enumerate(pending, start=1):
         tag_str = " ".join(f"#{t}" for t in item["tags"]) if item["tags"] else "(none)"
@@ -365,34 +345,31 @@ def cmd_review(
 
             if choice == "y":
                 store.mark_item(item["url"], "kept", store_path)
-                kept_entries.append(InboxEntry(
+                ok = save_to_readwise(
+                    item["url"],
+                    readwise_token,
                     title=item["title"],
-                    url=item["url"],
-                    source=item["source"],
-                    score=item["score"],
-                    tags=item["tags"],
                     summary=item["summary"],
-                    fetched=item["fetched_at"],
-                    published=item.get("published_at", ""),
-                ))
-                typer.echo("  Kept.\n")
+                    tags=item["tags"],
+                    published_date=item.get("published_at", ""),
+                )
+                kept += 1
+                typer.echo("  Sent to Readwise Reader.\n" if ok else "  Kept (Readwise save failed — check token).\n")
                 break
             elif choice == "n":
                 store.mark_item(item["url"], "dismissed", store_path)
+                dismissed += 1
                 typer.echo("  Dismissed.\n")
                 break
             elif choice == "s":
-                typer.echo(f"\nStopped. Reviewed {i - 1} of {total} items.")
-                _write_to_inbox(vault_path, inbox_path, kept_entries)
+                typer.echo(f"\nStopped. Kept: {kept}, Dismissed: {dismissed}.")
                 return
             elif choice == "o":
                 webbrowser.open(item["url"])
             else:
                 typer.echo("  Type y, n, s, or o.")
 
-    _write_to_inbox(vault_path, inbox_path, kept_entries)
-    dismissed = total - len(kept_entries)
-    typer.echo(f"\nDone. Kept: {len(kept_entries)}, Dismissed: {dismissed}.")
+    typer.echo(f"\nDone. Kept: {kept}, Dismissed: {dismissed}.")
 
 
 @app.command("report", help="Print a summary report of feed trends, source quality, and scoring history.")
@@ -681,77 +658,20 @@ def cmd_rescore(
         typer.echo(f"\nDone. Kept pending: {updated}, Dismissed: {dismissed}, Skipped: {skipped}.")
 
 
-@app.command("migrate-inbox", help="Reformat existing inbox items to the current format (bullet, Reader link).")
-def cmd_migrate_inbox(
-    vault_path: str = _vault_path_opt(),
-    inbox_path: str = _inbox_path_opt(),
-    dry_run: bool = _dry_run_opt(),
-):
-    """Reformat existing inbox items to the current format."""
-    _validate_vault(vault_path)
-    full_path = os.path.join(os.path.expanduser(vault_path), inbox_path)
-
-    if not os.path.exists(full_path):
-        typer.echo(f"Inbox file not found: {full_path}")
-        return
-
-    with open(full_path) as f:
-        content = f.read()
-
-    pattern = re.compile(
-        r'- \[ \] \[(.+?)\]\((.+?)\)\n'
-        r'  - \*\*Source\*\*: (.+?)\n'
-        r'  - \*\*Score\*\*: (.+?)\n'
-        r'  - \*\*Tags\*\*: (.*?)\n'
-        r'  - \*\*Summary\*\*: (.+?)\n'
-        r'  - \*\*Fetched\*\*: ([^\n]+)',
-        re.MULTILINE,
-    )
-
-    matches = pattern.findall(content)
-    if not matches:
-        typer.echo("No items in old format found -- nothing to migrate.")
-        return
-
-    def _replace(m: re.Match) -> str:
-        title, url, source, score_val, tags, summary, fetched = m.groups()
-        try:
-            score_str = f"{float(score_val):.2f}"
-        except ValueError:
-            score_str = score_val
-        reader_url = f"https://readwise.io/save?url={quote(url, safe='')}"
-        return (
-            f"- [{title}]({url}) . [Read in Reader]({reader_url})\n"
-            f"  - **Source**: {source}\n"
-            f"  - **Score**: {score_str}\n"
-            f"  - **Tags**: {tags}\n"
-            f"  - **Summary**: {summary}\n"
-            f"  - **Fetched**: {fetched}"
-        )
-
-    new_content = pattern.sub(_replace, content)
-
-    if dry_run:
-        typer.echo(f"Would migrate {len(matches)} item(s) -- dry run, nothing written.")
-        return
-
-    with open(full_path, "w") as f:
-        f.write(new_content)
-    typer.echo(f"Migrated {len(matches)} item(s) to new format.")
-
-
-@app.command("save", help="Save a URL directly to the inbox as a kept item.")
+@app.command("save", help="Save a URL directly to Readwise Reader as a kept item.")
 def cmd_save(
-    url: str = typer.Argument(..., help="URL to fetch, score, and save to the inbox"),
+    url: str = typer.Argument(..., help="URL to fetch, score, and save to Readwise Reader"),
     provider: str = _provider_opt(),
     model: Optional[str] = _model_opt(),
     no_score: bool = typer.Option(False, "--no-score", help="Skip LLM scoring; store with score 1.0"),
-    vault_path: str = _vault_path_opt(),
-    inbox_path: str = _inbox_path_opt(),
+    readwise_token: str = typer.Option(
+        READWISE_TOKEN, "--readwise-token", envvar="READWISE_TOKEN",
+        help="Readwise API token",
+    ),
     store_path: str = _store_opt(),
     dry_run: bool = _dry_run_opt(),
 ):
-    """Fetch metadata for a URL, score it, store as kept, and write to the Obsidian inbox.
+    """Fetch metadata for a URL, score it, store as kept, and send to Readwise Reader.
 
     Useful for saving links you find outside the normal feed pipeline. The item
     is stored as 'kept' immediately and becomes a positive few-shot example for
@@ -792,7 +712,7 @@ def cmd_save(
     typer.echo(f"Score:  {scored.score:.2f}  Tags: {scored.tags}")
 
     if dry_run:
-        typer.echo("[dry-run] Would save to inbox. Nothing written.")
+        typer.echo("[dry-run] Would save to Readwise Reader. Nothing written.")
         return
 
     store.upsert_item(
@@ -809,19 +729,16 @@ def cmd_save(
     )
     store.mark_item(item.url, "kept", store_path)
 
-    _validate_vault(vault_path)
-    entry = InboxEntry(
+    _validate_readwise_token(readwise_token)
+    ok = save_to_readwise(
+        item.url, readwise_token,
         title=item.title,
-        url=item.url,
-        source=item.source,
-        score=scored.score,
-        tags=scored.tags,
         summary=scored.summary,
-        fetched=date.today().isoformat(),
-        published=item.published,
+        tags=scored.tags,
+        published_date=item.published,
     )
-    append_to_inbox(vault_path, inbox_path, [entry])
     typer.echo(f"Saved:  {item.title}")
+    typer.echo("  Sent to Readwise Reader." if ok else "  Kept in DB (Readwise save failed — check token).")
 
 
 @app.command("backup", help="Back up the SQLite database to iCloud (or a custom directory).")

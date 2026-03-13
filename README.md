@@ -9,7 +9,7 @@ CLI tool that monitors RSS feeds and social media for articles relevant to your 
 3. Stores candidates in a local SQLite database
 4. Skips items already seen in previous runs (deduplication)
 5. Lets you review candidates interactively — keep or dismiss each one
-6. Writes only the items you keep to your Obsidian inbox
+6. Sends kept items to your Readwise Reader inbox via the API
 
 The scorer improves over time: after you review items, your kept/dismissed history is used as few-shot examples in subsequent scoring runs.
 
@@ -60,7 +60,7 @@ Shows each candidate one at a time:
 
 Commands: `y` keep · `n` dismiss · `s` stop · `o` open URL in browser
 
-Kept items are written to your Obsidian inbox. Dismissed items are recorded and used to improve future scoring.
+Kept items are sent to your Readwise Reader inbox via the API. Dismissed items are recorded and used to improve future scoring.
 
 ### 3. Report
 
@@ -138,7 +138,7 @@ Fetches every configured RSS feed and reports how many items it returned. Flags 
 ### 8. Save a URL manually
 
 ```bash
-# Fetch, score, and write directly to the Obsidian inbox
+# Fetch, score, and send directly to Readwise Reader
 uv run content_discovery.py save https://example.com/article
 
 # Skip LLM scoring — store with score 1.0
@@ -151,7 +151,7 @@ uv run content_discovery.py save https://example.com/article --provider groq
 uv run content_discovery.py save https://example.com/article --dry-run
 ```
 
-For links you find outside the normal feed pipeline. The item is stored as `kept` immediately (no review step), written to the inbox in the standard format, and becomes a positive few-shot example for future scoring runs. Already-seen URLs are skipped cleanly.
+For links you find outside the normal feed pipeline. The item is stored as `kept` immediately (no review step), sent to Readwise Reader, and becomes a positive few-shot example for future scoring runs. Already-seen URLs are skipped cleanly.
 
 ### 9. Backup and restore
 
@@ -200,17 +200,16 @@ The CLI uses subcommands. Run any command with `--help` to see its options.
 | Command | Description |
 |---|---|
 | `run` | Fetch feeds, score items, store candidates (default operation) |
-| `review` | Interactively triage pending items; write kept items to Obsidian |
+| `review` | Interactively triage pending items; send kept items to Readwise Reader |
 | `report` | Feed trend report: source quality, score distribution, top tags |
 | `rescore` | Re-score all pending items with current profile and examples |
 | `purge-blocked` | Dismiss pending items from blocked domains |
 | `dismiss-source QUERY` | Dismiss pending items whose source contains QUERY |
 | `check-feeds` | Fetch all configured feeds and report their status |
-| `save URL` | Fetch, score, and save a URL directly to the inbox as a kept item |
+| `save URL` | Fetch, score, and send a URL directly to Readwise Reader as a kept item |
 | `backup` | Copy the database to a timestamped backup file |
 | `restore` | Restore the database from a backup (requires confirmation) |
 | `clear-cache` | Delete all cached feed and social responses |
-| `migrate-inbox` | Reformat existing inbox items to the current format |
 
 ### `run` options
 
@@ -226,13 +225,11 @@ The CLI uses subcommands. Run any command with `--help` to see its options.
 | `--limit` | `-l` | none | Cap items scored after deduplication |
 | `--no-dedup` | | false | Re-score items already seen |
 | `--verbose` | | false | Show scores for all items, not just candidates |
-| `--vault-path` | `-v` | `OBSIDIAN_VAULT_PATH` | Path to the Obsidian vault root |
-| `--inbox-path` | | `_finds/00-inbox.md` | Inbox path relative to vault root |
 | `--store` | | `~/.content-discovery.db` | Path to the SQLite database |
 
 ### Shared options
 
-`--provider`, `--model`, `--threshold`, `--dry-run`, `--limit`, `--verbose`, and `--store` are also available on `rescore`. `--provider`, `--model`, `--no-score`, `--dry-run`, `--vault-path`, `--inbox-path`, and `--store` are available on `save`. `--dry-run` and `--store` are available on `purge-blocked` and `dismiss-source`. `--store` is available on `review` and `report`.
+`--provider`, `--model`, `--threshold`, `--dry-run`, `--limit`, `--verbose`, and `--store` are also available on `rescore`. `--provider`, `--model`, `--no-score`, `--readwise-token`, `--dry-run`, and `--store` are available on `save`. `--dry-run` and `--store` are available on `purge-blocked` and `dismiss-source`. `--store` is available on `review` and `report`.
 
 ## Configuration
 
@@ -321,15 +318,13 @@ Add any others in `[social] blocked_domains`. Common additions: `nytimes.com`, `
 [settings]
 threshold = 0.7         # minimum score to store a candidate
 provider = "local"      # default LLM backend
-inbox_path = "_finds/00-inbox.md"
-# vault_path = "~/vaults/MyVault/"
 ```
 
 ## Environment Variables
 
 | Variable                   | Purpose                                      | Example                             |
 |----------------------------|----------------------------------------------|-------------------------------------|
-| `OBSIDIAN_VAULT_PATH`      | Vault root path                              | `~/vaults/BrainSync/`               |
+| `READWISE_TOKEN`           | Readwise API token (for review and save)     | `your_token_here`                   |
 | `CONTENT_DISCOVERY_STORE`  | SQLite DB path (machine-specific)            | `~/sync/content-discovery/store.db` |
 | `ANTHROPIC_API_KEY`        | Anthropic API key                            | `sk-ant-...`                        |
 | `GROQ_API_KEY`             | Groq API key                                 | `gsk_...`                           |
@@ -337,6 +332,8 @@ inbox_path = "_finds/00-inbox.md"
 | `OLLAMA_HOST`              | Ollama server URL                            | `http://localhost:11434`            |
 | `BLUESKY_HANDLE`           | Bluesky handle for authenticated search      | `you.bsky.social`                   |
 | `BLUESKY_APP_PASSWORD`     | Bluesky App Password (not your main password)| `xxxx-xxxx-xxxx-xxxx`               |
+
+Get your Readwise token at [readwise.io/access_token](https://readwise.io/access_token).
 
 > **Bluesky auth note:** Bluesky's public search endpoint (`public.api.bsky.app`) intermittently returns 403 for unauthenticated requests. Setting `BLUESKY_HANDLE` and `BLUESKY_APP_PASSWORD` switches to authenticated requests which are reliably served. Generate an App Password in Bluesky → Settings → Privacy and Security → App Passwords.
 
@@ -432,7 +429,7 @@ content-discovery-agent/
   scorer.py               # Prompt construction and JSON parsing (score, tags, summary, language)
   feed_reader.py          # feedparser wrapper
   feed_cache.py           # RSS and social response caching (12h TTL)
-  inbox_writer.py         # Obsidian inbox append logic
+  readwise.py             # Readwise Reader API integration
   url_utils.py            # clean_url() — strips UTM and tracking params
   social/
     __init__.py           # SOCIAL_READERS dict
@@ -451,7 +448,7 @@ content-discovery-agent/
     test_scorer.py
     test_feed_reader.py
     test_feed_cache.py
-    test_inbox_writer.py
+    test_readwise.py
     test_store.py
     test_article_fetcher.py
     test_social_bluesky.py

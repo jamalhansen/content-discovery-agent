@@ -2,7 +2,7 @@ Content Discovery Agent
 
 ## Project Overview
 
-CLI tool that monitors RSS feeds and social platforms (Bluesky, Mastodon), scores each item for relevance using an LLM, and stores candidates in SQLite for interactive review. Runs on a cron schedule. The user reviews candidates in the terminal and decides what gets written to the Obsidian inbox.
+CLI tool that monitors RSS feeds and social platforms (Bluesky, Mastodon), scores each item for relevance using an LLM, and stores candidates in SQLite for interactive review. Runs on a cron schedule. The user reviews candidates in the terminal; kept items are sent to Readwise Reader via the API.
 
 The LLM's job is narrow: read a feed item's title and description, score its relevance against a natural language interest profile, detect the article's language, generate a one-line summary, and return structured JSON. No complex reasoning, no long context. A small local model handles this easily.
 
@@ -14,19 +14,19 @@ The LLM's job is narrow: read a feed item's title and description, score its rel
 4. Sends each item to an LLM with a relevance-scoring prompt (interest profile + few-shot examples)
 5. Dismisses non-English items and items below the score threshold automatically
 6. Stores all scored items in a local SQLite database (deduplication — won't re-score on next run)
-7. User runs `--review` to triage candidates interactively (y/n/s/o)
-8. Kept items are written to the Obsidian inbox; dismissed items become negative examples for future runs
+7. User runs `review` to triage candidates interactively (y/n/s/o)
+8. Kept items are sent to Readwise Reader via the API; dismissed items become negative examples for future runs
 
 ## Architecture
 
 ```
 content-discovery-agent/
-  content_discovery.py    # CLI entrypoint (argparse) — all commands
+  content_discovery.py    # CLI entrypoint (Typer) — all commands
   store.py                # SQLite storage layer — items, dedup, examples, reports
   scorer.py               # Prompt construction + response parsing (score, tags, summary, language)
   feed_reader.py          # feedparser wrapper + FeedItem dataclass
   feed_cache.py           # RSS and social response caching (12h TTL)
-  inbox_writer.py         # Obsidian inbox append logic (used at review time)
+  readwise.py             # Readwise Reader API — save_to_readwise()
   config.py               # Feeds, interest profile, social config, defaults, env vars
   url_utils.py            # clean_url() — strips UTM and tracking query params
   state.py                # Legacy JSON dedup — superseded by store.py, kept for compat
@@ -48,7 +48,9 @@ content-discovery-agent/
     test_store.py
     test_feed_reader.py
     test_feed_cache.py
-    test_inbox_writer.py
+    test_readwise.py
+    test_save_command.py
+    test_backup_restore.py
     test_article_fetcher.py
     test_social_bluesky.py
     test_social_mastodon.py
@@ -124,15 +126,14 @@ Options are per-subcommand. `run` has the full set; other commands accept subset
 | `--limit`          | `-l`  | none                      | Cap items sent for scoring (after deduplication)              |
 | `--no-dedup`       |       | false                     | Disable seen-item tracking, re-score everything               |
 | `--verbose`        |       | false                     | Print scores for all items, not just those above threshold    |
-| `--vault-path`     | `-v`  | env or config             | Path to the Obsidian vault root                               |
-| `--inbox-path`     |       | `_finds/00-inbox.md`      | Path to the finds inbox, relative to vault root               |
 | `--store`          |       | `~/.content-discovery.db` | Path to the SQLite database                                   |
 
 ### Other commands
 
 `rescore` accepts: `--provider`, `--model`, `--threshold`, `--dry-run`, `--limit`, `--verbose`, `--store`
+`save` accepts: `--provider`, `--model`, `--no-score`, `--readwise-token`, `--dry-run`, `--store`
 `purge-blocked`, `dismiss-source` accept: `--dry-run`, `--store`
-`review`, `report` accept: `--store` (and `--vault-path`, `--inbox-path` for `review`)
+`review`, `report` accept: `--store`; `review` also accepts `--readwise-token`
 
 ## Configuration
 
@@ -179,16 +180,14 @@ blocked_domains = ["nytimes.com", "youtube.com", "bsky.app"]
 [settings]
 threshold = 0.7
 provider = "local"
-inbox_path = "_finds/00-inbox.md"
 store = "~/sync/content-discovery/store.db"
-# vault_path = "~/vaults/BrainSync/"
 ```
 
 ## Environment Variables
 
 | Variable               | Purpose                                       | Example                             |
 | ---------------------- | --------------------------------------------- | ----------------------------------- |
-| `OBSIDIAN_VAULT_PATH`  | Vault root path                               | `~/vaults/BrainSync/`               |
+| `READWISE_TOKEN`       | Readwise API token (review + save commands)   | `your_token_here`                   |
 | `ANTHROPIC_API_KEY`    | Anthropic API key                             | `sk-ant-...`                        |
 | `GROQ_API_KEY`         | Groq API key                                  | `gsk_...`                           |
 | `DEEPSEEK_API_KEY`     | DeepSeek API key                              | `sk-...`                            |
@@ -271,20 +270,13 @@ Stripped params: `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_co
 
 Non-tracking query parameters are preserved.
 
-## Inbox Format
+## Readwise Integration
 
-Only kept items reach the Obsidian inbox (written at review time):
+Kept items are sent to Readwise Reader via `POST https://readwise.io/api/v3/save/`. The `readwise.py` module handles all API calls. Fields sent: `url`, `title`, `summary`, `tags`, `published_date`.
 
-```markdown
-- [ ] [Item Title](https://item-url.com)
-  - **Source**: Simon Willison's Weblog
-  - **Score**: 0.85
-  - **Tags**: #local-ai #llm
-  - **Summary**: A practical guide to building RAG pipelines with local models.
-  - **Fetched**: 2026-03-07
-```
+Set `READWISE_TOKEN` env var. Get your token at `https://readwise.io/access_token`.
 
-The inbox file is append-only. Created with a header if it does not exist.
+Rate limit: 50 requests/minute. The integration is used only at review time and in the `save` command — typical usage is well under this limit.
 
 ## Error Handling
 
@@ -292,7 +284,8 @@ The inbox file is append-only. Created with a header if it does not exist.
 - LLM returns invalid JSON: log raw response, skip the item (item not stored — will retry next run)
 - Non-English article: stored dismissed automatically (not surfaced for review)
 - Provider unavailable (Ollama not running, bad API key): fail fast before fetching any feeds
-- Vault path missing: checked at review time before writing, not at score time
+- Readwise token missing: fail fast before review/save
+- Readwise API error: item kept in DB; warning printed; does not abort review session
 - `--dry-run`: skips DB write entirely, prints candidates to stdout only
 
 ## Testing
@@ -301,13 +294,15 @@ The inbox file is append-only. Created with a header if it does not exist.
 uv run pytest
 ```
 
-178 tests across 9 test files. All use `tmp_path` for file I/O; no real network calls; no real DB.
+212 tests across 11 test files. All use `tmp_path` for file I/O; no real network calls; no real DB.
 
 - `test_scorer.py` — prompt construction, JSON parsing, language field, few-shot examples
 - `test_store.py` — SQLite round-trips, dedup, mark, examples, report queries, score distribution
 - `test_feed_reader.py` — feedparser wrapper, item extraction
 - `test_feed_cache.py` — cache save/load, TTL expiry
-- `test_inbox_writer.py` — append-to-existing, create-new, checkbox format
+- `test_readwise.py` — API calls, auth header, optional fields, error handling
+- `test_save_command.py` — save CLI command end-to-end
+- `test_backup_restore.py` — backup/restore CLI commands
 - `test_article_fetcher.py` — metadata extraction, blocked domains, URL validation, clean_url
 - `test_social_bluesky.py` — AT Protocol reader, auth, URL extraction, deduplication
 - `test_social_mastodon.py` — hashtag timeline reader, multi-instance, deduplication
