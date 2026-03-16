@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import logging
 import os
-import sys
 import webbrowser
 from datetime import date
 from typing import Optional
@@ -27,8 +26,8 @@ from social.article_fetcher import fetch_article_metadata
 from social.bluesky import BlueskyReader
 from social.mastodon import MastodonReader
 from feed_cache import load_cached_feed, save_cached_feed, load_cached_social, save_cached_social, clear_cache
-from feed_reader import FeedItem, fetch_feed, filter_new_items
-from providers import PROVIDERS
+from feed_reader import FeedItem, fetch_feed
+from local_first_common.providers import PROVIDERS
 from readwise import save_to_readwise
 from scorer import score_item, ScoredItem
 import store
@@ -677,7 +676,7 @@ def cmd_save(
     is stored as 'kept' immediately and becomes a positive few-shot example for
     future scoring runs.
     """
-    from url_utils import clean_url
+    from local_first_common.url import clean_url
 
     store.init_db(store_path)
 

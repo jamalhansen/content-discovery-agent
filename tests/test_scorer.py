@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock
 from scorer import build_user_message, parse_response, score_item, ScoredItem
 

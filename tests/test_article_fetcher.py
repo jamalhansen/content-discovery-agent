@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import requests as req
 
 from social.article_fetcher import fetch_article_metadata, _is_blocked
-from url_utils import clean_url
+from local_first_common.url import clean_url
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "sample_article.html"
 SAMPLE_HTML = FIXTURE_PATH.read_text()

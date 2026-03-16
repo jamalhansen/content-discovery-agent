@@ -211,3 +211,7 @@ __marimo__/
 
 # Claude Code project notes (session memory, local settings)
 .claude/
+
+# local-first security requirements
+CLAUDE.md
+uv.toml

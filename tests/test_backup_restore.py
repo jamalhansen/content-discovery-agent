@@ -1,9 +1,7 @@
 """Tests for the backup and restore CLI commands."""
 import os
-import shutil
 import sqlite3
 
-import pytest
 from typer.testing import CliRunner
 
 from content_discovery import app

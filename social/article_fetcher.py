@@ -11,7 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from feed_reader import FeedItem
-from url_utils import clean_url, _TRACKING_PARAMS  # noqa: F401 — re-exported for consumers
+from local_first_common.url import clean_url, _TRACKING_PARAMS  # noqa: F401 — re-exported for consumers
 
 logger = logging.getLogger(__name__)
 

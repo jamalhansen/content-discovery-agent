@@ -1,9 +1,9 @@
 import logging
 import time as _time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import feedparser
 import requests
-from url_utils import clean_url
+from local_first_common.url import clean_url
 
 logger = logging.getLogger(__name__)
 

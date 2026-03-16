@@ -1,7 +1,6 @@
 """Tests for the Readwise Reader integration module."""
 from unittest.mock import MagicMock, patch
 
-import pytest
 import requests
 
 from readwise import save_to_readwise

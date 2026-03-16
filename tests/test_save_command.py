@@ -1,8 +1,6 @@
 """Tests for the `save` CLI command."""
-import os
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from content_discovery import app

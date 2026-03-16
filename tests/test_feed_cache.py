@@ -1,11 +1,8 @@
 import os
 import pytest
-from unittest.mock import patch
 from feed_reader import FeedItem
 from feed_cache import (
-    load_cached_feed, save_cached_feed, clear_cache, CACHE_DIR,
-    load_cached_social, save_cached_social, SOCIAL_CACHE_DIR,
-    CACHE_TTL_SECONDS,
+    load_cached_feed, save_cached_feed, clear_cache, load_cached_social, save_cached_social,
 )
 
 

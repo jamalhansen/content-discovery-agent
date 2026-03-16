@@ -1,6 +1,7 @@
 import json
 import logging
 from dataclasses import dataclass
+from local_first_common.llm import strip_json_fences
 from local_first_common.providers.base import BaseProvider
 
 logger = logging.getLogger(__name__)
@@ -56,20 +57,8 @@ def build_user_message(
 
 
 def parse_response(raw: str) -> ScoredItem | None:
-    # Strip markdown fences if present
-    text = raw.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        # drop first and last fence lines
-        inner = []
-        for line in lines[1:]:
-            if line.strip() == "```":
-                break
-            inner.append(line)
-        text = "\n".join(inner)
-
     try:
-        data = json.loads(text)
+        data = json.loads(strip_json_fences(raw))
         return ScoredItem(
             score=float(data["score"]),
             tags=list(data.get("tags", []))[:2],  # enforce 2-tag limit

@@ -491,11 +491,12 @@ wheels = [
 [[package]]
 name = "local-first-common"
 version = "0.1.0"
-source = { git = "https://github.com/jamalhansen/local-first-common.git?rev=main#e634a703cfaf42fc8f2baded553f4424209a166f" }
+source = { git = "https://github.com/jamalhansen/local-first-common.git?rev=main#50dc595591c301f589cf209244f1ceb95c4c840f" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
     { name = "python-frontmatter" },
+    { name = "pyyaml" },
     { name = "typer" },
 ]
 
