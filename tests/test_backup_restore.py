@@ -4,7 +4,7 @@ import sqlite3
 
 from typer.testing import CliRunner
 
-from content_discovery import app
+from logic import app
 
 runner = CliRunner()
 

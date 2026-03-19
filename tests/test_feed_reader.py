@@ -10,7 +10,8 @@ SAMPLE_FEED_URL = "https://example.com/feed.rss"
 
 def mock_response(path: str) -> MagicMock:
     """Return a mock requests.Response whose .content is the fixture file bytes."""
-    content = open(path, "rb").read()
+    with open(path, "rb") as f:
+        content = f.read()
     resp = MagicMock()
     resp.content = content
     resp.raise_for_status = MagicMock()
