@@ -20,6 +20,33 @@ The scorer improves over time: after you review items, your kept/dismissed histo
 uv sync
 ```
 
+## Configuration
+
+The agent is configured via a `.content-discovery.toml` file in the project root. Copy the example to get started:
+
+```bash
+cp .content-discovery.toml.example .content-discovery.toml
+```
+
+Edit the file to add your RSS feeds, define your interest profile, and set your preferences.
+
+### LLM Selection
+
+By default, the tool uses the `@best` alias on your local provider (Ollama). This automatically selects the most capable model installed on your machine. You can override this in your config:
+
+```toml
+[settings]
+provider = "local"
+model = "@fast"  # Use a lower-latency model
+```
+
+Or via environment variables:
+
+```bash
+export MODEL_PROVIDER="anthropic"
+export MODEL_NAME="claude-3-5-sonnet-latest"
+```
+
 ## Quick Start
 
 ### 1. Set Up Your Environment
@@ -82,7 +109,7 @@ This tool follows the [Local-First AI project blueprint](https://github.com/jama
 ```
 content-discovery-agent/
 ├── main.py               # Canonical entrypoint
-├── content_discovery.py  # CLI command definitions
+├── logic.py              # CLI command definitions
 ├── config.py             # Feeds, interest profile, social config
 ├── store.py              # SQLite storage layer
 ├── scorer.py             # Prompt construction and JSON parsing

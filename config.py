@@ -35,6 +35,7 @@ INTEREST_EXCLUSIONS: str = _cfg.get("interests", {}).get("exclusions", "")
 _settings = _cfg.get("settings", {})
 DEFAULT_THRESHOLD: float = _settings.get("threshold", 0.6)
 DEFAULT_PROVIDER: str = _settings.get("provider", "local")
+DEFAULT_MODEL: str | None = os.environ.get("MODEL_NAME") or _settings.get("model")
 DEFAULT_INBOX_PATH: str = _settings.get("inbox_path", "_finds/00-inbox.md")
 
 # env var wins over toml so machine-specific paths stay out of the committed file

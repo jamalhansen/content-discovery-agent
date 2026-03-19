@@ -35,6 +35,7 @@ threshold = 0.7
 
 # Default LLM provider: local, anthropic, groq, deepseek
 provider = "local"
+model = "@best"
 
 # Path to your Obsidian vault root (overrides OBSIDIAN_VAULT_PATH env var)
 # vault_path = "~/vaults/MyVault/"

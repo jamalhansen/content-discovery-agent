@@ -12,6 +12,7 @@ from config import (
     BLUESKY_HANDLE,
     DEFAULT_BACKUP_DIR,
     DEFAULT_PROVIDER,
+    DEFAULT_MODEL,
     DEFAULT_THRESHOLD,
     FEEDS,
     INTEREST_EXCLUSIONS,
@@ -28,6 +29,7 @@ from social.mastodon import MastodonReader
 from feed_cache import load_cached_feed, save_cached_feed, load_cached_social, save_cached_social, clear_cache
 from feed_reader import FeedItem, fetch_feed
 from local_first_common.providers import PROVIDERS
+from local_first_common.cli import resolve_provider
 from readwise import save_to_readwise
 from scorer import score_item, ScoredItem
 import store
@@ -49,7 +51,7 @@ def _provider_opt():
     )
 
 def _model_opt():
-    return typer.Option(None, "--model", "-m", help="Override the default model for the chosen provider")
+    return typer.Option(DEFAULT_MODEL, "--model", "-m", help="Override the default model for the chosen provider")
 
 def _dry_run_opt():
     return typer.Option(False, "--dry-run", "-n", help="Print candidates to stdout; do not write to DB or inbox")
@@ -86,12 +88,9 @@ def _validate_threshold(threshold: float) -> None:
         raise typer.Exit(1)
 
 def _make_provider(provider_name: str, model: Optional[str]):
-    if provider_name not in PROVIDERS:
-        typer.echo(f"Error: Unknown provider '{provider_name}'. Valid options: {', '.join(PROVIDERS.keys())}", err=True)
-        raise typer.Exit(1)
     try:
-        return PROVIDERS[provider_name](model=model)
-    except RuntimeError as e:
+        return resolve_provider(PROVIDERS, provider_name, model)
+    except Exception as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
 
