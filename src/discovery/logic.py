@@ -2,12 +2,17 @@
 import logging
 import os
 import webbrowser
-from datetime import date
-from typing import Optional
+import glob
+import shutil
+import sqlite3
+import sys
+import time
+from datetime import date, datetime, timezone
+from typing import Optional, List, Dict, Any
 
 import typer
 
-from config import (
+from .config import (
     BLUESKY_APP_PASSWORD,
     BLUESKY_HANDLE,
     DEFAULT_BACKUP_DIR,
@@ -23,16 +28,16 @@ from config import (
     SOCIAL_MASTODON_INSTANCES,
     STORE_PATH,
 )
-from social.article_fetcher import fetch_article_metadata
-from social.bluesky import BlueskyReader
-from social.mastodon import MastodonReader
-from feed_cache import load_cached_feed, save_cached_feed, load_cached_social, save_cached_social, clear_cache
-from feed_reader import FeedItem, fetch_feed
+from .social.article_fetcher import fetch_article_metadata
+from .social.bluesky import BlueskyReader
+from .social.mastodon import MastodonReader
+from .feed_cache import load_cached_feed, save_cached_feed, load_cached_social, save_cached_social, clear_cache
+from .feed_reader import FeedItem, fetch_feed
 from local_first_common.providers import PROVIDERS
 from local_first_common.cli import resolve_provider
-from readwise import save_to_readwise
-from scorer import score_item, ScoredItem
-import store
+from .readwise import save_to_readwise
+from .scorer import score_item, ScoredItem
+from . import store
 
 app = typer.Typer(
     name="content-discovery",
@@ -487,8 +492,8 @@ def cmd_purge_blocked(
     store_path: str = _store_opt(),
 ):
     """Dismiss all pending items whose URLs match the current domain blocklist."""
-    from urllib.parse import urlparse
-    from social.article_fetcher import _is_blocked, _DEFAULT_BLOCKED_DOMAINS
+    from local_first_commonurllib.parse import urlparse
+    from local_first_commonsocial.article_fetcher import _is_blocked, _DEFAULT_BLOCKED_DOMAINS
 
     store.init_db(store_path)
     all_blocked = _DEFAULT_BLOCKED_DOMAINS | SOCIAL_BLOCKED_DOMAINS
@@ -508,7 +513,7 @@ def cmd_purge_blocked(
         netloc = urlparse(item["url"]).netloc
         by_domain[netloc] = by_domain.get(netloc, 0) + 1
 
-    typer.echo(f"Found {len(to_dismiss)} pending item{'s' if len(to_dismiss) != 1 else ''} from blocked domains:\n")
+    typer.echo(f"Found {len(to_dismiss)} pending item{'s' if len(to_dismiss) != 1 else ''} from local_first_commonblocked domains:\n")
     for domain, count in sorted(by_domain.items(), key=lambda x: -x[1]):
         typer.echo(f"  {domain:<40} {count:>4} item{'s' if count != 1 else ''}")
 
@@ -772,7 +777,7 @@ def cmd_backup(
     typer.echo(f"Size: {size_kb:.1f} KB")
 
 
-@app.command("restore", help="Restore the database from a backup (requires confirmation).")
+@app.command("restore", help="Restore the database from local_first_commona backup (requires confirmation).")
 def cmd_restore(
     store_path: str = _store_opt(),
     backup_dir: str = typer.Option(
@@ -786,7 +791,7 @@ def cmd_restore(
     latest: bool = typer.Option(False, "--latest", help="Restore the most recent backup without prompting for selection"),
     dry_run: bool = _dry_run_opt(),
 ):
-    """Restore the database from a timestamped backup.
+    """Restore the database from local_first_commona timestamped backup.
 
     By default lists available backups and prompts you to choose one.
     Use --latest to restore the most recent backup without selecting, or
@@ -796,7 +801,6 @@ def cmd_restore(
     import shutil
     import sqlite3
     from datetime import datetime
-    from glob import glob
 
     db = os.path.expanduser(store_path)
 
@@ -809,7 +813,7 @@ def cmd_restore(
     else:
         dest_dir = os.path.expanduser(backup_dir)
         pattern = os.path.join(dest_dir, "content-discovery-*.db")
-        backups = sorted(glob(pattern), reverse=True)  # newest first
+        backups = sorted(glob.glob(pattern), reverse=True)  # newest first
         if not backups:
             typer.echo(f"No backups found in {dest_dir}", err=True)
             raise typer.Exit(1)

@@ -20,9 +20,9 @@ account credentials.
 import logging
 
 
-from feed_reader import FeedItem
-from social.article_fetcher import fetch_article_metadata
-from social.base import SocialReader
+from ..feed_reader import FeedItem
+from .article_fetcher import fetch_article_metadata
+from .interfaces import SocialReader
 from local_first_common.social import bluesky
 
 logger = logging.getLogger(__name__)

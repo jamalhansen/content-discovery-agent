@@ -1,6 +1,6 @@
 import sqlite3
 import pytest
-from store import (
+from discovery.store import (
     init_db, is_seen, upsert_item, get_new_items, mark_item, get_examples,
     get_status_summary, get_daily_counts, get_source_stats, get_tag_counts,
     dismiss_items_by_urls, get_score_distribution, update_item_score,

@@ -65,7 +65,7 @@ SOCIAL_MASTODON_INSTANCES: list[str] = _social_cfg.get("mastodon_instances", ["m
 SOCIAL_BLOCKED_DOMAINS: frozenset[str] = frozenset(_social_cfg.get("blocked_domains", []))
 
 # Bluesky App Password auth (optional but recommended — unauthenticated search
-# has intermittently returned 403 from public.api.bsky.app).
+# has intermittently returned 403 from local_first_commonpublic.api.bsky.app).
 # Generate an App Password in Bluesky → Settings → Privacy and Security → App Passwords.
 BLUESKY_HANDLE: str = os.environ.get("BLUESKY_HANDLE", "")
 BLUESKY_APP_PASSWORD: str = os.environ.get("BLUESKY_APP_PASSWORD", "")

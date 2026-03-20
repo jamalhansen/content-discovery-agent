@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import time
-from feed_reader import FeedItem
+from .feed_reader import FeedItem
 
 logger = logging.getLogger(__name__)
 

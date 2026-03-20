@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from feed_reader import FeedItem
+from ..feed_reader import FeedItem
 from local_first_common.url import clean_url, _TRACKING_PARAMS  # noqa: F401 — re-exported for consumers
 
 logger = logging.getLogger(__name__)

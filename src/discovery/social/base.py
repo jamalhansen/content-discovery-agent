@@ -1,5 +1,5 @@
-from social.bluesky import BlueskyReader
-from social.mastodon import MastodonReader
+from .bluesky import BlueskyReader
+from .mastodon import MastodonReader
 
 SOCIAL_READERS = {
     "bluesky": BlueskyReader,

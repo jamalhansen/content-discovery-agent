@@ -1,7 +1,7 @@
 import os
 import pytest
-from feed_reader import FeedItem
-from feed_cache import (
+from discovery.feed_reader import FeedItem
+from discovery.feed_cache import (
     load_cached_feed, save_cached_feed, clear_cache, load_cached_social, save_cached_social,
 )
 
@@ -18,8 +18,8 @@ def isolated_cache(tmp_path, monkeypatch):
     """Redirect both caches to temp dirs for each test."""
     cache_dir = str(tmp_path / "feeds")
     social_cache_dir = str(tmp_path / "social")
-    monkeypatch.setattr("feed_cache.CACHE_DIR", cache_dir)
-    monkeypatch.setattr("feed_cache.SOCIAL_CACHE_DIR", social_cache_dir)
+    monkeypatch.setattr("discovery.feed_cache.CACHE_DIR", cache_dir)
+    monkeypatch.setattr("discovery.feed_cache.SOCIAL_CACHE_DIR", social_cache_dir)
     return cache_dir
 
 
@@ -48,13 +48,13 @@ class TestLoadCachedFeed:
 
     def test_returns_none_for_stale_cache(self, monkeypatch):
         save_cached_feed("https://example.com/feed", make_items())
-        monkeypatch.setattr("feed_cache.CACHE_TTL_SECONDS", 0)
+        monkeypatch.setattr("discovery.feed_cache.CACHE_TTL_SECONDS", 0)
         assert load_cached_feed("https://example.com/feed") is None
 
     def test_returns_items_for_fresh_cache(self, monkeypatch):
         save_cached_feed("https://example.com/feed", make_items())
         # TTL far in the future — cache is always fresh
-        monkeypatch.setattr("feed_cache.CACHE_TTL_SECONDS", 10 * 365 * 24 * 60 * 60)
+        monkeypatch.setattr("discovery.feed_cache.CACHE_TTL_SECONDS", 10 * 365 * 24 * 60 * 60)
         assert load_cached_feed("https://example.com/feed") is not None
 
 
@@ -136,17 +136,17 @@ class TestSocialCache:
 
     def test_creates_social_cache_dir_if_missing(self, tmp_path, monkeypatch):
         social_dir = str(tmp_path / "social")
-        monkeypatch.setattr("feed_cache.SOCIAL_CACHE_DIR", social_dir)
+        monkeypatch.setattr("discovery.feed_cache.SOCIAL_CACHE_DIR", social_dir)
         assert not os.path.exists(social_dir)
         save_cached_social("bluesky", ["duckdb"], make_items())
         assert os.path.isdir(social_dir)
 
     def test_returns_none_for_stale_social_cache(self, monkeypatch):
         save_cached_social("bluesky", ["duckdb"], make_items())
-        monkeypatch.setattr("feed_cache.CACHE_TTL_SECONDS", 0)
+        monkeypatch.setattr("discovery.feed_cache.CACHE_TTL_SECONDS", 0)
         assert load_cached_social("bluesky", ["duckdb"]) is None
 
     def test_returns_items_for_fresh_social_cache(self, monkeypatch):
         save_cached_social("bluesky", ["duckdb"], make_items())
-        monkeypatch.setattr("feed_cache.CACHE_TTL_SECONDS", 10 * 365 * 24 * 60 * 60)
+        monkeypatch.setattr("discovery.feed_cache.CACHE_TTL_SECONDS", 10 * 365 * 24 * 60 * 60)
         assert load_cached_social("bluesky", ["duckdb"]) is not None

@@ -4,7 +4,7 @@ import sqlite3
 
 from typer.testing import CliRunner
 
-from logic import app
+from discovery.logic import app
 
 runner = CliRunner()
 

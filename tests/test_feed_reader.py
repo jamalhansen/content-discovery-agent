@@ -1,7 +1,7 @@
 import os
 import pytest
 from unittest.mock import patch, MagicMock
-from feed_reader import fetch_feed, filter_new_items, FeedItem
+from discovery.feed_reader import fetch_feed, filter_new_items, FeedItem
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 SAMPLE_FEED_PATH = os.path.join(FIXTURES_DIR, "sample_feed.xml")
@@ -20,7 +20,7 @@ def mock_response(path: str) -> MagicMock:
 
 @pytest.fixture
 def sample_feed_mock():
-    with patch("feed_reader.requests.get", return_value=mock_response(SAMPLE_FEED_PATH)) as m:
+    with patch("discovery.feed_reader.requests.get", return_value=mock_response(SAMPLE_FEED_PATH)) as m:
         yield m
 
 
@@ -42,7 +42,7 @@ class TestFetchFeed:
 
     def test_returns_empty_on_bad_url(self):
         import requests as req
-        with patch("feed_reader.requests.get", side_effect=req.RequestException("connection error")):
+        with patch("discovery.feed_reader.requests.get", side_effect=req.RequestException("connection error")):
             items = fetch_feed("http://localhost:9999/nonexistent-feed")
         assert items == []
 

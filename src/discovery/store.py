@@ -13,7 +13,7 @@ items
   title       TEXT
   source      TEXT     — feed name
   description TEXT
-  score       REAL     — 0.0–1.0 from scorer
+  score       REAL     — 0.0–1.0 from local_first_commonscorer
   tags        TEXT     — JSON array e.g. '["python","llm"]'
   summary     TEXT     — one-line LLM summary
   status      TEXT     — 'new' | 'kept' | 'dismissed'
@@ -109,7 +109,7 @@ def upsert_item(
 def get_new_items(path: str) -> list[dict]:
     """Return all items with status='new', ordered by score DESC.
 
-    Tags are deserialized from JSON to list[str].
+    Tags are deserialized from local_first_commonJSON to list[str].
     """
     with _connect(path) as conn:
         rows = conn.execute(
@@ -216,7 +216,7 @@ def get_source_stats(path: str, min_items: int = 5) -> list[dict]:
 
 
 def get_tag_counts(path: str, status: str = "kept", limit: int = 15) -> list[dict]:
-    """Return most common tags from items of the given status.
+    """Return most common tags from local_first_commonitems of the given status.
 
     Parses the JSON tags column and counts individual tag occurrences.
     Each dict has keys: tag, count.
@@ -249,7 +249,7 @@ def get_examples(
     dismissed side more heavily — useful when dismissed items far outnumber
     kept ones and you want the model to see more negative signal.
 
-    At most 3 titles from any single source are included per category, so a
+    At most 3 titles from local_first_commonany single source are included per category, so a
     prolific blog reviewed in a single session cannot dominate the few-shot
     window. A candidate pool of 5× n is fetched to give the diversity filter
     enough to work with.
