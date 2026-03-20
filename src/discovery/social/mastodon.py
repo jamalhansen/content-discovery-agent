@@ -29,6 +29,8 @@ class MastodonReader(SocialReader):
 
     def fetch_items(self, keywords: list[str]) -> list[FeedItem]:
         """Search Mastodon hashtag timelines and return unique article FeedItems."""
+        if not keywords:
+            return []
         raw_statuses = mastodon.fetch_posts(keywords, instances=self.instances, limit=40)
         seen_urls: set[str] = set()
         items: list[FeedItem] = []

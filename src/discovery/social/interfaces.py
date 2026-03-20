@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Sequence
+
 
 class SocialReader(ABC):
     """Abstract base class for social media post readers."""
 
     @abstractmethod
-    def search(self, query: str, limit: int = 20) -> Sequence:
-        """Search for posts matching a query."""
-        pass
+    def fetch_items(self, keywords: list[str]) -> list:
+        """Fetch feed items matching the given keywords."""
+        ...
