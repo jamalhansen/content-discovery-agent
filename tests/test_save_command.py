@@ -75,21 +75,37 @@ class TestSaveCommand:
         assert result.exit_code == 0
         assert "1.00" in result.output  # default score when --no-score
 
-    def test_dry_run_writes_nothing(self, tmp_path):
+    def test_dry_run_calls_llm_but_writes_nothing(self, tmp_path):
         db = str(tmp_path / "test.db")
         opts = ["save", "https://example.com/great-article",
                 "--store", db, "--readwise-token", "tok_test", "--dry-run"]
 
         with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
+             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED) as mock_score, \
              patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
-             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
+             patch("local_first_common.cli.resolve_provider", return_value=MagicMock()), \
              patch("discovery.readwise.save_to_readwise") as mock_rw:
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 0
         assert "dry-run" in result.output
+        mock_score.assert_called_once() # Should be called in dry-run
         mock_rw.assert_not_called()
+
+    def test_no_llm_skips_llm(self, tmp_path):
+        db = str(tmp_path / "test.db")
+        opts = ["save", "https://example.com/great-article",
+                "--store", db, "--readwise-token", "tok_test", "--no-llm"]
+
+        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
+             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED) as mock_score, \
+             patch("discovery.readwise.save_to_readwise"):
+            result = runner.invoke(app, opts)
+
+        assert result.exit_code == 0
+        assert "no-llm" in result.output or "dry-run" in result.output
+        # In current discovery implementation, no_llm logic returns early in cmd_save
+        mock_score.assert_not_called()
 
     def test_scoring_failure_exits_with_error(self, tmp_path):
         opts = _base_opts(tmp_path)

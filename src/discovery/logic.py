@@ -42,7 +42,8 @@ def cmd_run(
 ):
     """Fetch feeds, score items, and store candidates in the DB."""
     if no_llm:
-        dry_run = True
+        typer.echo("\n[no-llm] Skip inference mode. Previews would be shown here.")
+        return
     validate_threshold(threshold)
     llm_provider = make_provider(provider, model, no_llm=no_llm)
 
@@ -132,13 +133,17 @@ def cmd_check_feeds():
 def cmd_rescore(
     provider: str = provider_opt(),
     model: Optional[str] = model_opt(),
+    no_llm: bool = no_llm_opt(),
     store_path: str = store_opt(),
     limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Cap items"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose."),
 ):
     """Re-score all pending items."""
+    if no_llm:
+        typer.echo("\n[no-llm] Skip inference mode. Rescoring skipped.")
+        return
     from .config import INTEREST_PROFILE, INTEREST_EXCLUSIONS
-    llm_provider = make_provider(provider, model)
+    llm_provider = make_provider(provider, model, no_llm=no_llm)
     store.init_db(store_path)
     pending = store.get_new_items(store_path)
     if limit:
@@ -171,14 +176,18 @@ def cmd_save(
     url: str = typer.Argument(..., help="URL to fetch, score, and save"),
     provider: str = provider_opt(),
     model: Optional[str] = model_opt(),
+    no_llm: bool = no_llm_opt(),
     no_score: bool = typer.Option(False, "--no-score", help="Skip LLM scoring; store with score 1.0"),
     readwise_token: str = typer.Option(READWISE_TOKEN, help="Readwise token"),
     store_path: str = store_opt(),
     dry_run: bool = dry_run_opt(),
 ):
     """Fetch, score, and save a single URL to Readwise."""
+    if no_llm:
+        typer.echo(f"\n[no-llm] Skip inference mode. Would fetch and score: {url}")
+        return
     validate_readwise_token(readwise_token)
-    llm_provider = make_provider(provider, model)
+    llm_provider = make_provider(provider, model, no_llm=no_llm)
     run_save(url, llm_provider, no_score, readwise_token, store_path, dry_run)
 
 

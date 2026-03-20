@@ -1,131 +1,132 @@
-"""Tests for the `save` CLI command."""
-from unittest.mock import MagicMock, patch
+"""Tests for db_commands.py — report, purge, backup/restore logic."""
 
-from typer.testing import CliRunner
+import os
+import sqlite3
+import shutil
+import pytest
+import typer
+from discovery import db_commands, store
+from unittest.mock import patch
 
-from discovery.logic import app
-from discovery.feed_reader import FeedItem
-from discovery.scorer import ScoredItem
-
-runner = CliRunner()
-
-_FAKE_ITEM = FeedItem(
-    title="A Great Article",
-    description="This article is about local AI and DuckDB.",
-    url="https://example.com/great-article",
-    source="example.com",
-    published="2026-03-10",
-)
-
-_FAKE_SCORED = ScoredItem(
-    score=0.92,
-    tags=["local AI", "duckdb"],
-    summary="A practical guide to local AI with DuckDB.",
-    language="en",
-)
+@pytest.fixture
+def mock_db(tmp_path):
+    db_path = tmp_path / "test.db"
+    store.init_db(str(db_path))
+    return str(db_path)
 
 
-def _base_opts(tmp_path) -> list[str]:
-    """Common CLI options pointing at a temp DB."""
-    db = str(tmp_path / "test.db")
-    return ["save", "https://example.com/great-article", "--store", db,
-            "--readwise-token", "tok_test"]
+def test_run_report_empty(mock_db):
+    """Report runs on empty DB."""
+    db_commands.run_report(mock_db, 7)
 
 
-class TestSaveCommand:
-    def test_fetches_scores_and_saves(self, tmp_path):
-        opts = _base_opts(tmp_path)
-        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
-             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
-             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.readwise.save_to_readwise", return_value=True):
-            result = runner.invoke(app, opts)
+def test_run_report_with_data(mock_db):
+    """Report shows counts and top sources."""
+    conn = sqlite3.connect(mock_db)
+    # url, title, source, score, fetched_at are NOT NULL
+    for i in range(6):
+        conn.execute(
+            "INSERT INTO items (url, title, source, score, fetched_at, status) VALUES (?, ?, ?, ?, ?, ?)",
+            (f"url{i}", f"t{i}", "source1", 0.9, "2026-03-20", "kept")
+        )
+    conn.commit()
+    conn.close()
+    
+    db_commands.run_report(mock_db, 7)
 
-        assert result.exit_code == 0, result.output
-        assert "A Great Article" in result.output
-        assert "0.92" in result.output
-        assert "Saved" in result.output
 
-    def test_already_seen_exits_early(self, tmp_path):
-        opts = _base_opts(tmp_path)
-        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.orchestrator.store.is_seen", return_value=True):
-            result = runner.invoke(app, opts)
+def test_run_purge_blocked_no_config(mock_db):
+    """Purge returns early if no blocked domains."""
+    with patch("discovery.db_commands.SOCIAL_BLOCKED_DOMAINS", []):
+        db_commands.run_purge_blocked(mock_db)
 
-        assert result.exit_code == 0
-        assert "Already in database" in result.output
 
-    def test_fetch_failure_exits_with_error(self, tmp_path):
-        opts = _base_opts(tmp_path)
-        with patch("discovery.orchestrator.fetch_article_metadata", return_value=None):
-            result = runner.invoke(app, opts)
+def test_run_purge_blocked_with_data(mock_db):
+    """Dismisses items from blocked domains."""
+    with patch("discovery.db_commands.SOCIAL_BLOCKED_DOMAINS", ["spam.com"]):
+        conn = sqlite3.connect(mock_db)
+        conn.execute(
+            "INSERT INTO items (url, title, source, score, fetched_at, status) VALUES (?, ?, ?, ?, ?, ?)",
+            ("http://spam.com/1", "Spam", "src", 0.1, "2026-03-20", "new")
+        )
+        conn.execute(
+            "INSERT INTO items (url, title, source, score, fetched_at, status) VALUES (?, ?, ?, ?, ?, ?)",
+            ("http://good.com/1", "Good", "src", 0.8, "2026-03-20", "new")
+        )
+        conn.commit()
+        conn.close()
+        
+        db_commands.run_purge_blocked(mock_db)
+        
+        conn = sqlite3.connect(mock_db)
+        spam_status = conn.execute("SELECT status FROM items WHERE url LIKE '%spam.com%'").fetchone()[0]
+        good_status = conn.execute("SELECT status FROM items WHERE url LIKE '%good.com%'").fetchone()[0]
+        assert spam_status == "dismissed"
+        assert good_status == "new"
+        conn.close()
 
-        assert result.exit_code == 1
-        assert "Could not fetch metadata" in result.output
 
-    def test_no_score_skips_llm(self, tmp_path):
-        opts = _base_opts(tmp_path) + ["--no-score"]
-        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.orchestrator.score_item") as mock_score, \
-             patch("discovery.readwise.save_to_readwise", return_value=True):
-            result = runner.invoke(app, opts)
+def test_run_dismiss_source(mock_db):
+    """Dismisses items from matching source."""
+    conn = sqlite3.connect(mock_db)
+    conn.execute(
+        "INSERT INTO items (url, title, source, score, fetched_at, status) VALUES (?, ?, ?, ?, ?, ?)",
+        ("u1", "t1", "Bluesky: keywords", 0.5, "2026-03-20", "new")
+    )
+    conn.commit()
+    conn.close()
+    
+    db_commands.run_dismiss_source("Bluesky", mock_db)
+    
+    conn = sqlite3.connect(mock_db)
+    status = conn.execute("SELECT status FROM items").fetchone()[0]
+    assert status == "dismissed"
+    conn.close()
 
-        mock_score.assert_not_called()
-        assert result.exit_code == 0
-        assert "1.00" in result.output  # default score when --no-score
 
-    def test_dry_run_writes_nothing(self, tmp_path):
-        db = str(tmp_path / "test.db")
-        opts = ["save", "https://example.com/great-article",
-                "--store", db, "--readwise-token", "tok_test", "--dry-run"]
+def test_run_backup_not_found(tmp_path):
+    """Error if DB not found."""
+    with pytest.raises(typer.Exit):
+        db_commands.run_backup(str(tmp_path / "missing.db"), str(tmp_path / "backups"))
 
-        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
-             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
-             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.readwise.save_to_readwise") as mock_rw:
-            result = runner.invoke(app, opts)
 
-        assert result.exit_code == 0
-        assert "dry-run" in result.output
-        mock_rw.assert_not_called()
+def test_run_backup_success(mock_db, tmp_path):
+    """Creates a backup file."""
+    backup_dir = tmp_path / "backups"
+    db_commands.run_backup(mock_db, str(backup_dir))
+    
+    assert backup_dir.exists()
+    backups = list(backup_dir.glob("content-discovery-*.db"))
+    assert len(backups) == 1
 
-    def test_scoring_failure_exits_with_error(self, tmp_path):
-        opts = _base_opts(tmp_path)
-        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.orchestrator.score_item", return_value=None), \
-             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
-             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}):
-            result = runner.invoke(app, opts)
 
-        assert result.exit_code == 1
-        assert "Scoring failed" in result.output
+def test_run_restore_latest(mock_db, tmp_path):
+    """Restores latest backup."""
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    backup_file = backup_dir / "content-discovery-2026-03-20-120000.db"
+    shutil.copy2(mock_db, backup_file)
+    
+    # Modify original DB
+    conn = sqlite3.connect(mock_db)
+    conn.execute("DELETE FROM items")
+    conn.commit()
+    conn.close()
+    
+    db_commands.run_restore(None, True, mock_db, str(backup_dir))
+    assert os.path.exists(mock_db)
 
-    def test_sent_to_readwise_on_success(self, tmp_path):
-        opts = _base_opts(tmp_path)
-        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
-             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
-             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.orchestrator.save_to_readwise", return_value=True) as mock_rw:
-            result = runner.invoke(app, opts)
 
-        assert result.exit_code == 0, result.output
-        mock_rw.assert_called_once()
-        call_kwargs = mock_rw.call_args
-        assert call_kwargs[0][0] == "https://example.com/great-article"
-        assert "Readwise Reader" in result.output
-
-    def test_readwise_failure_still_saves_to_db(self, tmp_path):
-        opts = _base_opts(tmp_path)
-        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
-             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
-             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.readwise.save_to_readwise", return_value=False):
-            result = runner.invoke(app, opts)
-
-        assert result.exit_code == 0, result.output
-        assert "Saved" in result.output
-        assert "failed" in result.output.lower()
+@patch("typer.prompt")
+def test_run_restore_selection(mock_prompt, mock_db, tmp_path):
+    """Restores selected backup."""
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    backup_file = backup_dir / "content-discovery-2026-03-20-120000.db"
+    shutil.copy2(mock_db, backup_file)
+    
+    mock_prompt.return_value = "1"
+    with patch("typer.confirm", return_value=True):
+        db_commands.run_restore(None, False, mock_db, str(backup_dir))
+    
+    assert os.path.exists(mock_db)
