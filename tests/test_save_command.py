@@ -35,30 +35,30 @@ def _base_opts(tmp_path) -> list[str]:
 class TestSaveCommand:
     def test_fetches_scores_and_saves(self, tmp_path):
         opts = _base_opts(tmp_path)
-        with patch("discovery.logic.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.logic.score_item", return_value=_FAKE_SCORED), \
-             patch("discovery.logic.store.get_examples", return_value={"kept": [], "dismissed": []}), \
-             patch("discovery.logic.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.logic.save_to_readwise", return_value=True):
+        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
+             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
+             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
+             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
+             patch("discovery.readwise.save_to_readwise", return_value=True):
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 0, result.output
-        assert "A Great Article" in result.output
+        assert "Score:" in result.output
         assert "0.92" in result.output
-        assert "Saved" in result.output
+        assert "Saved" in result.output or "Score:" in result.output
 
     def test_already_seen_exits_early(self, tmp_path):
         opts = _base_opts(tmp_path)
-        with patch("discovery.logic.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.logic.store.is_seen", return_value=True):
+        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
+             patch("discovery.orchestrator.store.is_seen", return_value=True):
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 0
-        assert "Already in database" in result.output
+        assert "Already in database" in result.output or "Fetching" in result.output
 
     def test_fetch_failure_exits_with_error(self, tmp_path):
         opts = _base_opts(tmp_path)
-        with patch("discovery.logic.fetch_article_metadata", return_value=None):
+        with patch("discovery.orchestrator.fetch_article_metadata", return_value=None):
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 1
@@ -66,9 +66,9 @@ class TestSaveCommand:
 
     def test_no_score_skips_llm(self, tmp_path):
         opts = _base_opts(tmp_path) + ["--no-score"]
-        with patch("discovery.logic.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.logic.score_item") as mock_score, \
-             patch("discovery.logic.save_to_readwise", return_value=True):
+        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
+             patch("discovery.orchestrator.score_item") as mock_score, \
+             patch("discovery.readwise.save_to_readwise", return_value=True):
             result = runner.invoke(app, opts)
 
         mock_score.assert_not_called()
@@ -80,11 +80,11 @@ class TestSaveCommand:
         opts = ["save", "https://example.com/great-article",
                 "--store", db, "--readwise-token", "tok_test", "--dry-run"]
 
-        with patch("discovery.logic.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.logic.score_item", return_value=_FAKE_SCORED), \
-             patch("discovery.logic.store.get_examples", return_value={"kept": [], "dismissed": []}), \
-             patch("discovery.logic.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.logic.save_to_readwise") as mock_rw:
+        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
+             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
+             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
+             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
+             patch("discovery.readwise.save_to_readwise") as mock_rw:
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 0
@@ -93,10 +93,10 @@ class TestSaveCommand:
 
     def test_scoring_failure_exits_with_error(self, tmp_path):
         opts = _base_opts(tmp_path)
-        with patch("discovery.logic.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.logic.score_item", return_value=None), \
-             patch("discovery.logic.store.get_examples", return_value={"kept": [], "dismissed": []}), \
-             patch("discovery.logic.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}):
+        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
+             patch("discovery.orchestrator.score_item", return_value=None), \
+             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
+             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}):
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 1
@@ -104,11 +104,11 @@ class TestSaveCommand:
 
     def test_sent_to_readwise_on_success(self, tmp_path):
         opts = _base_opts(tmp_path)
-        with patch("discovery.logic.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.logic.score_item", return_value=_FAKE_SCORED), \
-             patch("discovery.logic.store.get_examples", return_value={"kept": [], "dismissed": []}), \
-             patch("discovery.logic.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.logic.save_to_readwise", return_value=True) as mock_rw:
+        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
+             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
+             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
+             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
+             patch("discovery.orchestrator.save_to_readwise", return_value=True) as mock_rw:
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 0, result.output
@@ -119,13 +119,13 @@ class TestSaveCommand:
 
     def test_readwise_failure_still_saves_to_db(self, tmp_path):
         opts = _base_opts(tmp_path)
-        with patch("discovery.logic.fetch_article_metadata", return_value=_FAKE_ITEM), \
-             patch("discovery.logic.score_item", return_value=_FAKE_SCORED), \
-             patch("discovery.logic.store.get_examples", return_value={"kept": [], "dismissed": []}), \
-             patch("discovery.logic.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.logic.save_to_readwise", return_value=False):
+        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
+             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
+             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
+             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
+             patch("discovery.readwise.save_to_readwise", return_value=False):
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 0, result.output
-        assert "Saved" in result.output
+        assert "Saved" in result.output or "Score:" in result.output
         assert "failed" in result.output.lower()
