@@ -61,19 +61,19 @@ export ANTHROPIC_API_KEY="your_key"
 
 ```bash
 # RSS feeds only (default)
-uv run main.py run
+uv run python src/main.py run
 
 # Include Bluesky and Mastodon as additional sources
-uv run main.py run --sources rss,bluesky,mastodon
+uv run python src/main.py run --sources rss,bluesky,mastodon
 
 # Dry run — print candidates, write nothing
-uv run main.py run --dry-run
+uv run python src/main.py run --dry-run
 ```
 
 ### 3. Review
 
 ```bash
-uv run main.py review
+uv run python src/main.py review
 ```
 
 Shows each candidate one at a time. Commands: `y` keep · `n` dismiss · `s` stop · `o` open URL in browser.
@@ -82,7 +82,7 @@ Shows each candidate one at a time. Commands: `y` keep · `n` dismiss · `s` sto
 
 ## CLI Reference
 
-All tools in this series share a common set of CLI flags for model management (`-p`, `-m`, `-n`, `-v`, `-d`).
+All tools in this series share a common set of CLI flags for model management (`-p`, `-m`, `-n`, `-v`, `-d`) via [local-first-common](https://github.com/jamalhansen/local-first-common).
 
 ### Commands
 
@@ -108,18 +108,19 @@ This tool follows the [Local-First AI project blueprint](https://github.com/jama
 
 ```
 content-discovery-agent/
-├── main.py               # Canonical entrypoint
-├── logic.py              # CLI command definitions
-├── config.py             # Feeds, interest profile, social config
-├── store.py              # SQLite storage layer
-├── scorer.py             # Prompt construction and JSON parsing
-├── feed_reader.py        # RSS feed parser
-├── feed_cache.py         # Cache for social/RSS responses
-├── readwise.py           # Readwise Reader API integration
-├── social/               # Readers using local_first_common.social
-│   ├── article_fetcher.py
-│   ├── bluesky.py
-│   └── mastodon.py
+├── src/
+│   ├── main.py           # Typer CLI entry point
+│   ├── logic.py          # Core triage orchestration
+│   ├── config.py         # Feeds, interest profile, social config
+│   ├── store.py          # SQLite storage layer
+│   ├── scorer.py         # Prompt construction and JSON parsing
+│   ├── feed_reader.py    # RSS feed parser
+│   ├── feed_cache.py     # Cache for social/RSS responses
+│   ├── readwise.py       # Readwise Reader API integration
+│   └── social/           # Readers using local_first_common.social
+│       ├── article_fetcher.py
+│       ├── bluesky.py
+│       └── mastodon.py
 ├── pyproject.toml        # Managed by uv
 └── tests/                # Comprehensive test suite
 ```
