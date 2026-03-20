@@ -67,7 +67,7 @@ uv run python src/main.py run
 uv run python src/main.py run --sources rss,bluesky,mastodon
 
 # Dry run — print candidates, write nothing
-uv run python src/main.py run --dry-run
+uv run python src/main.py run --dry-run -n: Call LLM but do not save results. Print to stdout.
 ```
 
 ### 3. Review

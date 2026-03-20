@@ -9,7 +9,7 @@ from .config import (
     READWISE_TOKEN,
 )
 from .options import (
-    provider_opt, model_opt, dry_run_opt, threshold_opt, store_opt,
+    provider_opt, model_opt, dry_run_opt, no_llm_opt, threshold_opt, store_opt,
     verbose_opt, limit_opt, no_dedup_opt, cached_opt, sources_opt,
     validate_threshold, validate_readwise_token, make_provider
 )
@@ -29,6 +29,7 @@ def cmd_run(
     provider: str = provider_opt(),
     model: Optional[str] = model_opt(),
     dry_run: bool = dry_run_opt(),
+    no_llm: bool = no_llm_opt(),
     feed: Optional[str] = typer.Option(None, "--feed", "-f", metavar="URL",
                                         help="Process a single feed URL instead of the full configured list"),
     threshold: float = threshold_opt(),
@@ -40,8 +41,10 @@ def cmd_run(
     sources: str = sources_opt(),
 ):
     """Fetch feeds, score items, and store candidates in the DB."""
+    if no_llm:
+        dry_run = True
     validate_threshold(threshold)
-    llm_provider = make_provider(provider, model)
+    llm_provider = make_provider(provider, model, no_llm=no_llm)
 
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.WARNING,

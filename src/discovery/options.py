@@ -23,7 +23,10 @@ def model_opt():
     return typer.Option(DEFAULT_MODEL, "--model", "-m", help="Override the default model for the chosen provider")
 
 def dry_run_opt():
-    return typer.Option(False, "--dry-run", "-n", help="Print candidates to stdout; do not write to DB or inbox")
+    return typer.Option(False, "--dry-run", "-n", help="Perform the action and call the LLM, but do not write to disk/vault/DB. Print result to stdout.")
+
+def no_llm_opt():
+    return typer.Option(False, "--no-llm", help="Skip calling the LLM backend. Use mock responses. Implies --dry-run.")
 
 def threshold_opt():
     return typer.Option(DEFAULT_THRESHOLD, "--threshold", "-t", help="Minimum relevance score 0.0-1.0")
@@ -56,9 +59,9 @@ def validate_threshold(threshold: float) -> None:
         typer.echo(f"Error: --threshold must be between 0.0 and 1.0, got {threshold}", err=True)
         raise typer.Exit(1)
 
-def make_provider(provider_name: str, model: Optional[str]):
+def make_provider(provider_name: str, model: Optional[str], no_llm: bool = False):
     try:
-        return resolve_provider(PROVIDERS, provider_name, model)
+        return resolve_provider(PROVIDERS, provider_name, model, no_llm=no_llm)
     except Exception as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
