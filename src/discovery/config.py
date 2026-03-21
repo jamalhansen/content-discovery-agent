@@ -2,7 +2,7 @@ import os
 import tomllib
 from pathlib import Path
 
-_PROJECT_ROOT = Path(__file__).parent
+_PROJECT_ROOT = Path(__file__).parent.parent.parent  # src/discovery/ -> src/ -> project root
 _CONFIG_FILE = _PROJECT_ROOT / ".content-discovery.toml"
 
 _FALLBACK_FEEDS = [
