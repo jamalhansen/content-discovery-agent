@@ -1,8 +1,8 @@
 import logging
 import time as _time
-from dataclasses import dataclass
 import feedparser
 import requests
+from local_first_common.article_fetcher import FeedItem  # noqa: F401 — re-exported for consumers
 from local_first_common.url import clean_url
 
 logger = logging.getLogger(__name__)
@@ -10,15 +10,6 @@ logger = logging.getLogger(__name__)
 _HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; content-discovery-agent/1.0; +https://github.com/local-first/content-discovery-agent)"
 }
-
-
-@dataclass
-class FeedItem:
-    title: str
-    description: str
-    url: str
-    source: str
-    published: str = ""  # ISO date e.g. "2026-03-07", empty if unavailable
 
 
 def fetch_feed(feed_url: str) -> list[FeedItem]:
