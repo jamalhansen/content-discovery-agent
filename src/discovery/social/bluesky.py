@@ -19,11 +19,11 @@ account credentials.
 
 import logging
 
-
 from ..feed_reader import FeedItem
 from .article_fetcher import fetch_article_metadata
 from .interfaces import SocialReader
 from local_first_common.social import bluesky
+from local_first_common.tracking import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +36,10 @@ class BlueskyReader(SocialReader):
         handle: str = "",
         app_password: str = "",
         blocked_domains: frozenset[str] = frozenset(),
+        tool: Tool | None = None,
     ) -> None:
         self._blocked_domains = blocked_domains
+        self._tool = tool
         self._token: str | None = None
         if handle and app_password:
             self._token = bluesky.get_auth_token(handle, app_password)
@@ -56,11 +58,18 @@ class BlueskyReader(SocialReader):
         items: list[FeedItem] = []
 
         for post in raw_posts:
+            post_url = bluesky.get_post_url(post)
             for url in bluesky.extract_urls_from_post(post):
                 if url in seen_urls:
                     continue
                 seen_urls.add(url)
-                item = fetch_article_metadata(url, blocked_domains=self._blocked_domains)
+                item = fetch_article_metadata(
+                    url,
+                    blocked_domains=self._blocked_domains,
+                    tool=self._tool,
+                    source_url=post_url or None,
+                    source_platform="bluesky",
+                )
                 if item:
                     items.append(item)
 

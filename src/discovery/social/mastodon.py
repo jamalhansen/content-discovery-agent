@@ -7,11 +7,11 @@ articles to FeedItems.
 
 import logging
 
-
 from ..feed_reader import FeedItem
 from .article_fetcher import fetch_article_metadata
 from .interfaces import SocialReader
 from local_first_common.social import mastodon
+from local_first_common.tracking import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +23,11 @@ class MastodonReader(SocialReader):
         self,
         instances: list[str] | None = None,
         blocked_domains: frozenset[str] = frozenset(),
+        tool: Tool | None = None,
     ) -> None:
         self.instances = instances or ["mastodon.social"]
         self._blocked_domains = blocked_domains
+        self._tool = tool
 
     def fetch_items(self, keywords: list[str]) -> list[FeedItem]:
         """Search Mastodon hashtag timelines and return unique article FeedItems."""
@@ -43,7 +45,13 @@ class MastodonReader(SocialReader):
             if not article_url or article_url in seen_urls:
                 continue
             seen_urls.add(article_url)
-            item = fetch_article_metadata(article_url, blocked_domains=self._blocked_domains)
+            item = fetch_article_metadata(
+                article_url,
+                blocked_domains=self._blocked_domains,
+                tool=self._tool,
+                source_url=status.get("url"),
+                source_platform="mastodon",
+            )
             if item:
                 items.append(item)
 

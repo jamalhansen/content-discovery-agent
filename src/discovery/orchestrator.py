@@ -2,7 +2,7 @@ import typer
 import webbrowser
 from datetime import date
 from typing import Optional, List, Set
-from local_first_common.tracking import timed_run
+from local_first_common.tracking import register_tool, timed_run
 from .config import (
     BLUESKY_APP_PASSWORD,
     BLUESKY_HANDLE,
@@ -21,6 +21,9 @@ from .feed_reader import FeedItem, fetch_feed
 from .scorer import score_item, ScoredItem
 from .readwise import save_to_readwise
 from . import store
+
+_TOOL = register_tool("content-discovery-agent")
+
 
 def run_discovery(
     llm_provider,
@@ -82,6 +85,7 @@ def run_discovery(
                     handle=BLUESKY_HANDLE,
                     app_password=BLUESKY_APP_PASSWORD,
                     blocked_domains=SOCIAL_BLOCKED_DOMAINS,
+                    tool=_TOOL,
                 ).fetch_items(SOCIAL_KEYWORDS)
                 if cached and bluesky_items:
                     save_cached_social("bluesky", SOCIAL_KEYWORDS, bluesky_items)
@@ -106,6 +110,7 @@ def run_discovery(
                 mastodon_items = MastodonReader(
                     instances=SOCIAL_MASTODON_INSTANCES,
                     blocked_domains=SOCIAL_BLOCKED_DOMAINS,
+                    tool=_TOOL,
                 ).fetch_items(SOCIAL_KEYWORDS)
                 if cached and mastodon_items:
                     save_cached_social("mastodon", SOCIAL_KEYWORDS, mastodon_items)

@@ -8,7 +8,8 @@ import logging
 from urllib.parse import urlparse
 
 from ..feed_reader import FeedItem
-from local_first_common import http, html
+from local_first_common import html
+from local_first_common.tracking import Tool, tracked_fetch
 from local_first_common.url import clean_url, _TRACKING_PARAMS  # noqa: F401 — re-exported for consumers
 
 logger = logging.getLogger(__name__)
@@ -37,11 +38,18 @@ def _is_blocked(netloc: str, blocked_domains: frozenset[str]) -> bool:
 def fetch_article_metadata(
     url: str,
     blocked_domains: frozenset[str] = frozenset(),
+    tool: Tool | None = None,
+    source_url: str | None = None,
+    source_platform: str | None = None,
 ) -> FeedItem | None:
     """Fetch a URL and extract title and description from its HTML meta tags.
 
     Skips URLs whose domain is in the default block list or in
     ``blocked_domains`` without making an HTTP request.
+
+    When ``tool`` is provided the attempt is logged to the central fetch_log
+    table via ``tracked_fetch``. ``source_url`` is the social post where this
+    link was found; ``source_platform`` is e.g. ``'bluesky'`` or ``'mastodon'``.
     """
     url = clean_url(url)
     parsed = urlparse(url)
@@ -55,19 +63,23 @@ def fetch_article_metadata(
         logger.debug("Skipping blocked domain: %s", netloc)
         return None
 
-    try:
-        html_content = http.fetch_url(url, timeout=8)
-    except Exception as e:
-        logger.warning("Failed to fetch %s: %s", url, e)
-        return None
+    _tool = tool or Tool(name="", id=None)
+    with tracked_fetch(_tool, url, source_url=source_url, source_platform=source_platform) as fetch:
+        if fetch.html is None:
+            logger.warning("Failed to fetch %s: %s", url, fetch.error_message)
+            return None
 
-    try:
-        metadata = html.extract_metadata(html_content)
+        try:
+            metadata = html.extract_metadata(fetch.html)
+        except Exception as e:
+            logger.warning("Failed to parse metadata for %s: %s", url, e)
+            return None
 
         if not metadata.title:
             logger.warning("No title found for %s — skipping", url)
             return None
 
+        fetch.title = metadata.title
         source = urlparse(url).netloc
 
         return FeedItem(
@@ -77,7 +89,3 @@ def fetch_article_metadata(
             source=source,
             published=metadata.published_date,
         )
-
-    except Exception as e:
-        logger.warning("Failed to parse metadata for %s: %s", url, e)
-        return None
