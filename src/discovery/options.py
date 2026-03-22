@@ -60,6 +60,9 @@ def validate_threshold(threshold: float) -> None:
         raise typer.Exit(1)
 
 def make_provider(provider_name: str, model: Optional[str], no_llm: bool = False):
+    # @-prefixed model selectors (e.g. @best) are Ollama-specific; ignore for cloud providers
+    if model and model.startswith("@") and provider_name != "local":
+        model = None
     try:
         return resolve_provider(PROVIDERS, provider_name, model, no_llm=no_llm)
     except Exception as e:

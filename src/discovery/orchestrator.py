@@ -2,6 +2,7 @@ import typer
 import webbrowser
 from datetime import date
 from typing import Optional, List, Set
+from local_first_common.tracking import timed_run
 from .config import (
     BLUESKY_APP_PASSWORD,
     BLUESKY_HANDLE,
@@ -132,33 +133,36 @@ def run_discovery(
     skipped_count = 0
     today = date.today().isoformat()
 
-    for item in all_new_items:
-        result = score_item(llm_provider, item.title, item.description, INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS)
-        if result is None:
-            skipped_count += 1
-            continue
+    with timed_run("content-discovery-agent", llm_provider.model) as _run:
+        for item in all_new_items:
+            result = score_item(llm_provider, item.title, item.description, INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS)
+            if result is None:
+                skipped_count += 1
+                continue
 
-        scored_count += 1
-        is_english = result.language == "en"
+            scored_count += 1
+            is_english = result.language == "en"
 
-        if verbose:
-            lang_flag = f" [{result.language}]" if not is_english else ""
-            typer.echo(f"  [{result.score:.2f}]{lang_flag} {item.title[:70]}")
+            if verbose:
+                lang_flag = f" [{result.language}]" if not is_english else ""
+                typer.echo(f"  [{result.score:.2f}]{lang_flag} {item.title[:70]}")
 
-        store.upsert_item(
-            url=item.url, title=item.title, source=item.source,
-            description=item.description or "", score=result.score,
-            tags=result.tags, summary=result.summary,
-            fetched_at=today, published_at=item.published, path=store_path,
-        )
-        if not is_english or result.score < threshold:
-            store.mark_item(item.url, "dismissed", store_path)
+            store.upsert_item(
+                url=item.url, title=item.title, source=item.source,
+                description=item.description or "", score=result.score,
+                tags=result.tags, summary=result.summary,
+                fetched_at=today, published_at=item.published, path=store_path,
+            )
+            if not is_english or result.score < threshold:
+                store.mark_item(item.url, "dismissed", store_path)
 
-        if is_english and result.score >= threshold:
-            candidates.append({
-                "title": item.title, "url": item.url, "score": result.score,
-                "tags": result.tags, "summary": result.summary,
-            })
+            if is_english and result.score >= threshold:
+                candidates.append({
+                    "title": item.title, "url": item.url, "score": result.score,
+                    "tags": result.tags, "summary": result.summary,
+                })
+
+        _run.item_count = scored_count
 
     return candidates, scored_count, skipped_count
 
