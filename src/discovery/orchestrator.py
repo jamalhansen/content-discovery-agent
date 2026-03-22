@@ -168,6 +168,8 @@ def run_discovery(
                 })
 
         _run.item_count = scored_count
+        _run.input_tokens = getattr(llm_provider, "input_tokens", None) or None
+        _run.output_tokens = getattr(llm_provider, "output_tokens", None) or None
 
     return candidates, scored_count, skipped_count
 
