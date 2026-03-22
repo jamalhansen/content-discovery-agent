@@ -630,7 +630,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/0e/72/a3add0e4eec4eb9e2
 [[package]]
 name = "local-first-common"
 version = "0.1.0"
-source = { git = "https://github.com/jamalhansen/local-first-common.git?rev=main#3b02318a8d6bbb244cf6d6087fb16a8f89a5dbc6" }
+source = { git = "https://github.com/jamalhansen/local-first-common.git?rev=main#68a6b36a813ddc7177a8c288692d7a03372aa0b9" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "duckdb" },
