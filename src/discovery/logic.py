@@ -8,6 +8,7 @@ from .config import (
     DEFAULT_BACKUP_DIR,
     READWISE_TOKEN,
 )
+from local_first_common.cli import resolve_dry_run
 from .options import (
     provider_opt, model_opt, dry_run_opt, no_llm_opt, threshold_opt, store_opt,
     verbose_opt, limit_opt, no_dedup_opt, cached_opt, sources_opt,
@@ -41,9 +42,6 @@ def cmd_run(
     sources: str = sources_opt(),
 ):
     """Fetch feeds, score items, and store candidates in the DB."""
-    if no_llm:
-        typer.echo("\n[no-llm] Skip inference mode. Previews would be shown here.")
-        return
     validate_threshold(threshold)
     llm_provider = make_provider(provider, model, no_llm=no_llm)
 
@@ -139,9 +137,6 @@ def cmd_rescore(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose."),
 ):
     """Re-score all pending items."""
-    if no_llm:
-        typer.echo("\n[no-llm] Skip inference mode. Rescoring skipped.")
-        return
     from .config import INTEREST_PROFILE, INTEREST_EXCLUSIONS
     llm_provider = make_provider(provider, model, no_llm=no_llm)
     store.init_db(store_path)
@@ -183,9 +178,9 @@ def cmd_save(
     dry_run: bool = dry_run_opt(),
 ):
     """Fetch, score, and save a single URL to Readwise."""
+    dry_run = resolve_dry_run(dry_run, no_llm)
     if no_llm:
-        typer.echo(f"\n[no-llm] Skip inference mode. Would fetch and score: {url}")
-        return
+        no_score = True
     validate_readwise_token(readwise_token)
     llm_provider = make_provider(provider, model, no_llm=no_llm)
     run_save(url, llm_provider, no_score, readwise_token, store_path, dry_run)
