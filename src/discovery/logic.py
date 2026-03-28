@@ -10,7 +10,8 @@ from .config import (
 )
 from local_first_common.cli import resolve_dry_run
 from .options import (
-    provider_opt, model_opt, dry_run_opt, no_llm_opt, threshold_opt, store_opt,
+    provider_opt, model_opt, scoring_provider_opt, scoring_model_opt,
+    dry_run_opt, no_llm_opt, threshold_opt, store_opt,
     verbose_opt, limit_opt, no_dedup_opt, cached_opt, sources_opt,
     validate_threshold, validate_readwise_token, make_provider
 )
@@ -27,8 +28,8 @@ app = typer.Typer(
 
 @app.command("run", help="Fetch feeds, score items, and store candidates in the DB (default command).")
 def cmd_run(
-    provider: str = provider_opt(),
-    model: Optional[str] = model_opt(),
+    provider: str = scoring_provider_opt(),
+    model: Optional[str] = scoring_model_opt(),
     dry_run: bool = dry_run_opt(),
     no_llm: bool = no_llm_opt(),
     feed: Optional[str] = typer.Option(None, "--feed", "-f", metavar="URL",
@@ -51,7 +52,8 @@ def cmd_run(
     )
 
     candidates, scored_count, skipped_count = run_discovery(
-        llm_provider, sources, feed, threshold, no_dedup, verbose, cached, limit, store_path
+        llm_provider, sources, feed, threshold, no_dedup, verbose, cached, limit, store_path,
+        dry_run=dry_run,
     )
 
     if candidates:

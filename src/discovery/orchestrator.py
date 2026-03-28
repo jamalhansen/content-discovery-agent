@@ -3,22 +3,24 @@ import webbrowser
 from datetime import date
 from typing import Optional, List, Set
 from local_first_common.tracking import register_tool, timed_run
+from local_first_common.article_fetcher import fetch_article_metadata
 from .config import (
     BLUESKY_APP_PASSWORD,
     BLUESKY_HANDLE,
     FEEDS,
     INTEREST_EXCLUSIONS,
     INTEREST_PROFILE,
+    READWISE_ROUTING,
+    READWISE_TOKEN,
     SOCIAL_BLOCKED_DOMAINS,
     SOCIAL_KEYWORDS,
     SOCIAL_MASTODON_INSTANCES,
 )
-from .social.article_fetcher import fetch_article_metadata
 from .social.bluesky import BlueskyReader
 from .social.mastodon import MastodonReader
 from .feed_cache import load_cached_feed, save_cached_feed, load_cached_social, save_cached_social
 from .feed_reader import FeedItem, fetch_feed
-from .scorer import score_item, ScoredItem
+from .scorer import ContentDiscoveryScorer, score_item, ScoredItem
 from .readwise import save_to_readwise
 from . import store
 
@@ -35,6 +37,7 @@ def run_discovery(
     cached: bool,
     limit: Optional[int],
     store_path: str,
+    dry_run: bool = False,
 ):
     """Business logic for the 'run' command."""
     store.init_db(store_path)
@@ -137,10 +140,11 @@ def run_discovery(
     scored_count = 0
     skipped_count = 0
     today = date.today().isoformat()
+    scorer = ContentDiscoveryScorer()
 
     with timed_run("content-discovery-agent", llm_provider.model) as _run:
         for item in all_new_items:
-            result = score_item(llm_provider, item.title, item.description, INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS)
+            result = score_item(llm_provider, item.title, item.description, INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS, scorer=scorer)
             if result is None:
                 skipped_count += 1
                 continue
@@ -166,10 +170,24 @@ def run_discovery(
                     "title": item.title, "url": item.url, "score": result.score,
                     "tags": result.tags, "summary": result.summary,
                 })
+                if READWISE_ROUTING and READWISE_TOKEN:
+                    if dry_run:
+                        typer.echo(f"  [dry-run] Would route to Readwise: {item.title[:60]}")
+                    else:
+                        save_to_readwise(
+                            READWISE_TOKEN,
+                            item.url,
+                            title=item.title,
+                            summary=result.summary,
+                            tags=result.tags,
+                            published_date=item.published or "",
+                        )
 
         _run.item_count = scored_count
         _run.input_tokens = getattr(llm_provider, "input_tokens", None) or None
         _run.output_tokens = getattr(llm_provider, "output_tokens", None) or None
+        _run.xml_fallbacks = scorer.xml_fallback_count or None
+        _run.parse_errors = scorer.parse_error_count or None
 
     return candidates, scored_count, skipped_count
 
@@ -204,8 +222,8 @@ def run_review(store_path: str, readwise_token: str):
             if choice == "y":
                 store.mark_item(item["url"], "kept", store_path)
                 ok = save_to_readwise(
-                    item["url"],
                     readwise_token,
+                    item["url"],
                     title=item["title"],
                     summary=item["summary"],
                     tags=item["tags"],
@@ -247,7 +265,7 @@ def run_save(
         return True
 
     typer.echo(f"Fetching {url} ...")
-    item = fetch_article_metadata(url, blocked_domains=SOCIAL_BLOCKED_DOMAINS)
+    item = fetch_article_metadata(url, blocked_domains=SOCIAL_BLOCKED_DOMAINS, tool=_TOOL)
     if item is None:
         typer.echo(f"Error: Could not fetch metadata for {url}", err=True)
         raise typer.Exit(1)
@@ -284,7 +302,7 @@ def run_save(
     store.mark_item(item.url, "kept", store_path)
 
     ok = save_to_readwise(
-        item.url, readwise_token,
+        readwise_token, item.url,
         title=item.title,
         summary=scored.summary,
         tags=scored.tags,

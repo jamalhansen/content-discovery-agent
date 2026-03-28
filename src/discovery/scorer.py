@@ -1,8 +1,6 @@
-import json
 import logging
-from dataclasses import dataclass
-from local_first_common.llm import strip_json_fences
 from local_first_common.providers.base import BaseProvider
+from local_first_common.scoring import BaseScorer, ScoredItem
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +17,8 @@ SYSTEM_PROMPT = """You are a content relevance scorer. Given a feed item and a d
 Return only valid JSON. No preamble, no explanation."""
 
 
-@dataclass
-class ScoredItem:
-    score: float
-    tags: list[str]
-    summary: str
-    language: str = "en"
+class ContentDiscoveryScorer(BaseScorer):
+    system_prompt = SYSTEM_PROMPT
 
 
 def build_user_message(
@@ -57,17 +51,11 @@ def build_user_message(
 
 
 def parse_response(raw: str) -> ScoredItem | None:
-    try:
-        data = json.loads(strip_json_fences(raw))
-        return ScoredItem(
-            score=float(data["score"]),
-            tags=list(data.get("tags", []))[:2],  # enforce 2-tag limit
-            summary=str(data.get("summary", "")),
-            language=str(data.get("language", "en")).lower()[:2],
-        )
-    except (json.JSONDecodeError, KeyError, ValueError) as e:
-        logger.warning("Failed to parse scorer response: %s | Raw: %s", e, raw[:200])
-        return None
+    """Parse a raw LLM scorer response into a ScoredItem.
+
+    Backward-compatible shim — delegates to ContentDiscoveryScorer._parse_response.
+    """
+    return ContentDiscoveryScorer()._parse_response(raw)
 
 
 def score_item(
@@ -77,11 +65,9 @@ def score_item(
     interest_profile: str,
     examples: dict | None = None,
     exclusions: str = "",
+    scorer: ContentDiscoveryScorer | None = None,
 ) -> ScoredItem | None:
+    if scorer is None:
+        scorer = ContentDiscoveryScorer()
     user_message = build_user_message(title, description, interest_profile, exclusions, examples)
-    try:
-        raw = provider.complete(SYSTEM_PROMPT, user_message)
-    except RuntimeError as e:
-        logger.warning("Provider error scoring '%s': %s", title[:60], e)
-        return None
-    return parse_response(raw)
+    return scorer.score(provider, user_message)

@@ -130,7 +130,7 @@ class TestSaveCommand:
         assert result.exit_code == 0, result.output
         mock_rw.assert_called_once()
         call_kwargs = mock_rw.call_args
-        assert call_kwargs[0][0] == "https://example.com/great-article"
+        assert call_kwargs[0][1] == "https://example.com/great-article"
         assert "Readwise Reader" in result.output
 
     def test_readwise_failure_still_saves_to_db(self, tmp_path):

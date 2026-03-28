@@ -8,8 +8,9 @@ CLI tool that monitors RSS feeds and social media for articles relevant to your 
 2. Scores each article against a natural language interest profile via an LLM
 3. Stores candidates in a local SQLite database
 4. Skips items already seen in previous runs (deduplication)
-5. Lets you review candidates interactively — keep or dismiss each one
-6. Sends kept items to your Readwise Reader inbox via the API
+5. Optionally routes above-threshold candidates to Readwise Reader automatically during `run` (`readwise_routing = true`)
+6. Lets you review candidates interactively — keep or dismiss each one
+7. Sends kept items to your Readwise Reader inbox via the API
 
 The scorer improves over time: after you review items, your kept/dismissed history is used as few-shot examples in subsequent scoring runs.
 
@@ -38,6 +39,10 @@ By default, the tool uses the `@best` alias on your local provider (Ollama). Thi
 [settings]
 provider = "local"
 model = "@fast"  # Use a lower-latency model
+
+# Optional: use a different provider/model specifically for scoring
+# scoring_provider = "groq"
+# scoring_model = "llama-3.3-70b-versatile"
 ```
 
 Or via environment variables:
@@ -133,3 +138,5 @@ content-discovery-agent/
 ```bash
 uv run pytest
 ```
+
+217 tests across 12 test files.

@@ -36,6 +36,12 @@ _settings = _cfg.get("settings", {})
 DEFAULT_THRESHOLD: float = _settings.get("threshold", 0.6)
 DEFAULT_PROVIDER: str = _settings.get("provider", "local")
 DEFAULT_MODEL: str | None = os.environ.get("MODEL_NAME") or _settings.get("model")
+
+# Separate provider for interactive review (can be a faster/stronger cloud model)
+DEFAULT_SCORING_PROVIDER: str = _settings.get("scoring_provider", DEFAULT_PROVIDER)
+DEFAULT_SCORING_MODEL: str | None = _settings.get("scoring_model") or DEFAULT_MODEL
+DEFAULT_REVIEW_PROVIDER: str = _settings.get("review_provider", DEFAULT_PROVIDER)
+DEFAULT_REVIEW_MODEL: str | None = _settings.get("review_model") or None
 DEFAULT_INBOX_PATH: str = _settings.get("inbox_path", "_finds/00-inbox.md")
 
 # env var wins over toml so machine-specific paths stay out of the committed file
@@ -71,3 +77,6 @@ BLUESKY_HANDLE: str = os.environ.get("BLUESKY_HANDLE", "")
 BLUESKY_APP_PASSWORD: str = os.environ.get("BLUESKY_APP_PASSWORD", "")
 
 READWISE_TOKEN: str = os.environ.get("READWISE_TOKEN", "")
+# When True, items clearing the score threshold during a run are automatically
+# sent to Readwise Reader (before the interactive review step).
+READWISE_ROUTING: bool = bool(_settings.get("readwise_routing", False))

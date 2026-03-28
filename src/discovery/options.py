@@ -5,9 +5,15 @@ from local_first_common.cli import resolve_provider
 from .config import (
     DEFAULT_PROVIDER,
     DEFAULT_MODEL,
+    DEFAULT_SCORING_PROVIDER,
+    DEFAULT_SCORING_MODEL,
+    DEFAULT_REVIEW_PROVIDER,
+    DEFAULT_REVIEW_MODEL,
     DEFAULT_THRESHOLD,
     STORE_PATH,
 )
+
+DEFAULT_SOURCES = "rss"
 
 # ---------------------------------------------------------------------------
 # Shared option factories
@@ -21,6 +27,24 @@ def provider_opt():
 
 def model_opt():
     return typer.Option(DEFAULT_MODEL, "--model", "-m", help="Override the default model for the chosen provider")
+
+def scoring_provider_opt():
+    return typer.Option(
+        DEFAULT_SCORING_PROVIDER, "--scoring-provider",
+        help=f"LLM backend for the fetch/score loop (default: {DEFAULT_SCORING_PROVIDER})",
+    )
+
+def scoring_model_opt():
+    return typer.Option(DEFAULT_SCORING_MODEL, "--scoring-model", help="Override model for the scoring pass")
+
+def review_provider_opt():
+    return typer.Option(
+        DEFAULT_REVIEW_PROVIDER, "--review-provider",
+        help=f"LLM backend for interactive review (default: {DEFAULT_REVIEW_PROVIDER})",
+    )
+
+def review_model_opt():
+    return typer.Option(DEFAULT_REVIEW_MODEL, "--review-model", help="Override model for the review pass")
 
 def dry_run_opt():
     return typer.Option(False, "--dry-run", "-n", help="Perform the action and call the LLM, but do not write to disk/vault/DB. Print result to stdout.")
@@ -47,7 +71,7 @@ def cached_opt():
     return typer.Option(False, "--cached", help="Use cached feed responses if available")
 
 def sources_opt():
-    return typer.Option("rss", "--sources", "-s",
+    return typer.Option(DEFAULT_SOURCES, "--sources", "-s",
                         help="Comma-separated list of sources: rss,bluesky,mastodon (default: rss)")
 
 # ---------------------------------------------------------------------------
