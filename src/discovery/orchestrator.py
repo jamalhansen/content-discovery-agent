@@ -160,7 +160,8 @@ def run_discovery(
                 url=item.url, title=item.title, source=item.source,
                 description=item.description or "", score=result.score,
                 tags=result.tags, summary=result.summary,
-                fetched_at=today, published_at=item.published, path=store_path,
+                fetched_at=today, published_at=item.published,
+                found_at=item.found_at, path=store_path,
             )
             if not is_english or result.score < threshold:
                 store.mark_item(item.url, "dismissed", store_path)

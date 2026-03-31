@@ -18,6 +18,7 @@ items
   summary     TEXT     — one-line LLM summary
   status      TEXT     — 'new' | 'kept' | 'dismissed'
   fetched_at  TEXT     — ISO date string e.g. '2026-03-07'
+  found_at    TEXT     — URL of the page/post where this link was first found (NULL for older rows)
   reviewed_at TEXT     — ISO datetime string, NULL until reviewed
 """
 
@@ -42,6 +43,7 @@ CREATE TABLE IF NOT EXISTS items (
                          CHECK(status IN ('new', 'kept', 'dismissed')),
     fetched_at   TEXT    NOT NULL,
     published_at TEXT    NOT NULL DEFAULT '',
+    found_at     TEXT    DEFAULT NULL,
     reviewed_at  TEXT    DEFAULT NULL
 )
 """
@@ -66,6 +68,11 @@ def init_db(path: str) -> None:
             conn.execute("ALTER TABLE items ADD COLUMN published_at TEXT NOT NULL DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: add found_at for existing DBs that predate this column.
+        try:
+            conn.execute("ALTER TABLE items ADD COLUMN found_at TEXT DEFAULT NULL")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def is_seen(url: str, path: str) -> bool:
@@ -88,6 +95,7 @@ def upsert_item(
     summary: str,
     fetched_at: str,
     published_at: str = "",
+    found_at: str | None = None,
     path: str,
 ) -> None:
     """Insert a new item. Silently ignores duplicate URLs (INSERT OR IGNORE).
@@ -99,10 +107,10 @@ def upsert_item(
         conn.execute(
             """
             INSERT OR IGNORE INTO items
-                (url, title, source, description, score, tags, summary, fetched_at, published_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (url, title, source, description, score, tags, summary, fetched_at, published_at, found_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (url, title, source, description, score, json.dumps(tags), summary, fetched_at, published_at),
+            (url, title, source, description, score, json.dumps(tags), summary, fetched_at, published_at, found_at),
         )
 
 

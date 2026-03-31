@@ -5,7 +5,7 @@ description = "Score RSS feeds and social sources for relevance; store candidate
 requires-python = ">=3.12"
 dependencies = [
     "feedparser>=6.0.12",
-    "local-first-common",
+    "local-first-common[anthropic]",
     "requests>=2.32.5",
     "typer>=0.15.0",
 ]

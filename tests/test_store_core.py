@@ -64,6 +64,29 @@ class TestInitDb:
         conn.close()
         assert "published_at" in cols
 
+    def test_migration_adds_found_at_to_existing_db(self, tmp_path):
+        """init_db should add found_at column to a DB that lacks it."""
+        path = db(tmp_path)
+        conn = sqlite3.connect(path)
+        conn.execute("""
+            CREATE TABLE items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT NOT NULL UNIQUE, title TEXT NOT NULL,
+                source TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+                score REAL NOT NULL, tags TEXT NOT NULL DEFAULT '[]',
+                summary TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'new',
+                fetched_at TEXT NOT NULL, published_at TEXT NOT NULL DEFAULT '',
+                reviewed_at TEXT DEFAULT NULL
+            )
+        """)
+        conn.commit()
+        conn.close()
+        init_db(path)
+        conn = sqlite3.connect(path)
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
+        conn.close()
+        assert "found_at" in cols
+
 
 class TestIsSeen:
     def test_false_for_unknown_url(self, tmp_path):
@@ -134,6 +157,21 @@ class TestUpsertItem:
         upsert_item(**item, path=path)  # duplicate — must not raise or double-insert
         rows = get_new_items(path)
         assert len(rows) == 1
+
+    def test_found_at_stored_and_retrieved(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        post_url = "https://bsky.app/profile/user.bsky.social/post/abc123"
+        upsert_item(**make_item(), found_at=post_url, path=path)
+        rows = get_new_items(path)
+        assert rows[0]["found_at"] == post_url
+
+    def test_found_at_defaults_to_none(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        upsert_item(**make_item(), path=path)
+        rows = get_new_items(path)
+        assert rows[0]["found_at"] is None
 
     def test_does_not_overwrite_kept_item(self, tmp_path):
         path = db(tmp_path)

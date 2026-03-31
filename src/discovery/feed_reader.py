@@ -52,6 +52,7 @@ def fetch_feed(feed_url: str) -> list[FeedItem]:
             url=url,
             source=feed_title,
             published=published,
+            found_at=feed_url,
         ))
 
     return items
