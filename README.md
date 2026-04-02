@@ -66,22 +66,22 @@ export ANTHROPIC_API_KEY="your_key"
 
 ```bash
 # RSS feeds only (default)
-uv run python src/main.py run
+uv run discover run
 
 # Include Bluesky and Mastodon as additional sources
-uv run python src/main.py run --sources rss,bluesky,mastodon
+uv run discover run --sources rss,bluesky,mastodon
 
 # Dry run — print candidates, write nothing
-uv run python src/main.py run --dry-run
+uv run discover run --dry-run
 
 # Skip LLM entirely (for testing CLI args without inference)
-uv run python src/main.py run --no-llm
+uv run discover run --no-llm
 ```
 
 ### 3. Review
 
 ```bash
-uv run python src/main.py review
+uv run discover review
 ```
 
 Shows each candidate one at a time. Commands: `y` keep · `n` dismiss · `s` stop · `o` open URL in browser.
