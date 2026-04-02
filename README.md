@@ -51,6 +51,11 @@ Or via environment variables:
 export MODEL_PROVIDER="anthropic"
 export MODEL_NAME="claude-3-5-sonnet-latest"
 ```
+## How I use it with cloud model
+```bash
+uv run discover run --scoring-provider anthropic --sources rss,mastodon,bluesky    
+```
+
 
 ## Quick Start
 
