@@ -54,6 +54,8 @@ class TestReadwiseRouting:
             summary="Good.",
             tags=["ai"],
             published_date=item.published,
+            search_term=item.search_term,
+            platform=item.platform,
         )
 
     def test_routing_enabled_dry_run_does_not_call_save(self, tmp_path):

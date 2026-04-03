@@ -15,6 +15,8 @@ _FAKE_ITEM = FeedItem(
     url="https://example.com/great-article",
     source="example.com",
     published="2026-03-10",
+    search_term="local AI",
+    platform="bluesky",
 )
 
 _FAKE_SCORED = ScoredItem(

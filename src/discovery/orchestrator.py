@@ -185,6 +185,8 @@ def run_discovery(
                             summary=result.summary,
                             tags=result.tags,
                             published_date=item.published or "",
+                            search_term=item.search_term,
+                            platform=item.platform,
                         )
 
             run.item_count = 1
@@ -322,6 +324,7 @@ def run_save(
         summary=scored.summary,
         tags=scored.tags,
         published_date=item.published,
+        platform="manual",
     )
     typer.echo(f"Saved:  {item.title}")
     typer.echo("  Sent to Readwise Reader." if ok else "  Kept in DB (Readwise save failed \u2014 check token).")

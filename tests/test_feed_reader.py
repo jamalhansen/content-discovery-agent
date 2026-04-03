@@ -65,9 +65,9 @@ class TestFetchFeed:
 class TestFilterNewItems:
     def test_filters_seen_urls(self):
         items = [
-            FeedItem("A", "desc", "https://a.com", "src"),
-            FeedItem("B", "desc", "https://b.com", "src"),
-            FeedItem("C", "desc", "https://c.com", "src"),
+            FeedItem(title="A", description="desc", url="https://a.com", source="src"),
+            FeedItem(title="B", description="desc", url="https://b.com", source="src"),
+            FeedItem(title="C", description="desc", url="https://c.com", source="src"),
         ]
         seen = {"https://a.com", "https://c.com"}
         result = filter_new_items(items, seen)
@@ -76,13 +76,13 @@ class TestFilterNewItems:
 
     def test_all_new_returns_all(self):
         items = [
-            FeedItem("A", "desc", "https://a.com", "src"),
-            FeedItem("B", "desc", "https://b.com", "src"),
+            FeedItem(title="A", description="desc", url="https://a.com", source="src"),
+            FeedItem(title="B", description="desc", url="https://b.com", source="src"),
         ]
         result = filter_new_items(items, set())
         assert len(result) == 2
 
     def test_all_seen_returns_empty(self):
-        items = [FeedItem("A", "desc", "https://a.com", "src")]
+        items = [FeedItem(title="A", description="desc", url="https://a.com", source="src")]
         result = filter_new_items(items, {"https://a.com"})
         assert result == []
