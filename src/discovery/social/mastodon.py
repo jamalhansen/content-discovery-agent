@@ -33,26 +33,29 @@ class MastodonReader(SocialReader):
         """Search Mastodon hashtag timelines and return unique article FeedItems."""
         if not keywords:
             return []
-        raw_statuses = mastodon.fetch_posts(keywords, instances=self.instances, limit=40)
+
         seen_urls: set[str] = set()
         items: list[FeedItem] = []
 
-        for status in raw_statuses:
-            card = status.get("card")
-            if not card:
-                continue
-            article_url = card.get("url", "").strip()
-            if not article_url or article_url in seen_urls:
-                continue
-            seen_urls.add(article_url)
-            item = fetch_article_metadata(
-                article_url,
-                blocked_domains=self._blocked_domains,
-                tool=self._tool,
-                source_url=status.get("url"),
-                source_platform="mastodon",
-            )
-            if item:
-                items.append(item)
+        for keyword in keywords:
+            raw_statuses = mastodon.fetch_posts([keyword], instances=self.instances, limit=40)
+            for status in raw_statuses:
+                card = status.get("card")
+                if not card:
+                    continue
+                article_url = card.get("url", "").strip()
+                if not article_url or article_url in seen_urls:
+                    continue
+                seen_urls.add(article_url)
+                item = fetch_article_metadata(
+                    article_url,
+                    blocked_domains=self._blocked_domains,
+                    tool=self._tool,
+                    source_url=status.get("url"),
+                    source_platform="mastodon",
+                    search_term=keyword,
+                )
+                if item:
+                    items.append(item)
 
         return items

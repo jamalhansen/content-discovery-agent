@@ -44,7 +44,9 @@ CREATE TABLE IF NOT EXISTS items (
     fetched_at   TEXT    NOT NULL,
     published_at TEXT    NOT NULL DEFAULT '',
     found_at     TEXT    DEFAULT NULL,
-    reviewed_at  TEXT    DEFAULT NULL
+    reviewed_at  TEXT    DEFAULT NULL,
+    search_term  TEXT    DEFAULT NULL,
+    platform     TEXT    DEFAULT NULL
 )
 """
 
@@ -73,6 +75,16 @@ def init_db(path: str) -> None:
             conn.execute("ALTER TABLE items ADD COLUMN found_at TEXT DEFAULT NULL")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: add search_term for existing DBs that predate this column.
+        try:
+            conn.execute("ALTER TABLE items ADD COLUMN search_term TEXT DEFAULT NULL")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+        # Migration: add platform for existing DBs that predate this column.
+        try:
+            conn.execute("ALTER TABLE items ADD COLUMN platform TEXT DEFAULT NULL")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def is_seen(url: str, path: str) -> bool:
@@ -96,6 +108,8 @@ def upsert_item(
     fetched_at: str,
     published_at: str = "",
     found_at: str | None = None,
+    search_term: str | None = None,
+    platform: str | None = None,
     path: str,
 ) -> None:
     """Insert a new item. Silently ignores duplicate URLs (INSERT OR IGNORE).
@@ -107,10 +121,10 @@ def upsert_item(
         conn.execute(
             """
             INSERT OR IGNORE INTO items
-                (url, title, source, description, score, tags, summary, fetched_at, published_at, found_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (url, title, source, description, score, tags, summary, fetched_at, published_at, found_at, search_term, platform)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (url, title, source, description, score, json.dumps(tags), summary, fetched_at, published_at, found_at),
+            (url, title, source, description, score, json.dumps(tags), summary, fetched_at, published_at, found_at, search_term, platform),
         )
 
 

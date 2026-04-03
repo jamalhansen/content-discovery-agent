@@ -53,24 +53,26 @@ class BlueskyReader(SocialReader):
         if not keywords:
             return []
 
-        raw_posts = bluesky.fetch_posts(keywords, token=self._token, limit=25)
         seen_urls: set[str] = set()
         items: list[FeedItem] = []
 
-        for post in raw_posts:
-            post_url = bluesky.get_post_url(post)
-            for url in bluesky.extract_urls_from_post(post):
-                if url in seen_urls:
-                    continue
-                seen_urls.add(url)
-                item = fetch_article_metadata(
-                    url,
-                    blocked_domains=self._blocked_domains,
-                    tool=self._tool,
-                    source_url=post_url or None,
-                    source_platform="bluesky",
-                )
-                if item:
-                    items.append(item)
+        for keyword in keywords:
+            raw_posts = bluesky.fetch_posts([keyword], token=self._token, limit=25)
+            for post in raw_posts:
+                post_url = bluesky.get_post_url(post)
+                for url in bluesky.extract_urls_from_post(post):
+                    if url in seen_urls:
+                        continue
+                    seen_urls.add(url)
+                    item = fetch_article_metadata(
+                        url,
+                        blocked_domains=self._blocked_domains,
+                        tool=self._tool,
+                        source_url=post_url or None,
+                        source_platform="bluesky",
+                        search_term=keyword,
+                    )
+                    if item:
+                        items.append(item)
 
         return items

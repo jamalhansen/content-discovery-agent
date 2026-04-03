@@ -142,8 +142,8 @@ def run_discovery(
     today = date.today().isoformat()
     scorer = ContentDiscoveryScorer()
 
-    with timed_run("content-discovery-agent", llm_provider.model) as _run:
-        for item in all_new_items:
+    for item in all_new_items:
+        with timed_run("content-discovery-agent", llm_provider.model) as run:
             result = score_item(llm_provider, item.title, item.description, INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS, scorer=scorer)
             if result is None:
                 skipped_count += 1
@@ -161,7 +161,10 @@ def run_discovery(
                 description=item.description or "", score=result.score,
                 tags=result.tags, summary=result.summary,
                 fetched_at=today, published_at=item.published,
-                found_at=item.found_at, path=store_path,
+                found_at=item.found_at, 
+                search_term=item.search_term,
+                platform=item.platform,
+                path=store_path,
             )
             if not is_english or result.score < threshold:
                 store.mark_item(item.url, "dismissed", store_path)
@@ -184,11 +187,11 @@ def run_discovery(
                             published_date=item.published or "",
                         )
 
-        _run.item_count = scored_count
-        _run.input_tokens = getattr(llm_provider, "input_tokens", None) or None
-        _run.output_tokens = getattr(llm_provider, "output_tokens", None) or None
-        _run.xml_fallbacks = scorer.xml_fallback_count or None
-        _run.parse_errors = scorer.parse_error_count or None
+            run.item_count = 1
+            run.input_tokens = getattr(llm_provider, "input_tokens", None) or None
+            run.output_tokens = getattr(llm_provider, "output_tokens", None) or None
+            run.xml_fallbacks = scorer.xml_fallback_count or None
+            run.parse_errors = scorer.parse_error_count or None
 
     return candidates, scored_count, skipped_count
 
@@ -211,7 +214,17 @@ def run_review(store_path: str, readwise_token: str):
         tag_str = " ".join(f"#{t}" for t in item["tags"]) if item["tags"] else "(none)"
         typer.echo(f"[{i}/{total}]  {item['title']}")
         typer.echo(f"  {item['summary']}")
-        typer.echo(f"  Source: {item['source']}  |  Score: {item['score']:.2f}  |  Tags: {tag_str}")
+        
+        metadata = []
+        if item.get("platform"):
+            metadata.append(f"Platform: {item['platform']}")
+        if item.get("search_term"):
+            metadata.append(f"Term: {item['search_term']}")
+        metadata.append(f"Source: {item['source']}")
+        metadata.append(f"Score: {item['score']:.2f}")
+        
+        typer.echo(f"  {'  |  '.join(metadata)}")
+        typer.echo(f"  Tags:   {tag_str}")
         typer.echo(f"  URL:    {item['url']}")
 
         while True:
@@ -298,6 +311,7 @@ def run_save(
         tags=scored.tags, summary=scored.summary,
         fetched_at=date.today().isoformat(),
         published_at=item.published,
+        platform="manual",
         path=store_path,
     )
     store.mark_item(item.url, "kept", store_path)
