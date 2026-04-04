@@ -74,6 +74,14 @@ def run_dismiss_source(query: str, store_path: str):
     finally:
         conn.close()
 
+def run_fix_urls(store_path: str):
+    """Normalize all URLs in the database to prevent duplicates."""
+    store.init_db(store_path)
+    typer.echo("Normalizing all URLs in database...")
+    updated, merged = store.migrate_all_urls(store_path)
+    typer.echo(f"Done. Updated {updated} URLs and merged {merged} duplicates.")
+
+
 def run_backup(store_path: str, backup_dir: str):
     """Back up the SQLite database."""
     db_path = os.path.expanduser(store_path)

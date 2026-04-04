@@ -3,7 +3,8 @@ import tomllib
 from pathlib import Path
 
 _PROJECT_ROOT = Path(__file__).parent.parent.parent  # src/discovery/ -> src/ -> project root
-_CONFIG_FILE = _PROJECT_ROOT / ".content-discovery.toml"
+_DOTFILES_CONFIG = Path("~/projects/personal-infra/config/content-discovery.toml").expanduser()
+_LOCAL_CONFIG = _PROJECT_ROOT / ".content-discovery.toml"
 
 _FALLBACK_FEEDS = [
     "https://simonwillison.net/atom/everything/",
@@ -20,9 +21,13 @@ _FALLBACK_PROFILE = (
 
 
 def _load_toml() -> dict:
-    if _CONFIG_FILE.exists():
-        with open(_CONFIG_FILE, "rb") as f:
-            return tomllib.load(f)
+    # Priority:
+    # 1. ~/projects/personal-infra/config/content-discovery.toml (dotfiles)
+    # 2. .content-discovery.toml in project root (legacy/local)
+    for cfg_path in [_DOTFILES_CONFIG, _LOCAL_CONFIG]:
+        if cfg_path.exists():
+            with open(cfg_path, "rb") as f:
+                return tomllib.load(f)
     return {}
 
 

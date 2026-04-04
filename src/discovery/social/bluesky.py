@@ -24,6 +24,7 @@ from .article_fetcher import fetch_article_metadata
 from .interfaces import SocialReader
 from local_first_common.social import bluesky
 from local_first_common.tracking import Tool
+from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -48,22 +49,25 @@ class BlueskyReader(SocialReader):
             else:
                 logger.warning("Bluesky: authentication failed for %s — proceeding unauthenticated", handle)
 
-    def fetch_items(self, keywords: list[str]) -> list[FeedItem]:
+    def fetch_items(self, keywords: list[str], session: any = None) -> list[FeedItem]:
         """Search Bluesky for each keyword and return unique article FeedItems."""
         if not keywords:
             return []
 
-        seen_urls: set[str] = set()
         items: list[FeedItem] = []
+        _local_seen: set[str] = set()
 
         for keyword in keywords:
             raw_posts = bluesky.fetch_posts([keyword], token=self._token, limit=25)
             for post in raw_posts:
                 post_url = bluesky.get_post_url(post)
                 for url in bluesky.extract_urls_from_post(post):
-                    if url in seen_urls:
+                    if session:
+                        if session.should_skip_url(url):
+                            continue
+                    elif normalize_url(url) in _local_seen:
                         continue
-                    seen_urls.add(url)
+                    
                     item = fetch_article_metadata(
                         url,
                         blocked_domains=self._blocked_domains,
@@ -71,8 +75,14 @@ class BlueskyReader(SocialReader):
                         source_url=post_url or None,
                         source_platform="bluesky",
                         search_term=keyword,
+                        session=session,
                     )
+                    
                     if item:
                         items.append(item)
+                        if session:
+                            session.mark_seen(url)
+                        else:
+                            _local_seen.add(normalize_url(url))
 
         return items

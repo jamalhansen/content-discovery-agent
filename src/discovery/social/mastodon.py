@@ -12,6 +12,7 @@ from .article_fetcher import fetch_article_metadata
 from .interfaces import SocialReader
 from local_first_common.social import mastodon
 from local_first_common.tracking import Tool
+from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -29,13 +30,13 @@ class MastodonReader(SocialReader):
         self._blocked_domains = blocked_domains
         self._tool = tool
 
-    def fetch_items(self, keywords: list[str]) -> list[FeedItem]:
+    def fetch_items(self, keywords: list[str], session: any = None) -> list[FeedItem]:
         """Search Mastodon hashtag timelines and return unique article FeedItems."""
         if not keywords:
             return []
 
-        seen_urls: set[str] = set()
         items: list[FeedItem] = []
+        _local_seen: set[str] = set()
 
         for keyword in keywords:
             raw_statuses = mastodon.fetch_posts([keyword], instances=self.instances, limit=40)
@@ -44,9 +45,15 @@ class MastodonReader(SocialReader):
                 if not card:
                     continue
                 article_url = card.get("url", "").strip()
-                if not article_url or article_url in seen_urls:
+                if not article_url:
                     continue
-                seen_urls.add(article_url)
+                
+                if session:
+                    if session.should_skip_url(article_url):
+                        continue
+                elif normalize_url(article_url) in _local_seen:
+                    continue
+                    
                 item = fetch_article_metadata(
                     article_url,
                     blocked_domains=self._blocked_domains,
@@ -54,8 +61,14 @@ class MastodonReader(SocialReader):
                     source_url=status.get("url"),
                     source_platform="mastodon",
                     search_term=keyword,
+                    session=session,
                 )
+                
                 if item:
                     items.append(item)
+                    if session:
+                        session.mark_seen(article_url)
+                    else:
+                        _local_seen.add(normalize_url(article_url))
 
         return items

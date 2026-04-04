@@ -3,7 +3,7 @@ import time as _time
 import feedparser
 import requests
 from local_first_common.article_fetcher import FeedItem  # noqa: F401 — re-exported for consumers
-from local_first_common.url import clean_url
+from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def fetch_feed(feed_url: str) -> list[FeedItem]:
     items = []
     for entry in parsed.entries:
         title = entry.get("title", "").strip()
-        url = clean_url(entry.get("link", "").strip())
+        url = normalize_url(entry.get("link", "").strip())
         # Try summary, then content, then fallback to empty
         description = entry.get("summary", "")
         if not description and entry.get("content"):

@@ -26,6 +26,7 @@ import json
 import logging
 import sqlite3
 from datetime import datetime, timezone
+from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -88,12 +89,42 @@ def init_db(path: str) -> None:
 
 
 def is_seen(url: str, path: str) -> bool:
-    """Return True if the URL is already in the DB (any status)."""
+    """Return True if the URL is already in the DB (any status).
+    
+    Checks the exact URL first, then tries common variants (trailing slash, http/https)
+    for backwards compatibility with data created before normalization was added.
+    """
     with _connect(path) as conn:
+        # 1. Exact match (should match all items after migration)
         row = conn.execute(
             "SELECT 1 FROM items WHERE url = ?", (url,)
         ).fetchone()
-    return row is not None
+        if row:
+            return True
+            
+        # 2. Legacy fallback: check with a trailing slash
+        if not url.endswith("/"):
+            row = conn.execute(
+                "SELECT 1 FROM items WHERE url = ?", (url + "/",)
+            ).fetchone()
+            if row:
+                return True
+                
+        # 3. Legacy fallback: check http version if searching for https
+        if url.startswith("https://"):
+            base = url[8:]
+            row = conn.execute(
+                "SELECT 1 FROM items WHERE url = ?", ("http://" + base,)
+            ).fetchone()
+            if row:
+                return True
+            row = conn.execute(
+                "SELECT 1 FROM items WHERE url = ?", ("http://" + base + "/",)
+            ).fetchone()
+            if row:
+                return True
+
+    return False
 
 
 def upsert_item(
@@ -348,3 +379,49 @@ def update_item_score(
             "UPDATE items SET score = ?, tags = ?, summary = ? WHERE url = ?",
             (score, json.dumps(tags), summary, url),
         )
+
+
+def migrate_all_urls(path: str) -> tuple[int, int]:
+    """Normalize all URLs in the database.
+    
+    Returns (updated_count, merged_count).
+    """
+    with _connect(path) as conn:
+        all_items = conn.execute("SELECT id, url, status FROM items").fetchall()
+        
+        updated = 0
+        merged = 0
+        
+        # We need to handle potential UNIQUE constraint violations (merging)
+        for row in all_items:
+            item_id = row["id"]
+            old_url = row["url"]
+            norm_url = normalize_url(old_url)
+            
+            if norm_url == old_url:
+                continue
+                
+            # Check if normalized URL already exists
+            existing = conn.execute(
+                "SELECT id, status FROM items WHERE url = ? AND id != ?", (norm_url, item_id)
+            ).fetchone()
+            
+            if existing:
+                # Collision! Merge logic: keep the more "advanced" status
+                # kept > dismissed > new
+                status_map = {"kept": 2, "dismissed": 1, "new": 0}
+                if status_map.get(row["status"], 0) > status_map.get(existing["status"], 0):
+                    # Current item is more important — replace existing one
+                    conn.execute("DELETE FROM items WHERE id = ?", (existing["id"],))
+                    conn.execute("UPDATE items SET url = ? WHERE id = ?", (norm_url, item_id))
+                else:
+                    # Existing item is more important (or equal) — delete current one
+                    conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+                merged += 1
+            else:
+                # No collision, just update
+                conn.execute("UPDATE items SET url = ? WHERE id = ?", (norm_url, item_id))
+                updated += 1
+        
+        conn.commit()
+    return updated, merged

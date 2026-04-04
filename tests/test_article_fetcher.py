@@ -237,7 +237,8 @@ class TestCleanUrl:
 
     def test_preserves_non_tracking_params(self):
         url = "https://example.com/search?q=python&page=2"
-        assert clean_url(url) == "https://example.com/search?q=python&page=2"
+        # parameters are sorted: page=2, q=python
+        assert clean_url(url) == "https://example.com/search?page=2&q=python"
 
     def test_strips_tracking_keeps_real_params(self):
         url = "https://example.com/article?q=test&utm_source=email&page=1"

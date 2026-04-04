@@ -1,9 +1,10 @@
 import typer
 import webbrowser
 from datetime import date
-from typing import Optional, List, Set
+from typing import Optional, List
 from local_first_common.tracking import register_tool, timed_run
 from local_first_common.article_fetcher import fetch_article_metadata
+from local_first_common.url import normalize_url
 from .config import (
     BLUESKY_APP_PASSWORD,
     BLUESKY_HANDLE,
@@ -23,6 +24,7 @@ from .feed_reader import FeedItem, fetch_feed
 from .scorer import ContentDiscoveryScorer, score_item, ScoredItem
 from .readwise import save_to_readwise
 from . import store
+from .session import DiscoverySession
 
 _TOOL = register_tool("content-discovery-agent")
 
@@ -44,7 +46,7 @@ def run_discovery(
     examples = store.get_examples(20, store_path, n_dismissed=40)
 
     source_list = [s.strip() for s in sources.split(",")]
-    _run_seen: Set[str] = set()
+    session = DiscoverySession(store_path, no_dedup=no_dedup)
     all_new_items: List[FeedItem] = []
 
     # --- RSS source ---
@@ -62,15 +64,12 @@ def run_discovery(
                     save_cached_feed(feed_url, items)
                 cache_label = ""
 
-            if no_dedup:
-                new_items = [i for i in items if i.url not in _run_seen]
-            else:
-                new_items = [
-                    i for i in items
-                    if i.url not in _run_seen and not store.is_seen(i.url, store_path)
-                ]
+            new_items = []
+            for i in items:
+                if not session.should_skip_url(i.url):
+                    session.mark_seen(i.url)
+                    new_items.append(i)
 
-            _run_seen.update(i.url for i in new_items)
             source = items[0].source if items else feed_url
             typer.echo(f"  {source}: {len(items)} item{'s' if len(items) != 1 else ''} ({len(new_items)} new){cache_label}")
             all_new_items.extend(new_items)
@@ -89,15 +88,13 @@ def run_discovery(
                     app_password=BLUESKY_APP_PASSWORD,
                     blocked_domains=SOCIAL_BLOCKED_DOMAINS,
                     tool=_TOOL,
-                ).fetch_items(SOCIAL_KEYWORDS)
+                ).fetch_items(SOCIAL_KEYWORDS, session=session)
                 if cached and bluesky_items:
                     save_cached_social("bluesky", SOCIAL_KEYWORDS, bluesky_items)
                 cache_label = ""
-            bluesky_new = [
-                i for i in bluesky_items
-                if i.url not in _run_seen and (no_dedup or not store.is_seen(i.url, store_path))
-            ]
-            _run_seen.update(i.url for i in bluesky_new)
+            bluesky_new = [i for i in bluesky_items if not session.should_skip_url(i.url)]
+            for i in bluesky_new:
+                session.mark_seen(i.url)
             typer.echo(f"  Bluesky: {len(bluesky_items)} items fetched ({len(bluesky_new)} new){cache_label}")
             all_new_items.extend(bluesky_new)
 
@@ -114,15 +111,13 @@ def run_discovery(
                     instances=SOCIAL_MASTODON_INSTANCES,
                     blocked_domains=SOCIAL_BLOCKED_DOMAINS,
                     tool=_TOOL,
-                ).fetch_items(SOCIAL_KEYWORDS)
+                ).fetch_items(SOCIAL_KEYWORDS, session=session)
                 if cached and mastodon_items:
                     save_cached_social("mastodon", SOCIAL_KEYWORDS, mastodon_items)
                 cache_label = ""
-            mastodon_new = [
-                i for i in mastodon_items
-                if i.url not in _run_seen and (no_dedup or not store.is_seen(i.url, store_path))
-            ]
-            _run_seen.update(i.url for i in mastodon_new)
+            mastodon_new = [i for i in mastodon_items if not session.should_skip_url(i.url)]
+            for i in mastodon_new:
+                session.mark_seen(i.url)
             typer.echo(f"  Mastodon: {len(mastodon_items)} items fetched ({len(mastodon_new)} new){cache_label}")
             all_new_items.extend(mastodon_new)
 
@@ -271,8 +266,7 @@ def run_save(
     dry_run: bool,
 ) -> bool:
     """Core logic for the 'save' command."""
-    from local_first_common.url import clean_url
-    url = clean_url(url)
+    url = normalize_url(url)
 
     store.init_db(store_path)
 

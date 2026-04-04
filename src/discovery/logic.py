@@ -16,7 +16,7 @@ from .options import (
     validate_threshold, validate_readwise_token, make_provider
 )
 from .orchestrator import run_discovery, run_review, run_save
-from .db_commands import run_report, run_purge_blocked, run_dismiss_source, run_backup, run_restore
+from .db_commands import run_report, run_purge_blocked, run_dismiss_source, run_backup, run_restore, run_fix_urls
 from .scorer import score_item
 from . import store
 
@@ -110,6 +110,12 @@ def cmd_dismiss_source(
 ):
     """Dismiss pending items from a specific source."""
     run_dismiss_source(query, store_path)
+
+
+@app.command("fix-urls", help="Normalize all URLs in the database to prevent duplicates.")
+def cmd_fix_urls(store_path: str = store_opt()):
+    """Normalize all URLs in the database to prevent duplicates."""
+    run_fix_urls(store_path)
 
 
 @app.command("check-feeds", help="Validate all configured RSS feeds and report their status.")
