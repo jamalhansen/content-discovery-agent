@@ -1,8 +1,13 @@
 import sqlite3
 import pytest
 from discovery.store import (
-    init_db, is_seen, upsert_item, get_new_items, mark_item,
-    dismiss_items_by_urls, update_item_score,
+    init_db,
+    is_seen,
+    upsert_item,
+    get_new_items,
+    mark_item,
+    dismiss_items_by_urls,
+    update_item_score,
 )
 
 
@@ -86,6 +91,18 @@ class TestInitDb:
         cols = [r[1] for r in conn.execute("PRAGMA table_info(items)").fetchall()]
         conn.close()
         assert "found_at" in cols
+
+    def test_migration_failure_is_not_suppressed(self, tmp_path, monkeypatch):
+        """Operational migration failures should propagate to the caller."""
+        path = db(tmp_path)
+
+        def fail_migration(*_args, **_kwargs):
+            raise sqlite3.OperationalError("database is locked")
+
+        monkeypatch.setattr("discovery.store._ensure_column", fail_migration)
+
+        with pytest.raises(sqlite3.OperationalError, match="database is locked"):
+            init_db(path)
 
 
 class TestIsSeen:
@@ -200,9 +217,15 @@ class TestGetNewItems:
     def test_ordered_by_score_desc(self, tmp_path):
         path = db(tmp_path)
         init_db(path)
-        upsert_item(**make_item(url="https://low.com", title="Low", score=0.3), path=path)
-        upsert_item(**make_item(url="https://high.com", title="High", score=0.9), path=path)
-        upsert_item(**make_item(url="https://mid.com", title="Mid", score=0.6), path=path)
+        upsert_item(
+            **make_item(url="https://low.com", title="Low", score=0.3), path=path
+        )
+        upsert_item(
+            **make_item(url="https://high.com", title="High", score=0.9), path=path
+        )
+        upsert_item(
+            **make_item(url="https://mid.com", title="Mid", score=0.6), path=path
+        )
         rows = get_new_items(path)
         assert [r["title"] for r in rows] == ["High", "Mid", "Low"]
 
@@ -278,7 +301,9 @@ class TestDismissItemsByUrls:
         assert count == 0
         # Verify it's still kept
         conn = sqlite3.connect(path)
-        row = conn.execute("SELECT status FROM items WHERE url = ?", ("https://a.com/1",)).fetchone()
+        row = conn.execute(
+            "SELECT status FROM items WHERE url = ?", ("https://a.com/1",)
+        ).fetchone()
         conn.close()
         assert row[0] == "kept"
 
@@ -306,7 +331,9 @@ class TestDismissItemsByUrls:
         dismiss_items_by_urls(["https://a.com/1"], path)
 
         conn = sqlite3.connect(path)
-        row = conn.execute("SELECT reviewed_at FROM items WHERE url = ?", ("https://a.com/1",)).fetchone()
+        row = conn.execute(
+            "SELECT reviewed_at FROM items WHERE url = ?", ("https://a.com/1",)
+        ).fetchone()
         conn.close()
         assert row[0] is not None
 
@@ -315,9 +342,18 @@ class TestUpdateItemScore:
     def test_updates_score_tags_summary(self, tmp_path):
         path = db(tmp_path)
         init_db(path)
-        upsert_item(**make_item(url="https://a.com/1", score=0.5, tags=["old"], summary="Old."), path=path)
+        upsert_item(
+            **make_item(url="https://a.com/1", score=0.5, tags=["old"], summary="Old."),
+            path=path,
+        )
 
-        update_item_score(url="https://a.com/1", score=0.9, tags=["new", "tag"], summary="New summary.", path=path)
+        update_item_score(
+            url="https://a.com/1",
+            score=0.9,
+            tags=["new", "tag"],
+            summary="New summary.",
+            path=path,
+        )
 
         items = get_new_items(path)
         assert items[0]["score"] == 0.9
@@ -329,7 +365,9 @@ class TestUpdateItemScore:
         init_db(path)
         upsert_item(**make_item(url="https://a.com/1"), path=path)
 
-        update_item_score(url="https://a.com/1", score=0.3, tags=[], summary="Low.", path=path)
+        update_item_score(
+            url="https://a.com/1", score=0.3, tags=[], summary="Low.", path=path
+        )
 
         items = get_new_items(path)
         assert len(items) == 1  # still 'new', not auto-dismissed
@@ -339,4 +377,10 @@ class TestUpdateItemScore:
         init_db(path)
 
         # Should not raise
-        update_item_score(url="https://ghost.example.com/", score=0.9, tags=[], summary="Ghost.", path=path)
+        update_item_score(
+            url="https://ghost.example.com/",
+            score=0.9,
+            tags=[],
+            summary="Ghost.",
+            path=path,
+        )

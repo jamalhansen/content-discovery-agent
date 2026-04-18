@@ -58,6 +58,19 @@ def _connect(path: str) -> sqlite3.Connection:
     return conn
 
 
+def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(row[1] == column for row in rows)
+
+
+def _ensure_column(
+    conn: sqlite3.Connection, table: str, column: str, definition: str
+) -> None:
+    if _column_exists(conn, table, column):
+        return
+    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
 def init_db(path: str) -> None:
     """Create the items table if it does not exist. Safe to call on every run.
 
@@ -67,41 +80,27 @@ def init_db(path: str) -> None:
     with _connect(path) as conn:
         conn.execute(_CREATE_TABLE)
         # Migration: add published_at for existing DBs that predate this column.
-        try:
-            conn.execute("ALTER TABLE items ADD COLUMN published_at TEXT NOT NULL DEFAULT ''")
-        except sqlite3.OperationalError:
-            pass  # column already exists
+        _ensure_column(conn, "items", "published_at", "TEXT NOT NULL DEFAULT ''")
         # Migration: add found_at for existing DBs that predate this column.
-        try:
-            conn.execute("ALTER TABLE items ADD COLUMN found_at TEXT DEFAULT NULL")
-        except sqlite3.OperationalError:
-            pass  # column already exists
+        _ensure_column(conn, "items", "found_at", "TEXT DEFAULT NULL")
         # Migration: add search_term for existing DBs that predate this column.
-        try:
-            conn.execute("ALTER TABLE items ADD COLUMN search_term TEXT DEFAULT NULL")
-        except sqlite3.OperationalError:
-            pass  # column already exists
+        _ensure_column(conn, "items", "search_term", "TEXT DEFAULT NULL")
         # Migration: add platform for existing DBs that predate this column.
-        try:
-            conn.execute("ALTER TABLE items ADD COLUMN platform TEXT DEFAULT NULL")
-        except sqlite3.OperationalError:
-            pass  # column already exists
+        _ensure_column(conn, "items", "platform", "TEXT DEFAULT NULL")
 
 
 def is_seen(url: str, path: str) -> bool:
     """Return True if the URL is already in the DB (any status).
-    
+
     Checks the exact URL first, then tries common variants (trailing slash, http/https)
     for backwards compatibility with data created before normalization was added.
     """
     with _connect(path) as conn:
         # 1. Exact match (should match all items after migration)
-        row = conn.execute(
-            "SELECT 1 FROM items WHERE url = ?", (url,)
-        ).fetchone()
+        row = conn.execute("SELECT 1 FROM items WHERE url = ?", (url,)).fetchone()
         if row:
             return True
-            
+
         # 2. Legacy fallback: check with a trailing slash
         if not url.endswith("/"):
             row = conn.execute(
@@ -109,7 +108,7 @@ def is_seen(url: str, path: str) -> bool:
             ).fetchone()
             if row:
                 return True
-                
+
         # 3. Legacy fallback: check http version if searching for https
         if url.startswith("https://"):
             base = url[8:]
@@ -155,7 +154,20 @@ def upsert_item(
                 (url, title, source, description, score, tags, summary, fetched_at, published_at, found_at, search_term, platform)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (url, title, source, description, score, json.dumps(tags), summary, fetched_at, published_at, found_at, search_term, platform),
+            (
+                url,
+                title,
+                source,
+                description,
+                score,
+                json.dumps(tags),
+                summary,
+                fetched_at,
+                published_at,
+                found_at,
+                search_term,
+                platform,
+            ),
         )
 
 
@@ -179,7 +191,9 @@ def get_new_items(path: str) -> list[dict]:
 def mark_item(url: str, status: str, path: str) -> None:
     """Update an item's status and stamp reviewed_at with the current UTC time."""
     if status not in ("new", "kept", "dismissed"):
-        raise ValueError(f"Invalid status: {status!r}. Must be 'new', 'kept', or 'dismissed'.")
+        raise ValueError(
+            f"Invalid status: {status!r}. Must be 'new', 'kept', or 'dismissed'."
+        )
     now = datetime.now(timezone.utc).isoformat()
     with _connect(path) as conn:
         conn.execute(
@@ -383,45 +397,52 @@ def update_item_score(
 
 def migrate_all_urls(path: str) -> tuple[int, int]:
     """Normalize all URLs in the database.
-    
+
     Returns (updated_count, merged_count).
     """
     with _connect(path) as conn:
         all_items = conn.execute("SELECT id, url, status FROM items").fetchall()
-        
+
         updated = 0
         merged = 0
-        
+
         # We need to handle potential UNIQUE constraint violations (merging)
         for row in all_items:
             item_id = row["id"]
             old_url = row["url"]
             norm_url = normalize_url(old_url)
-            
+
             if norm_url == old_url:
                 continue
-                
+
             # Check if normalized URL already exists
             existing = conn.execute(
-                "SELECT id, status FROM items WHERE url = ? AND id != ?", (norm_url, item_id)
+                "SELECT id, status FROM items WHERE url = ? AND id != ?",
+                (norm_url, item_id),
             ).fetchone()
-            
+
             if existing:
                 # Collision! Merge logic: keep the more "advanced" status
                 # kept > dismissed > new
                 status_map = {"kept": 2, "dismissed": 1, "new": 0}
-                if status_map.get(row["status"], 0) > status_map.get(existing["status"], 0):
+                if status_map.get(row["status"], 0) > status_map.get(
+                    existing["status"], 0
+                ):
                     # Current item is more important — replace existing one
                     conn.execute("DELETE FROM items WHERE id = ?", (existing["id"],))
-                    conn.execute("UPDATE items SET url = ? WHERE id = ?", (norm_url, item_id))
+                    conn.execute(
+                        "UPDATE items SET url = ? WHERE id = ?", (norm_url, item_id)
+                    )
                 else:
                     # Existing item is more important (or equal) — delete current one
                     conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
                 merged += 1
             else:
                 # No collision, just update
-                conn.execute("UPDATE items SET url = ? WHERE id = ?", (norm_url, item_id))
+                conn.execute(
+                    "UPDATE items SET url = ? WHERE id = ?", (norm_url, item_id)
+                )
                 updated += 1
-        
+
         conn.commit()
     return updated, merged

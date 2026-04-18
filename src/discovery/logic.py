@@ -9,14 +9,34 @@ from .config import (
     READWISE_TOKEN,
 )
 from local_first_common.cli import resolve_dry_run, init_config_option
+from local_first_common.logging import setup_logging
 from .options import (
-    provider_opt, model_opt, scoring_provider_opt, scoring_model_opt,
-    dry_run_opt, no_llm_opt, threshold_opt, store_opt,
-    verbose_opt, limit_opt, no_dedup_opt, cached_opt, sources_opt,
-    validate_threshold, validate_readwise_token, make_provider
+    provider_opt,
+    model_opt,
+    scoring_provider_opt,
+    scoring_model_opt,
+    dry_run_opt,
+    no_llm_opt,
+    threshold_opt,
+    store_opt,
+    verbose_opt,
+    limit_opt,
+    no_dedup_opt,
+    cached_opt,
+    sources_opt,
+    validate_threshold,
+    validate_readwise_token,
+    make_provider,
 )
 from .orchestrator import run_discovery, run_review, run_save
-from .db_commands import run_report, run_purge_blocked, run_dismiss_source, run_backup, run_restore, run_fix_urls
+from .db_commands import (
+    run_report,
+    run_purge_blocked,
+    run_dismiss_source,
+    run_backup,
+    run_restore,
+    run_fix_urls,
+)
 from .scorer import score_item
 from . import store
 
@@ -26,14 +46,36 @@ app = typer.Typer(
     add_completion=False,
 )
 
-@app.command("run", help="Fetch feeds, score items, and store candidates in the DB (default command).")
+
+def _setup_tool_logging(verbose: bool) -> None:
+    level = logging.DEBUG if verbose else logging.WARNING
+    try:
+        setup_logging(
+            level=level,
+            tool_name="content-discovery-agent",
+            persist_warnings=True,
+        )
+    except TypeError:
+        # Backward compatibility with older local-first-common logging signature.
+        setup_logging(level=level)
+
+
+@app.command(
+    "run",
+    help="Fetch feeds, score items, and store candidates in the DB (default command).",
+)
 def cmd_run(
     provider: str = scoring_provider_opt(),
     model: Optional[str] = scoring_model_opt(),
     dry_run: bool = dry_run_opt(),
     no_llm: bool = no_llm_opt(),
-    feed: Optional[str] = typer.Option(None, "--feed", "-f", metavar="URL",
-                                        help="Process a single feed URL instead of the full configured list"),
+    feed: Optional[str] = typer.Option(
+        None,
+        "--feed",
+        "-f",
+        metavar="URL",
+        help="Process a single feed URL instead of the full configured list",
+    ),
     threshold: float = threshold_opt(),
     no_dedup: bool = no_dedup_opt(),
     verbose: bool = verbose_opt(),
@@ -41,19 +83,27 @@ def cmd_run(
     limit: Optional[int] = limit_opt(),
     store_path: str = store_opt(),
     sources: str = sources_opt(),
-    init_config: bool = init_config_option("content-discovery-agent", {"scoring_provider": "anthropic", "sources": "rss,mastodon,bluesky"}),
+    init_config: bool = init_config_option(
+        "content-discovery-agent",
+        {"scoring_provider": "anthropic", "sources": "rss,mastodon,bluesky"},
+    ),
 ):
     """Fetch feeds, score items, and store candidates in the DB."""
     validate_threshold(threshold)
     llm_provider = make_provider(provider, model, no_llm=no_llm)
 
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.WARNING,
-        format="%(levelname)s: %(message)s",
-    )
+    _setup_tool_logging(verbose)
 
     candidates, scored_count, skipped_count = run_discovery(
-        llm_provider, sources, feed, threshold, no_dedup, verbose, cached, limit, store_path,
+        llm_provider,
+        sources,
+        feed,
+        threshold,
+        no_dedup,
+        verbose,
+        cached,
+        limit,
+        store_path,
         dry_run=dry_run,
     )
 
@@ -73,11 +123,15 @@ def cmd_run(
     typer.echo(f"Done. Processed: {scored_count}, Skipped: {skipped_count}")
 
 
-@app.command("review", help="Interactively review pending items; send kept items to Readwise Reader.")
+@app.command(
+    "review",
+    help="Interactively review pending items; send kept items to Readwise Reader.",
+)
 def cmd_review(
     store_path: str = store_opt(),
     readwise_token: str = typer.Option(
-        READWISE_TOKEN, "--readwise-token",
+        READWISE_TOKEN,
+        "--readwise-token",
         envvar="READWISE_TOKEN",
         help="Readwise access token (or set READWISE_TOKEN env var)",
     ),
@@ -89,54 +143,75 @@ def cmd_review(
     typer.echo(f"\nDone. Kept: {kept}, Dismissed: {dismissed}.")
 
 
-@app.command("report", help="Print a summary report of feed trends, source quality, and scoring history.")
+@app.command(
+    "report",
+    help="Print a summary report of feed trends, source quality, and scoring history.",
+)
 def cmd_report(
     store_path: str = store_opt(),
-    days: int = typer.Option(30, "--days", "-d", help="Number of days to include in the report"),
+    days: int = typer.Option(
+        30, "--days", "-d", help="Number of days to include in the report"
+    ),
 ):
     """Print a summary report of feed trends and scoring history."""
     run_report(store_path, days)
 
 
-@app.command("purge-blocked", help="Dismiss all pending items whose URLs match the current domain blocklist.")
+@app.command(
+    "purge-blocked",
+    help="Dismiss all pending items whose URLs match the current domain blocklist.",
+)
 def cmd_purge_blocked(store_path: str = store_opt()):
     """Dismiss pending items from blocked domains."""
     run_purge_blocked(store_path)
 
 
-@app.command("dismiss-source", help="Dismiss all pending items whose source contains QUERY (case-insensitive).")
+@app.command(
+    "dismiss-source",
+    help="Dismiss all pending items whose source contains QUERY (case-insensitive).",
+)
 def cmd_dismiss_source(
     query: str = typer.Argument(..., help="Source name fragment to match"),
-    store_path: str = store_opt()
+    store_path: str = store_opt(),
 ):
     """Dismiss pending items from a specific source."""
     run_dismiss_source(query, store_path)
 
 
-@app.command("fix-urls", help="Normalize all URLs in the database to prevent duplicates.")
+@app.command(
+    "fix-urls", help="Normalize all URLs in the database to prevent duplicates."
+)
 def cmd_fix_urls(store_path: str = store_opt()):
     """Normalize all URLs in the database to prevent duplicates."""
     run_fix_urls(store_path)
 
 
-@app.command("check-feeds", help="Validate all configured RSS feeds and report their status.")
+@app.command(
+    "check-feeds", help="Validate all configured RSS feeds and report their status."
+)
 def cmd_check_feeds():
     """Validate all configured RSS feeds."""
     from .feed_reader import fetch_feed
     from .config import FEEDS
+
     typer.echo(f"Checking {len(FEEDS)} feeds...\n")
     for url in FEEDS:
         try:
             items = fetch_feed(url)
             if items:
-                typer.echo(f"  [OK] {items[0].source[:40]:40} | {len(items):3} items | {url}")
+                typer.echo(
+                    f"  [OK] {items[0].source[:40]:40} | {len(items):3} items | {url}"
+                )
             else:
                 typer.echo(f"  [EMPTY] {url}")
         except Exception as e:
             typer.echo(f"  [FAIL] {url} | Error: {e}")
 
 
-@app.command("rescore", help="Re-score all pending items with the current interest profile and examples.")
+@app.command(
+    "rescore",
+    help="Re-score all pending items with the current interest profile and examples.",
+)
 def cmd_rescore(
     provider: str = provider_opt(),
     model: Optional[str] = model_opt(),
@@ -147,6 +222,7 @@ def cmd_rescore(
 ):
     """Re-score all pending items."""
     from .config import INTEREST_PROFILE, INTEREST_EXCLUSIONS
+
     llm_provider = make_provider(provider, model, no_llm=no_llm)
     store.init_db(store_path)
     pending = store.get_new_items(store_path)
@@ -161,16 +237,30 @@ def cmd_rescore(
     examples = store.get_examples(20, store_path, n_dismissed=40)
 
     for item in pending:
-        result = score_item(llm_provider, item['title'], item['description'], INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS)
+        result = score_item(
+            llm_provider,
+            item["title"],
+            item["description"],
+            INTEREST_PROFILE,
+            examples,
+            INTEREST_EXCLUSIONS,
+        )
         if result:
             if verbose:
-                typer.echo(f"  {item['score']:.2f} -> {result.score:.2f} | {item['title'][:70]}")
+                typer.echo(
+                    f"  {item['score']:.2f} -> {result.score:.2f} | {item['title'][:70]}"
+                )
             store.upsert_item(
-                url=item['url'], title=item['title'], source=item['source'],
-                description=item['description'], score=result.score,
-                tags=result.tags, summary=result.summary,
-                fetched_at=item['fetched_at'], published_at=item['published_at'],
-                path=store_path
+                url=item["url"],
+                title=item["title"],
+                source=item["source"],
+                description=item["description"],
+                score=result.score,
+                tags=result.tags,
+                summary=result.summary,
+                fetched_at=item["fetched_at"],
+                published_at=item["published_at"],
+                path=store_path,
             )
     typer.echo("\nRe-scoring complete.")
 
@@ -181,7 +271,9 @@ def cmd_save(
     provider: str = provider_opt(),
     model: Optional[str] = model_opt(),
     no_llm: bool = no_llm_opt(),
-    no_score: bool = typer.Option(False, "--no-score", help="Skip LLM scoring; store with score 1.0"),
+    no_score: bool = typer.Option(
+        False, "--no-score", help="Skip LLM scoring; store with score 1.0"
+    ),
     readwise_token: str = typer.Option(READWISE_TOKEN, help="Readwise token"),
     store_path: str = store_opt(),
     dry_run: bool = dry_run_opt(),
@@ -195,21 +287,33 @@ def cmd_save(
     run_save(url, llm_provider, no_score, readwise_token, store_path, dry_run)
 
 
-@app.command("backup", help="Back up the SQLite database to iCloud (or a custom directory).")
+@app.command(
+    "backup", help="Back up the SQLite database to iCloud (or a custom directory)."
+)
 def cmd_backup(
     store_path: str = store_opt(),
-    backup_dir: str = typer.Option(DEFAULT_BACKUP_DIR, help="Directory to store backups")
+    backup_dir: str = typer.Option(
+        DEFAULT_BACKUP_DIR, help="Directory to store backups"
+    ),
 ):
     """Back up the SQLite database."""
     run_backup(store_path, backup_dir)
 
 
-@app.command("restore", help="Restore the database from a backup (requires confirmation).")
+@app.command(
+    "restore", help="Restore the database from a backup (requires confirmation)."
+)
 def cmd_restore(
-    file: Optional[str] = typer.Option(None, "--file", "-f", help="Specific backup file to restore"),
-    latest: bool = typer.Option(False, "--latest", help="Restore the most recent backup automatically"),
+    file: Optional[str] = typer.Option(
+        None, "--file", "-f", help="Specific backup file to restore"
+    ),
+    latest: bool = typer.Option(
+        False, "--latest", help="Restore the most recent backup automatically"
+    ),
     store_path: str = store_opt(),
-    backup_dir: str = typer.Option(DEFAULT_BACKUP_DIR, help="Directory containing backups"),
+    backup_dir: str = typer.Option(
+        DEFAULT_BACKUP_DIR, help="Directory containing backups"
+    ),
 ):
     """Restore the database from a backup."""
     run_restore(file, latest, store_path, backup_dir)
@@ -219,6 +323,7 @@ def cmd_restore(
 def cmd_clear_cache():
     """Delete all cached data."""
     from .feed_cache import clear_cache
+
     clear_cache()
     typer.echo("Cache cleared.")
 
