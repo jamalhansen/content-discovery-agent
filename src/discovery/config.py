@@ -1,10 +1,11 @@
 import os
-import tomllib
 from pathlib import Path
+from local_first_common.config import get_setting, load_config
 
-_PROJECT_ROOT = Path(__file__).parent.parent.parent  # src/discovery/ -> src/ -> project root
-_DOTFILES_CONFIG = Path("~/projects/personal-infra/config/content-discovery.toml").expanduser()
-_LOCAL_CONFIG = _PROJECT_ROOT / ".content-discovery.toml"
+TOOL_NAME = "content-discovery-agent"
+DEFAULTS = {"scoring_provider": "anthropic", "sources": "rss,mastodon,bluesky"}
+
+_cfg = load_config(TOOL_NAME)
 
 _FALLBACK_FEEDS = [
     "https://simonwillison.net/atom/everything/",
@@ -15,73 +16,40 @@ _FALLBACK_FEEDS = [
     "https://ollama.com/blog/rss",
 ]
 
-_FALLBACK_PROFILE = (
-    "I'm interested in Python, SQL, data engineering, local AI, and LLMs."
-)
+_FALLBACK_PROFILE = "I'm interested in Python, SQL, data engineering, local AI, and LLMs."
 
-
-def _load_toml() -> dict:
-    # Priority:
-    # 1. ~/projects/personal-infra/config/content-discovery.toml (dotfiles)
-    # 2. .content-discovery.toml in project root (legacy/local)
-    for cfg_path in [_DOTFILES_CONFIG, _LOCAL_CONFIG]:
-        if cfg_path.exists():
-            with open(cfg_path, "rb") as f:
-                return tomllib.load(f)
-    return {}
-
-
-_cfg = _load_toml()
-
-FEEDS: list[str] = _cfg.get("feeds", {}).get("urls", _FALLBACK_FEEDS)
-INTEREST_PROFILE: str = _cfg.get("interests", {}).get("profile", _FALLBACK_PROFILE)
-INTEREST_EXCLUSIONS: str = _cfg.get("interests", {}).get("exclusions", "")
-
+# Load nested sections
 _settings = _cfg.get("settings", {})
-DEFAULT_THRESHOLD: float = _settings.get("threshold", 0.6)
-DEFAULT_PROVIDER: str = _settings.get("provider", "local")
-DEFAULT_MODEL: str | None = os.environ.get("MODEL_NAME") or _settings.get("model")
+_feeds = _cfg.get("feeds", {})
+_interests = _cfg.get("interests", {})
+_social = _cfg.get("social", {})
 
-# Separate provider for interactive review (can be a faster/stronger cloud model)
+FEEDS: list[str] = _feeds.get("urls", _FALLBACK_FEEDS)
+INTEREST_PROFILE: str = _interests.get("profile", _FALLBACK_PROFILE)
+INTEREST_EXCLUSIONS: str = _interests.get("exclusions", "")
+
+DEFAULT_THRESHOLD: float = _settings.get("threshold", 0.6)
+DEFAULT_PROVIDER: str = get_setting(TOOL_NAME, "provider", env_var="MODEL_PROVIDER", default="local")
+DEFAULT_MODEL: str | None = get_setting(TOOL_NAME, "model", env_var="MODEL_NAME")
+
 DEFAULT_SCORING_PROVIDER: str = _settings.get("scoring_provider", DEFAULT_PROVIDER)
 DEFAULT_SCORING_MODEL: str | None = _settings.get("scoring_model") or DEFAULT_MODEL
 DEFAULT_REVIEW_PROVIDER: str = _settings.get("review_provider", DEFAULT_PROVIDER)
 DEFAULT_REVIEW_MODEL: str | None = _settings.get("review_model") or None
 DEFAULT_INBOX_PATH: str = _settings.get("inbox_path", "_finds/00-inbox.md")
 
-# env var wins over toml so machine-specific paths stay out of the committed file
-DEFAULT_VAULT_PATH: str | None = (
-    os.environ.get("OBSIDIAN_VAULT_PATH") or _settings.get("vault_path") or None
-)
+DEFAULT_VAULT_PATH: str | None = get_setting(TOOL_NAME, "vault_path", env_var="OBSIDIAN_VAULT_PATH")
 
-# env var wins over toml so machine-specific paths (e.g. a Syncthing folder) stay out of the committed file
 STORE_PATH = os.path.expanduser(
-    os.environ.get("CONTENT_DISCOVERY_STORE")
-    or _settings.get("store")
-    or "~/.content-discovery.db"
+    get_setting(TOOL_NAME, "store", env_var="CONTENT_DISCOVERY_STORE", default="~/.content-discovery.db")
 )
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 
-DEFAULT_BACKUP_DIR: str = os.path.expanduser(
-    os.environ.get("CONTENT_DISCOVERY_BACKUP_DIR")
-    or _settings.get("backup_dir")
-    or "~/Library/Mobile Documents/com~apple~CloudDocs/Backups/content-discovery"
-)
+SOCIAL_KEYWORDS: list[str] = _social.get("keywords", [])
+SOCIAL_MASTODON_INSTANCES: list[str] = _social.get("mastodon_instances", ["mastodon.social"])
+SOCIAL_BLOCKED_DOMAINS: frozenset[str] = frozenset(_social.get("blocked_domains", []))
 
-_social_cfg = _cfg.get("social", {})
-SOCIAL_KEYWORDS: list[str] = _social_cfg.get("keywords", [])
-SOCIAL_MASTODON_INSTANCES: list[str] = _social_cfg.get("mastodon_instances", ["mastodon.social"])
-# Additional domains to skip when fetching article metadata (on top of built-in defaults).
-# Subdomain matching is automatic — blocking "example.com" also blocks "sub.example.com".
-SOCIAL_BLOCKED_DOMAINS: frozenset[str] = frozenset(_social_cfg.get("blocked_domains", []))
-
-# Bluesky App Password auth (optional but recommended — unauthenticated search
-# has intermittently returned 403 from local_first_commonpublic.api.bsky.app).
-# Generate an App Password in Bluesky → Settings → Privacy and Security → App Passwords.
 BLUESKY_HANDLE: str = os.environ.get("BLUESKY_HANDLE", "")
 BLUESKY_APP_PASSWORD: str = os.environ.get("BLUESKY_APP_PASSWORD", "")
-
 READWISE_TOKEN: str = os.environ.get("READWISE_TOKEN", "")
-# When True, items clearing the score threshold during a run are automatically
-# sent to Readwise Reader (before the interactive review step).
 READWISE_ROUTING: bool = bool(_settings.get("readwise_routing", False))

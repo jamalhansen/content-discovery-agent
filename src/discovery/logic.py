@@ -8,7 +8,7 @@ from .config import (
     DEFAULT_BACKUP_DIR,
     READWISE_TOKEN,
 )
-from local_first_common.cli import resolve_dry_run
+from local_first_common.cli import resolve_dry_run, init_config_option
 from .options import (
     provider_opt, model_opt, scoring_provider_opt, scoring_model_opt,
     dry_run_opt, no_llm_opt, threshold_opt, store_opt,
@@ -41,6 +41,7 @@ def cmd_run(
     limit: Optional[int] = limit_opt(),
     store_path: str = store_opt(),
     sources: str = sources_opt(),
+    init_config: bool = init_config_option("content-discovery-agent", {"scoring_provider": "anthropic", "sources": "rss,mastodon,bluesky"}),
 ):
     """Fetch feeds, score items, and store candidates in the DB."""
     validate_threshold(threshold)
