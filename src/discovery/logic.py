@@ -191,20 +191,20 @@ def cmd_fix_urls(store_path: str = store_opt()):
 )
 def cmd_check_feeds():
     """Validate all configured RSS feeds."""
-    from .feed_reader import fetch_feed
+    from .feed_reader import FeedReaderError, fetch_feed_or_raise
     from .config import FEEDS
 
     typer.echo(f"Checking {len(FEEDS)} feeds...\n")
     for url in FEEDS:
         try:
-            items = fetch_feed(url)
+            items = fetch_feed_or_raise(url)
             if items:
                 typer.echo(
                     f"  [OK] {items[0].source[:40]:40} | {len(items):3} items | {url}"
                 )
             else:
                 typer.echo(f"  [EMPTY] {url}")
-        except Exception as e:
+        except FeedReaderError as e:
             typer.echo(f"  [FAIL] {url} | Error: {e}")
 
 

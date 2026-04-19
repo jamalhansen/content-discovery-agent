@@ -1,7 +1,16 @@
 import os
 import pytest
 from unittest.mock import patch, MagicMock
-from discovery.feed_reader import fetch_feed, filter_new_items, FeedItem
+import requests as req
+
+from discovery.feed_reader import (
+    FeedFetchError,
+    FeedItem,
+    FeedParseError,
+    fetch_feed,
+    fetch_feed_or_raise,
+    filter_new_items,
+)
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 SAMPLE_FEED_PATH = os.path.join(FIXTURES_DIR, "sample_feed.xml")
@@ -20,7 +29,10 @@ def mock_response(path: str) -> MagicMock:
 
 @pytest.fixture
 def sample_feed_mock():
-    with patch("discovery.feed_reader.requests.get", return_value=mock_response(SAMPLE_FEED_PATH)) as m:
+    with patch(
+        "discovery.feed_reader.requests.get",
+        return_value=mock_response(SAMPLE_FEED_PATH),
+    ) as m:
         yield m
 
 
@@ -41,10 +53,32 @@ class TestFetchFeed:
         assert all(i.source == "Test Tech Blog" for i in items)
 
     def test_returns_empty_on_bad_url(self):
-        import requests as req
-        with patch("discovery.feed_reader.requests.get", side_effect=req.RequestException("connection error")):
+        with patch(
+            "discovery.feed_reader.requests.get",
+            side_effect=req.RequestException("connection error"),
+        ):
             items = fetch_feed("http://localhost:9999/nonexistent-feed")
         assert items == []
+
+    def test_fetch_feed_or_raise_on_bad_url(self):
+        with patch(
+            "discovery.feed_reader.requests.get",
+            side_effect=req.RequestException("connection error"),
+        ):
+            with pytest.raises(FeedFetchError, match="Error fetching feed"):
+                fetch_feed_or_raise("http://localhost:9999/nonexistent-feed")
+
+    def test_fetch_feed_or_raise_on_parse_error(self):
+        with patch(
+            "discovery.feed_reader.requests.get",
+            return_value=mock_response(SAMPLE_FEED_PATH),
+        ):
+            with patch(
+                "discovery.feed_reader.feedparser.parse",
+                side_effect=ValueError("parse broke"),
+            ):
+                with pytest.raises(FeedParseError, match="Error parsing feed"):
+                    fetch_feed_or_raise(SAMPLE_FEED_URL)
 
     def test_description_populated(self, sample_feed_mock):
         items = fetch_feed(SAMPLE_FEED_URL)
@@ -58,7 +92,9 @@ class TestFetchFeed:
 
     def test_published_empty_when_absent(self, sample_feed_mock):
         items = fetch_feed(SAMPLE_FEED_URL)
-        rag_item = next(i for i in items if i.title == "Building a Local RAG Pipeline with Ollama")
+        rag_item = next(
+            i for i in items if i.title == "Building a Local RAG Pipeline with Ollama"
+        )
         assert rag_item.published == ""
 
 
@@ -83,6 +119,8 @@ class TestFilterNewItems:
         assert len(result) == 2
 
     def test_all_seen_returns_empty(self):
-        items = [FeedItem(title="A", description="desc", url="https://a.com", source="src")]
+        items = [
+            FeedItem(title="A", description="desc", url="https://a.com", source="src")
+        ]
         result = filter_new_items(items, {"https://a.com"})
         assert result == []

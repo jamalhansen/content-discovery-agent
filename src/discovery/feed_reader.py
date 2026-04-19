@@ -12,22 +12,41 @@ _HEADERS = {
 }
 
 
-def fetch_feed(feed_url: str) -> list[FeedItem]:
-    """Fetch and parse an RSS/Atom feed. Returns list of FeedItems."""
+class FeedReaderError(Exception):
+    """Base error for feed-reader strict operations."""
+
+
+class FeedFetchError(FeedReaderError):
+    """Raised when a feed cannot be fetched."""
+
+
+class FeedParseError(FeedReaderError):
+    """Raised when fetched feed content cannot be parsed."""
+
+
+def _fetch_and_parse_or_raise(feed_url: str):
     try:
         resp = requests.get(feed_url, headers=_HEADERS, timeout=15)
         resp.raise_for_status()
-        parsed = feedparser.parse(resp.content)
     except requests.RequestException as e:
-        logger.error("Error fetching feed %s: %s", feed_url, e)
-        return []
-    except Exception as e:
-        logger.error("Error parsing feed %s: %s", feed_url, e)
-        return []
+        raise FeedFetchError(f"Error fetching feed {feed_url}: {e}") from e
+
+    try:
+        parsed = feedparser.parse(resp.content)
+    except Exception as e:  # noqa: BLE001
+        raise FeedParseError(f"Error parsing feed {feed_url}: {e}") from e
 
     if parsed.bozo and not parsed.entries:
-        logger.error("Failed to parse feed %s: %s", feed_url, parsed.bozo_exception)
-        return []
+        raise FeedParseError(
+            f"Failed to parse feed {feed_url}: {parsed.bozo_exception}"
+        )
+
+    return parsed
+
+
+def fetch_feed_or_raise(feed_url: str) -> list[FeedItem]:
+    """Fetch and parse an RSS/Atom feed or raise a typed error."""
+    parsed = _fetch_and_parse_or_raise(feed_url)
 
     feed_title = parsed.feed.get("title", feed_url)
     items = []
@@ -46,17 +65,28 @@ def fetch_feed(feed_url: str) -> list[FeedItem]:
         pub_struct = entry.get("published_parsed") or entry.get("updated_parsed")
         published = _time.strftime("%Y-%m-%d", pub_struct) if pub_struct else ""
 
-        items.append(FeedItem(
-            title=title,
-            description=description,
-            url=url,
-            source=feed_title,
-            published=published,
-            found_at=feed_url,
-            platform="rss",
-        ))
+        items.append(
+            FeedItem(
+                title=title,
+                description=description,
+                url=url,
+                source=feed_title,
+                published=published,
+                found_at=feed_url,
+                platform="rss",
+            )
+        )
 
     return items
+
+
+def fetch_feed(feed_url: str) -> list[FeedItem]:
+    """Compatibility wrapper: returns [] on failure for legacy callers."""
+    try:
+        return fetch_feed_or_raise(feed_url)
+    except FeedReaderError as e:
+        logger.error("%s", e)
+        return []
 
 
 def filter_new_items(items: list[FeedItem], seen: set[str]) -> list[FeedItem]:
