@@ -18,6 +18,14 @@ from .config import (
 DEFAULT_SOURCES = "rss"
 
 
+class DiscoveryOptionsError(Exception):
+    """Base error for discovery CLI option handling."""
+
+
+class ProviderSetupError(DiscoveryOptionsError):
+    """Raised when the configured provider cannot be created."""
+
+
 def provider_opt():
     val = get_setting(TOOL_NAME, "provider", default=DEFAULT_PROVIDER)
     return typer.Option(val, "--provider", "-p", help=f"LLM backend (default: {val})")
@@ -102,11 +110,24 @@ def validate_threshold(threshold: float) -> None:
 
 
 def make_provider(provider_name: str, model: Optional[str], no_llm: bool = False):
+    """Compatibility wrapper that exits with Typer for CLI callers."""
     try:
-        return resolve_provider(PROVIDERS, provider_name, model, no_llm=no_llm)
-    except Exception as e:
+        return make_provider_or_raise(provider_name, model, no_llm=no_llm)
+    except ProviderSetupError as e:
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
+
+
+def make_provider_or_raise(
+    provider_name: str,
+    model: Optional[str],
+    no_llm: bool = False,
+):
+    """Create provider or raise a typed error for command-boundary handling."""
+    try:
+        return resolve_provider(PROVIDERS, provider_name, model, no_llm=no_llm)
+    except Exception as e:  # noqa: BLE001
+        raise ProviderSetupError(str(e)) from e
 
 
 def validate_readwise_token(token: str) -> None:
