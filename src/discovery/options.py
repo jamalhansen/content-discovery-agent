@@ -26,6 +26,14 @@ class ProviderSetupError(DiscoveryOptionsError):
     """Raised when the configured provider cannot be created."""
 
 
+class ThresholdValidationError(DiscoveryOptionsError):
+    """Raised when threshold is outside [0.0, 1.0]."""
+
+
+class ReadwiseTokenError(DiscoveryOptionsError):
+    """Raised when readwise token is missing or placeholder."""
+
+
 def provider_opt():
     val = get_setting(TOOL_NAME, "provider", default=DEFAULT_PROVIDER)
     return typer.Option(val, "--provider", "-p", help=f"LLM backend (default: {val})")
@@ -104,9 +112,18 @@ def cached_opt():
 
 
 def validate_threshold(threshold: float) -> None:
-    if not (0.0 <= threshold <= 1.0):
-        typer.echo("Error: --threshold must be between 0.0 and 1.0", err=True)
+    """Compatibility wrapper that exits with Typer for CLI callers."""
+    try:
+        validate_threshold_or_raise(threshold)
+    except ThresholdValidationError as e:
+        typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
+
+
+def validate_threshold_or_raise(threshold: float) -> None:
+    """Validate threshold or raise typed error for command-boundary handling."""
+    if not (0.0 <= threshold <= 1.0):
+        raise ThresholdValidationError("--threshold must be between 0.0 and 1.0")
 
 
 def make_provider(provider_name: str, model: Optional[str], no_llm: bool = False):
@@ -131,6 +148,15 @@ def make_provider_or_raise(
 
 
 def validate_readwise_token(token: str) -> None:
-    if not token or token == "your_readwise_token_here":
-        typer.echo("Error: READWISE_TOKEN is not set.", err=True)
+    """Compatibility wrapper that exits with Typer for CLI callers."""
+    try:
+        validate_readwise_token_or_raise(token)
+    except ReadwiseTokenError as e:
+        typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
+
+
+def validate_readwise_token_or_raise(token: str) -> None:
+    """Validate readwise token or raise typed error for command-boundary handling."""
+    if not token or token == "your_readwise_token_here":
+        raise ReadwiseTokenError("READWISE_TOKEN is not set.")

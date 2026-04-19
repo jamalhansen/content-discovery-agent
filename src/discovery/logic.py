@@ -24,9 +24,12 @@ from .options import (
     no_dedup_opt,
     cached_opt,
     sources_opt,
-    validate_threshold,
-    validate_readwise_token,
-    make_provider,
+    ProviderSetupError,
+    ReadwiseTokenError,
+    ThresholdValidationError,
+    make_provider_or_raise,
+    validate_readwise_token_or_raise,
+    validate_threshold_or_raise,
 )
 from .orchestrator import run_discovery, run_review, run_save
 from .db_commands import (
@@ -89,8 +92,12 @@ def cmd_run(
     ),
 ):
     """Fetch feeds, score items, and store candidates in the DB."""
-    validate_threshold(threshold)
-    llm_provider = make_provider(provider, model, no_llm=no_llm)
+    try:
+        validate_threshold_or_raise(threshold)
+        llm_provider = make_provider_or_raise(provider, model, no_llm=no_llm)
+    except (ThresholdValidationError, ProviderSetupError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
 
     _setup_tool_logging(verbose)
 
@@ -137,7 +144,11 @@ def cmd_review(
     ),
 ):
     """Interactively review pending items; send kept items to Readwise Reader."""
-    validate_readwise_token(readwise_token)
+    try:
+        validate_readwise_token_or_raise(readwise_token)
+    except ReadwiseTokenError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
     store.init_db(store_path)
     kept, dismissed = run_review(store_path, readwise_token)
     typer.echo(f"\nDone. Kept: {kept}, Dismissed: {dismissed}.")
@@ -223,7 +234,11 @@ def cmd_rescore(
     """Re-score all pending items."""
     from .config import INTEREST_PROFILE, INTEREST_EXCLUSIONS
 
-    llm_provider = make_provider(provider, model, no_llm=no_llm)
+    try:
+        llm_provider = make_provider_or_raise(provider, model, no_llm=no_llm)
+    except ProviderSetupError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
     store.init_db(store_path)
     pending = store.get_new_items(store_path)
     if limit:
@@ -282,8 +297,12 @@ def cmd_save(
     dry_run = resolve_dry_run(dry_run, no_llm)
     if no_llm:
         no_score = True
-    validate_readwise_token(readwise_token)
-    llm_provider = make_provider(provider, model, no_llm=no_llm)
+    try:
+        validate_readwise_token_or_raise(readwise_token)
+        llm_provider = make_provider_or_raise(provider, model, no_llm=no_llm)
+    except (ReadwiseTokenError, ProviderSetupError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
     run_save(url, llm_provider, no_score, readwise_token, store_path, dry_run)
 
 
