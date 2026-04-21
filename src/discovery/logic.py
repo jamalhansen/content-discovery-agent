@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import logging
+from datetime import date
 from typing import Optional
 
 import typer
@@ -126,6 +127,24 @@ def cmd_run(
         typer.echo(f"\n{len(candidates)} candidates found. Dry run -- nothing written.")
     else:
         typer.echo(f"\n{len(candidates)} candidates stored. Run review to triage.")
+
+    if not candidates and scored_count > 0:
+        today = date.today().isoformat()
+        suggested_threshold = max(0.0, round(threshold - 0.1, 2))
+        near_misses = store.get_top_dismissed_for_date(
+            store_path,
+            fetched_at=today,
+            limit=5,
+            min_score=max(0.0, threshold - 0.15),
+        )
+        typer.echo(
+            f"No items met threshold {threshold:.2f}. "
+            f"Try --threshold {suggested_threshold:.2f} for a wider net."
+        )
+        if near_misses:
+            typer.echo("Top near misses from this run:")
+            for item in near_misses:
+                typer.echo(f"  [{item['score']:.2f}] {item['title']}")
 
     typer.echo(f"Done. Processed: {scored_count}, Skipped: {skipped_count}")
 

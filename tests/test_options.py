@@ -30,7 +30,9 @@ class TestValidateThreshold:
             validate_threshold(1.1)
 
     def test_validate_threshold_or_raise_rejects_value_out_of_range(self):
-        with pytest.raises(ThresholdValidationError, match="--threshold must be between 0.0 and 1.0"):
+        with pytest.raises(
+            ThresholdValidationError, match="--threshold must be between 0.0 and 1.0"
+        ):
             validate_threshold_or_raise(-0.1)
 
 

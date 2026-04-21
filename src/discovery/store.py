@@ -375,6 +375,32 @@ def get_score_distribution(path: str, status: str = "new") -> list[dict]:
     return [{"bucket": k, "count": v} for k, v in sorted(buckets.items())]
 
 
+def get_top_dismissed_for_date(
+    path: str,
+    fetched_at: str,
+    limit: int = 5,
+    min_score: float = 0.0,
+) -> list[dict]:
+    """Return top dismissed items for a given fetched_at date.
+
+    Useful for explaining zero-candidate runs when threshold is slightly too high.
+    """
+    with _connect(path) as conn:
+        rows = conn.execute(
+            """
+            SELECT url, title, score, status
+            FROM items
+            WHERE fetched_at = ?
+              AND status = 'dismissed'
+              AND score >= ?
+            ORDER BY score DESC
+            LIMIT ?
+            """,
+            (fetched_at, min_score, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def update_item_score(
     *,
     url: str,

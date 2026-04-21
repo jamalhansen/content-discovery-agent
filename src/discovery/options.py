@@ -11,11 +11,10 @@ from .config import (
     DEFAULT_REVIEW_PROVIDER,
     DEFAULT_REVIEW_MODEL,
     DEFAULT_THRESHOLD,
+    DEFAULT_SOURCES,
     STORE_PATH,
     TOOL_NAME,
 )
-
-DEFAULT_SOURCES = "rss"
 
 
 class DiscoveryOptionsError(Exception):
