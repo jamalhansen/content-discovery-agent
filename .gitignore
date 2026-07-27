@@ -227,3 +227,4 @@ uv.toml
 *.pyd
 *.pyo
 .venv/
+_NOTES.md
