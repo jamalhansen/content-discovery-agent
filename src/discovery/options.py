@@ -82,7 +82,7 @@ def store_opt():
 def sources_opt():
     val = get_setting(TOOL_NAME, "sources", default=DEFAULT_SOURCES)
     return typer.Option(
-        val, "--sources", "-s", help=f"Sources: rss,bluesky,mastodon (default: {val})"
+        val, "--sources", "-s", help=f"Sources: rss,bluesky,mastodon,reader (default: {val})"
     )
 
 

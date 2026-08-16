@@ -37,16 +37,30 @@ threshold = 0.7
 provider = "local"
 model = "@best"
 
-# Path to your Obsidian vault root (overrides OBSIDIAN_VAULT_PATH env var)
-# vault_path = "~/vaults/MyVault/"
+# Route kept items into an Obsidian vault's inbox/ directory as individual
+# markdown files (one file per item, zero-friction capture format). Off by
+# default — enable alongside or instead of Readwise routing.
+# contexta_inbox_routing = true
 
-# Path to the finds inbox, relative to vault root
-inbox_path = "_finds/00-inbox.md"
+# Path to the vault inbox directory. Overridden by the CONTEXTA_INBOX_PATH
+# env var if set. Defaults to ~/vaults/Contexta/inbox.
+# contexta_inbox_path = "~/vaults/Contexta/inbox"
 
 # Path to the SQLite database (default: ~/.content-discovery.db)
 # For multi-machine sync with Syncthing, point this at your shared sync folder.
 # The CONTENT_DISCOVERY_STORE env var overrides this if set.
 # store = "~/sync/content-discovery/store.db"
+
+# Reader location to pull as the "reader" source (--sources reader). One of:
+# new, later, shortlist, archive, feed. Defaults to "new" (the unread inbox),
+# which is the actual ingest case this exists for.
+# reader_location = "new"
+
+# Optional: restrict the "reader" source to one document category
+# (article, email, rss, pdf, epub, tweet, video, ...). Unset returns all
+# types, including your own highlight/note entries — set this to "article"
+# if those show up as noise.
+# reader_category = "article"
 
 [social]
 # Keywords used to search Bluesky and Mastodon hashtag timelines.

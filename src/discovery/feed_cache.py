@@ -55,8 +55,8 @@ def save_cached_feed(feed_url: str, items: list[FeedItem]) -> None:
 
 
 def clear_cache() -> None:
-    """Delete all cached feed and social files."""
-    for cache_dir in (CACHE_DIR, SOCIAL_CACHE_DIR):
+    """Delete all cached feed, social, and Reader files."""
+    for cache_dir in (CACHE_DIR, SOCIAL_CACHE_DIR, READER_CACHE_DIR):
         if not os.path.isdir(cache_dir):
             continue
         for fname in os.listdir(cache_dir):
@@ -98,3 +98,41 @@ def save_cached_social(source: str, keywords: list[str], items: list[FeedItem]) 
             json.dump([item.__dict__ for item in items], f, indent=2)
     except OSError as e:
         logger.warning("Could not write social cache for %s: %s", source, e)
+
+
+# --- Reader cache ---
+
+READER_CACHE_DIR = os.path.expanduser("~/.cache/content-discovery/reader/")
+
+
+def _reader_cache_key(location: str, category: str | None) -> str:
+    key = f"{location}:{category or ''}"
+    return hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()
+
+
+def load_cached_reader(location: str, category: str | None) -> list[FeedItem] | None:
+    """Return cached FeedItems for a Reader location + category combo, or None if no cache or stale."""
+    path = os.path.join(READER_CACHE_DIR, f"{_reader_cache_key(location, category)}.json")
+    if not os.path.exists(path):
+        return None
+    if _is_stale(path):
+        logger.debug("Cache expired for Reader location %s", location)
+        return None
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        return [FeedItem(**item) for item in data]
+    except (json.JSONDecodeError, TypeError, OSError) as e:
+        logger.warning("Could not read Reader cache for %s: %s", location, e)
+        return None
+
+
+def save_cached_reader(location: str, category: str | None, items: list[FeedItem]) -> None:
+    """Write FeedItems to cache for a Reader location + category combo."""
+    os.makedirs(READER_CACHE_DIR, exist_ok=True)
+    path = os.path.join(READER_CACHE_DIR, f"{_reader_cache_key(location, category)}.json")
+    try:
+        with open(path, "w") as f:
+            json.dump([item.__dict__ for item in items], f, indent=2)
+    except OSError as e:
+        logger.warning("Could not write Reader cache for %s: %s", location, e)

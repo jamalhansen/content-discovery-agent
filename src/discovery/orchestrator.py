@@ -4,13 +4,18 @@ from datetime import date
 from typing import Optional, List
 from local_first_common.tracking import register_tool, timed_run
 from local_first_common.article_fetcher import fetch_article_metadata
+from local_first_common.readwise import list_reader_documents
 from local_first_common.url import normalize_url
 from .config import (
     BLUESKY_APP_PASSWORD,
     BLUESKY_HANDLE,
+    CONTEXTA_INBOX_PATH,
+    CONTEXTA_INBOX_ROUTING,
     FEEDS,
     INTEREST_EXCLUSIONS,
     INTEREST_PROFILE,
+    READER_CATEGORY,
+    READER_LOCATION,
     READWISE_ROUTING,
     READWISE_TOKEN,
     SOCIAL_BLOCKED_DOMAINS,
@@ -19,10 +24,15 @@ from .config import (
 )
 from .social.bluesky import BlueskyReader
 from .social.mastodon import MastodonReader
-from .feed_cache import load_cached_feed, save_cached_feed, load_cached_social, save_cached_social
+from .feed_cache import (
+    load_cached_feed, save_cached_feed,
+    load_cached_social, save_cached_social,
+    load_cached_reader, save_cached_reader,
+)
 from .feed_reader import FeedItem, fetch_feed
 from .scorer import ContentDiscoveryScorer, score_item, ScoredItem
 from .readwise import save_to_readwise
+from .vault_inbox import save_to_vault_inbox
 from . import store
 from .session import DiscoverySession
 
@@ -121,6 +131,29 @@ def run_discovery(
             typer.echo(f"  Mastodon: {len(mastodon_items)} items fetched ({len(mastodon_new)} new){cache_label}")
             all_new_items.extend(mastodon_new)
 
+    # --- Reader source ---
+    if "reader" in source_list:
+        if READWISE_TOKEN:
+            cached_reader = load_cached_reader(READER_LOCATION, READER_CATEGORY) if cached else None
+            if cached_reader is not None:
+                reader_items = cached_reader
+                cache_label = " (cached)"
+            else:
+                typer.echo(f"Fetching Reader ({READER_LOCATION})...")
+                reader_items = list_reader_documents(
+                    READWISE_TOKEN, location=READER_LOCATION, category=READER_CATEGORY,
+                )
+                if cached and reader_items:
+                    save_cached_reader(READER_LOCATION, READER_CATEGORY, reader_items)
+                cache_label = ""
+            reader_new = [i for i in reader_items if i.url and not session.should_skip_url(i.url)]
+            for i in reader_new:
+                session.mark_seen(i.url)
+            typer.echo(f"  Reader: {len(reader_items)} item{'s' if len(reader_items) != 1 else ''} fetched ({len(reader_new)} new){cache_label}")
+            all_new_items.extend(reader_new)
+        else:
+            typer.echo("  Reader: skipped (no READWISE_TOKEN set)")
+
     if not all_new_items:
         typer.echo("\nNo new items to score.")
         return [], 0, 0
@@ -169,12 +202,27 @@ def run_discovery(
                     "title": item.title, "url": item.url, "score": result.score,
                     "tags": result.tags, "summary": result.summary,
                 })
-                if READWISE_ROUTING and READWISE_TOKEN:
+                if READWISE_ROUTING and READWISE_TOKEN and item.source != "readwise-reader":
                     if dry_run:
                         typer.echo(f"  [dry-run] Would route to Readwise: {item.title[:60]}")
                     else:
                         save_to_readwise(
                             READWISE_TOKEN,
+                            item.url,
+                            title=item.title,
+                            summary=result.summary,
+                            tags=result.tags,
+                            published_date=item.published or "",
+                            search_term=item.search_term,
+                            platform=item.platform,
+                        )
+
+                if CONTEXTA_INBOX_ROUTING:
+                    if dry_run:
+                        typer.echo(f"  [dry-run] Would route to Contexta inbox: {item.title[:60]}")
+                    else:
+                        save_to_vault_inbox(
+                            CONTEXTA_INBOX_PATH,
                             item.url,
                             title=item.title,
                             summary=result.summary,
@@ -192,6 +240,35 @@ def run_discovery(
 
     return candidates, scored_count, skipped_count
 
+def _keep_and_route(item: dict, store_path: str, readwise_token: str, destinations: set[str]) -> None:
+    """Mark an item kept and route it to the requested destinations."""
+    store.mark_item(item["url"], "kept", store_path)
+
+    if "readwise" in destinations:
+        ok = save_to_readwise(
+            readwise_token,
+            item["url"],
+            title=item["title"],
+            summary=item["summary"],
+            tags=item["tags"],
+            published_date=item.get("published_at", ""),
+        )
+        typer.echo("  Sent to Readwise Reader." if ok else "  Readwise save failed \u2014 check token.")
+
+    if "contexta" in destinations:
+        ok = save_to_vault_inbox(
+            CONTEXTA_INBOX_PATH,
+            item["url"],
+            title=item["title"],
+            summary=item["summary"],
+            tags=item["tags"],
+            published_date=item.get("published_at", ""),
+        )
+        typer.echo("  Captured to Contexta inbox." if ok else "  Contexta inbox capture failed.")
+
+    typer.echo("")
+
+
 def run_review(store_path: str, readwise_token: str):
     """Interactively review pending items."""
     pending = store.get_new_items(store_path)
@@ -200,9 +277,12 @@ def run_review(store_path: str, readwise_token: str):
         typer.echo("No pending items to review.")
         return 0, 0
 
+    default_destinations = {"readwise"} | ({"contexta"} if CONTEXTA_INBOX_ROUTING else set())
+
     total = len(pending)
     typer.echo(f"Reviewing {total} pending item{'s' if total != 1 else ''}.")
-    typer.echo("  y = keep  |  n = dismiss  |  s = stop  |  o = open in browser\n")
+    typer.echo("  y = keep  |  n = dismiss  |  s = stop  |  o = open in browser")
+    typer.echo("  r = keep, Readwise only  |  c = keep, Contexta only\n")
 
     kept = 0
     dismissed = 0
@@ -211,7 +291,7 @@ def run_review(store_path: str, readwise_token: str):
         tag_str = " ".join(f"#{t}" for t in item["tags"]) if item["tags"] else "(none)"
         typer.echo(f"[{i}/{total}]  {item['title']}")
         typer.echo(f"  {item['summary']}")
-        
+
         metadata = []
         if item.get("platform"):
             metadata.append(f"Platform: {item['platform']}")
@@ -219,7 +299,7 @@ def run_review(store_path: str, readwise_token: str):
             metadata.append(f"Term: {item['search_term']}")
         metadata.append(f"Source: {item['source']}")
         metadata.append(f"Score: {item['score']:.2f}")
-        
+
         typer.echo(f"  {'  |  '.join(metadata)}")
         typer.echo(f"  Tags:   {tag_str}")
         typer.echo(f"  URL:    {item['url']}")
@@ -231,17 +311,16 @@ def run_review(store_path: str, readwise_token: str):
                 choice = "s"
 
             if choice == "y":
-                store.mark_item(item["url"], "kept", store_path)
-                ok = save_to_readwise(
-                    readwise_token,
-                    item["url"],
-                    title=item["title"],
-                    summary=item["summary"],
-                    tags=item["tags"],
-                    published_date=item.get("published_at", ""),
-                )
+                _keep_and_route(item, store_path, readwise_token, default_destinations)
                 kept += 1
-                typer.echo("  Sent to Readwise Reader.\n" if ok else "  Kept (Readwise save failed \u2014 check token).\n")
+                break
+            elif choice == "r":
+                _keep_and_route(item, store_path, readwise_token, {"readwise"})
+                kept += 1
+                break
+            elif choice == "c":
+                _keep_and_route(item, store_path, readwise_token, {"contexta"})
+                kept += 1
                 break
             elif choice == "n":
                 store.mark_item(item["url"], "dismissed", store_path)
@@ -253,7 +332,7 @@ def run_review(store_path: str, readwise_token: str):
             elif choice == "o":
                 webbrowser.open(item["url"])
             else:
-                typer.echo("  Type y, n, s, or o.")
+                typer.echo("  Type y, n, r, c, s, or o.")
 
     return kept, dismissed
 
@@ -322,4 +401,17 @@ def run_save(
     )
     typer.echo(f"Saved:  {item.title}")
     typer.echo("  Sent to Readwise Reader." if ok else "  Kept in DB (Readwise save failed \u2014 check token).")
+
+    if CONTEXTA_INBOX_ROUTING:
+        inbox_ok = save_to_vault_inbox(
+            CONTEXTA_INBOX_PATH,
+            item.url,
+            title=item.title,
+            summary=scored.summary,
+            tags=scored.tags,
+            published_date=item.published,
+            platform="manual",
+        )
+        typer.echo("  Captured to Contexta inbox." if inbox_ok else "  Contexta inbox capture failed.")
+
     return ok

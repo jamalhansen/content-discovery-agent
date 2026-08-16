@@ -40,10 +40,12 @@ DEFAULT_SCORING_MODEL: str | None = _settings.get("scoring_model") or DEFAULT_MO
 DEFAULT_REVIEW_PROVIDER: str = _settings.get("review_provider", DEFAULT_PROVIDER)
 DEFAULT_REVIEW_MODEL: str | None = _settings.get("review_model") or None
 
-DEFAULT_INBOX_PATH: str = _settings.get("inbox_path", "_finds/0000-agent-inbox.md")
-DEFAULT_VAULT_PATH: str | None = get_setting(
-    TOOL_NAME, "vault_path", env_var="OBSIDIAN_VAULT_PATH",
-    default=_settings.get("vault_path"),
+CONTEXTA_INBOX_ROUTING: bool = bool(_settings.get("contexta_inbox_routing", False))
+CONTEXTA_INBOX_PATH: str = os.path.expanduser(
+    get_setting(
+        TOOL_NAME, "contexta_inbox_path", env_var="CONTEXTA_INBOX_PATH",
+        default=_settings.get("contexta_inbox_path", "~/vaults/Contexta/inbox"),
+    )
 )
 
 STORE_PATH = os.path.expanduser(
@@ -76,3 +78,6 @@ BLUESKY_HANDLE: str = os.environ.get("BLUESKY_HANDLE", "")
 BLUESKY_APP_PASSWORD: str = os.environ.get("BLUESKY_APP_PASSWORD", "")
 READWISE_TOKEN: str = os.environ.get("READWISE_TOKEN", "")
 READWISE_ROUTING: bool = bool(_settings.get("readwise_routing", False))
+
+READER_LOCATION: str = _settings.get("reader_location", "new")
+READER_CATEGORY: str | None = _settings.get("reader_category")

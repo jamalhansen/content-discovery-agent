@@ -3,6 +3,7 @@ import pytest
 from discovery.feed_reader import FeedItem
 from discovery.feed_cache import (
     load_cached_feed, save_cached_feed, clear_cache, load_cached_social, save_cached_social,
+    load_cached_reader, save_cached_reader,
 )
 
 
@@ -18,8 +19,10 @@ def isolated_cache(tmp_path, monkeypatch):
     """Redirect both caches to temp dirs for each test."""
     cache_dir = str(tmp_path / "feeds")
     social_cache_dir = str(tmp_path / "social")
+    reader_cache_dir = str(tmp_path / "reader")
     monkeypatch.setattr("discovery.feed_cache.CACHE_DIR", cache_dir)
     monkeypatch.setattr("discovery.feed_cache.SOCIAL_CACHE_DIR", social_cache_dir)
+    monkeypatch.setattr("discovery.feed_cache.READER_CACHE_DIR", reader_cache_dir)
     return cache_dir
 
 
@@ -89,6 +92,11 @@ class TestClearCache:
         clear_cache()
         assert load_cached_social("bluesky", ["duckdb"]) is None
 
+    def test_clear_also_removes_reader_cache(self):
+        save_cached_reader("new", None, make_items())
+        clear_cache()
+        assert load_cached_reader("new", None) is None
+
     def test_clear_noop_if_no_cache_dir(self):
         # Should not raise even if neither dir exists
         clear_cache()
@@ -150,3 +158,53 @@ class TestSocialCache:
         save_cached_social("bluesky", ["duckdb"], make_items())
         monkeypatch.setattr("discovery.feed_cache.CACHE_TTL_SECONDS", 10 * 365 * 24 * 60 * 60)
         assert load_cached_social("bluesky", ["duckdb"]) is not None
+
+
+class TestReaderCache:
+    def test_returns_none_when_no_cache(self):
+        assert load_cached_reader("new", None) is None
+
+    def test_round_trip_preserves_all_fields(self):
+        items = make_items()
+        save_cached_reader("new", "article", items)
+        loaded = load_cached_reader("new", "article")
+        assert loaded is not None
+        assert len(loaded) == 2
+        for orig, got in zip(items, loaded):
+            assert orig.title == got.title
+            assert orig.description == got.description
+            assert orig.url == got.url
+            assert orig.source == got.source
+
+    def test_different_locations_have_separate_caches(self):
+        new_items = [FeedItem("New", "d", "https://a.com", "src")]
+        archive_items = [FeedItem("Archive", "d", "https://b.com", "src")]
+        save_cached_reader("new", None, new_items)
+        save_cached_reader("archive", None, archive_items)
+        assert load_cached_reader("new", None)[0].title == "New"
+        assert load_cached_reader("archive", None)[0].title == "Archive"
+
+    def test_different_categories_have_separate_caches(self):
+        article_items = [FeedItem("Article", "d", "https://a.com", "src")]
+        pdf_items = [FeedItem("PDF", "d", "https://b.com", "src")]
+        save_cached_reader("new", "article", article_items)
+        save_cached_reader("new", "pdf", pdf_items)
+        assert load_cached_reader("new", "article")[0].title == "Article"
+        assert load_cached_reader("new", "pdf")[0].title == "PDF"
+
+    def test_creates_reader_cache_dir_if_missing(self, tmp_path, monkeypatch):
+        reader_dir = str(tmp_path / "reader")
+        monkeypatch.setattr("discovery.feed_cache.READER_CACHE_DIR", reader_dir)
+        assert not os.path.exists(reader_dir)
+        save_cached_reader("new", None, make_items())
+        assert os.path.isdir(reader_dir)
+
+    def test_returns_none_for_stale_reader_cache(self, monkeypatch):
+        save_cached_reader("new", None, make_items())
+        monkeypatch.setattr("discovery.feed_cache.CACHE_TTL_SECONDS", 0)
+        assert load_cached_reader("new", None) is None
+
+    def test_returns_items_for_fresh_reader_cache(self, monkeypatch):
+        save_cached_reader("new", None, make_items())
+        monkeypatch.setattr("discovery.feed_cache.CACHE_TTL_SECONDS", 10 * 365 * 24 * 60 * 60)
+        assert load_cached_reader("new", None) is not None
