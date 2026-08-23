@@ -243,8 +243,9 @@ def cmd_reconcile(
     result = reconcile(notes_path, readwise_token, dry_run=dry_run)
 
     typer.echo(
-        f"Scanned {result.notes_scanned} notes, "
-        f"{result.notes_with_source_url} carry a source_url."
+        f"Scanned {result.notes_scanned} notes; "
+        f"{result.notes_with_source_url} carry a source_url, "
+        f"covering {result.distinct_source_urls} distinct articles."
     )
     typer.echo(f"Checked {result.documents_checked} unread Reader documents.")
     if not result.matched:

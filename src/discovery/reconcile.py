@@ -28,6 +28,9 @@ _SOURCE_URL_RE = re.compile(r"^source_url:\s*(.+?)\s*$", re.MULTILINE)
 class ReconcileResult:
     notes_scanned: int = 0
     notes_with_source_url: int = 0
+    # Several notes routinely come from one article, so this is always <= the
+    # count above and is the number that explains how many documents can match.
+    distinct_source_urls: int = 0
     documents_checked: int = 0
     matched: list[tuple[str, str]] = field(default_factory=list)  # (title, source_url)
     archived: int = 0
@@ -49,9 +52,13 @@ def extract_source_url(text: str) -> str:
     return found.group(1).strip().strip('"').strip("'")
 
 
-def collect_note_source_urls(notes_path: str) -> dict[str, str]:
-    """Map normalized source_url to note filename for every note that has one."""
-    urls: dict[str, str] = {}
+def collect_note_source_urls(notes_path: str) -> dict[str, list[str]]:
+    """Map normalized source_url to the notes that cite it.
+
+    A single article usually yields several notes, so the value is a list. The
+    mapping is keyed by URL because that is what a Reader document is matched on.
+    """
+    urls: dict[str, list[str]] = {}
     target = os.path.expanduser(notes_path)
     if not os.path.isdir(target):
         return urls
@@ -68,9 +75,10 @@ def collect_note_source_urls(notes_path: str) -> dict[str, str]:
         if not raw:
             continue
         try:
-            urls[normalize_url(raw)] = name
+            key = normalize_url(raw)
         except Exception:
-            urls[raw] = name
+            key = raw
+        urls.setdefault(key, []).append(name)
     return urls
 
 
@@ -96,11 +104,13 @@ def reconcile(
 
     result = ReconcileResult()
     note_urls = collect_note_source_urls(notes_path)
-    result.notes_with_source_url = len(note_urls)
-    result.notes_scanned = sum(
-        1 for n in os.listdir(os.path.expanduser(notes_path))
-        if n.endswith(".md")
-    ) if os.path.isdir(os.path.expanduser(notes_path)) else 0
+    result.distinct_source_urls = len(note_urls)
+    result.notes_with_source_url = sum(len(v) for v in note_urls.values())
+    target = os.path.expanduser(notes_path)
+    result.notes_scanned = (
+        sum(1 for n in os.listdir(target) if n.endswith(".md"))
+        if os.path.isdir(target) else 0
+    )
 
     seen: set[str] = set()
     for location in locations:

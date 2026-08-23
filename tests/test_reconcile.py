@@ -64,7 +64,7 @@ class TestCollectNoteSourceUrls:
         _write_note(tmp_path, "without.md")
         urls = collect_note_source_urls(str(tmp_path))
         assert len(urls) == 1
-        assert "with.md" in urls.values()
+        assert list(urls.values()) == [["with.md"]]
 
     def test_ignores_non_markdown_files(self, tmp_path):
         _write_note(tmp_path, "note.md", "https://example.com/a")
@@ -155,3 +155,34 @@ class TestReconcile:
         )
         assert archived == ["doc1"]
         assert result.documents_checked == 1
+
+
+class TestSourceUrlCounting:
+    def test_counts_notes_and_distinct_articles_separately(self, tmp_path):
+        _write_note(tmp_path, "claim-one.md", "https://example.com/a")
+        _write_note(tmp_path, "claim-two.md", "https://example.com/a")
+        _write_note(tmp_path, "claim-three.md", "https://example.com/b")
+        _write_note(tmp_path, "no-url.md")
+
+        result = reconcile(
+            str(tmp_path), "tok", dry_run=True,
+            list_refs=lambda _t, location: [],
+            archive=lambda _t, _d: True,
+        )
+        assert result.notes_scanned == 4
+        assert result.notes_with_source_url == 3
+        assert result.distinct_source_urls == 2
+
+    def test_one_document_matches_even_when_several_notes_cite_it(self, tmp_path):
+        _write_note(tmp_path, "claim-one.md", "https://example.com/a")
+        _write_note(tmp_path, "claim-two.md", "https://example.com/a")
+        refs = {"new": [FakeRef("doc1", "https://example.com/a")], "later": []}
+        archived = []
+
+        result = reconcile(
+            str(tmp_path), "tok",
+            list_refs=lambda _t, location: refs[location],
+            archive=lambda _t, doc_id: archived.append(doc_id) or True,
+        )
+        assert archived == ["doc1"]
+        assert len(result.matched) == 1
