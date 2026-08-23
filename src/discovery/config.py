@@ -23,6 +23,14 @@ FEEDS: list[str] = _feeds.get("urls", [])
 INTEREST_PROFILE: str = _interests.get("profile", "")
 INTEREST_EXCLUSIONS: str = _interests.get("exclusions", "")
 
+# Substrings that disqualify an item by title alone, matched case-insensitively.
+# Applied before scoring, so matches never reach the LLM, the store, or review.
+# Sponsored posts are written to read as on-topic and score well otherwise.
+BLOCKED_TITLE_PATTERNS: tuple[str, ...] = tuple(
+    str(p).lower()
+    for p in _interests.get("blocked_title_patterns", ["(sponsor)", "(sponsored)"])
+)
+
 DEFAULT_THRESHOLD: float = get_setting(
     TOOL_NAME, "threshold", default=_settings.get("threshold", 0.81)
 )

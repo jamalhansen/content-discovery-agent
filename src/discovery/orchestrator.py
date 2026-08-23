@@ -3,10 +3,16 @@ import webbrowser
 from datetime import date
 from typing import Optional, List
 from local_first_common.tracking import register_tool, timed_run
-from local_first_common.article_fetcher import fetch_article_metadata
+from urllib.parse import urlparse
+from local_first_common.article_fetcher import (
+    _DEFAULT_BLOCKED_DOMAINS,
+    _is_blocked,
+    fetch_article_metadata,
+)
 from local_first_common.readwise import list_reader_documents
 from local_first_common.url import normalize_url
 from .config import (
+    BLOCKED_TITLE_PATTERNS,
     BLUESKY_APP_PASSWORD,
     BLUESKY_HANDLE,
     CONTEXTA_INBOX_PATH,
@@ -153,6 +159,38 @@ def run_discovery(
             all_new_items.extend(reader_new)
         else:
             typer.echo("  Reader: skipped (no READWISE_TOKEN set)")
+
+    # Drop disqualified items before scoring, so they never reach the LLM, the
+    # store, or review. Social sources filter blocked domains at fetch time, but
+    # RSS items never passed through that check -- TLDR-style feeds link out to
+    # blocked hosts like x.com, so the domain check is applied to everything here.
+    all_blocked_domains = _DEFAULT_BLOCKED_DOMAINS | SOCIAL_BLOCKED_DOMAINS
+    if BLOCKED_TITLE_PATTERNS or all_blocked_domains:
+        kept: list[FeedItem] = []
+        blocked_titles = 0
+        blocked_hosts = 0
+        for candidate in all_new_items:
+            title_lc = (candidate.title or "").lower()
+            if any(pattern in title_lc for pattern in BLOCKED_TITLE_PATTERNS):
+                blocked_titles += 1
+                if verbose:
+                    typer.echo(f"  [blocked title] {candidate.title[:70]}")
+                continue
+            netloc = urlparse(candidate.url or "").netloc
+            if netloc and _is_blocked(netloc, all_blocked_domains):
+                blocked_hosts += 1
+                if verbose:
+                    typer.echo(f"  [blocked domain] {netloc}  {candidate.title[:50]}")
+                continue
+            kept.append(candidate)
+        reasons = []
+        if blocked_titles:
+            reasons.append(f"{blocked_titles} by title")
+        if blocked_hosts:
+            reasons.append(f"{blocked_hosts} by domain")
+        if reasons:
+            typer.echo(f"\nFiltered {' and '.join(reasons)} before scoring.")
+        all_new_items = kept
 
     if not all_new_items:
         typer.echo("\nNo new items to score.")
