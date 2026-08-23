@@ -6,6 +6,7 @@ from typing import Optional
 import typer
 
 from .config import (
+    CONTEXTA_INBOX_PATH,
     CONTEXTA_NOTES_PATH,
     DEFAULT_BACKUP_DIR,
     READWISE_TOKEN,
@@ -35,6 +36,7 @@ from .options import (
 )
 from .orchestrator import run_discovery, run_review, run_save
 from .reconcile import reconcile
+from .import_reader import import_reader_backlog
 from .db_commands import (
     run_report,
     run_purge_blocked,
@@ -259,6 +261,67 @@ def cmd_reconcile(
         typer.echo(f"\nArchived {result.archived} of {len(result.matched)} matched items.")
         if result.failed:
             typer.echo(f"Failed to archive {len(result.failed)}: {', '.join(result.failed)}")
+
+
+@app.command(
+    "import-reader",
+    help="Pull unread Reader items not yet captured into the Contexta inbox.",
+)
+def cmd_import_reader(
+    notes_path: str = typer.Option(
+        CONTEXTA_NOTES_PATH,
+        "--notes-path",
+        envvar="CONTEXTA_NOTES_PATH",
+        help="Vault notes/ directory, checked so an already-noted article is skipped",
+    ),
+    inbox_path: str = typer.Option(
+        CONTEXTA_INBOX_PATH,
+        "--inbox-path",
+        envvar="CONTEXTA_INBOX_PATH",
+        help="Vault inbox/ directory to write into, and to check for an existing capture",
+    ),
+    readwise_token: str = typer.Option(
+        READWISE_TOKEN,
+        "--readwise-token",
+        envvar="READWISE_TOKEN",
+        show_default=False,
+        help="Readwise access token (or set READWISE_TOKEN env var)",
+    ),
+    limit: int = typer.Option(
+        10, "--limit", "-l",
+        help="Maximum articles to fetch in this run (each is a live HTTP request)",
+    ),
+    dry_run: bool = dry_run_opt(),
+):
+    """Backfill the inbox from the existing Reader queue, the direction reconcile does not cover."""
+    try:
+        validate_readwise_token_or_raise(readwise_token)
+    except ReadwiseTokenError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+    result = import_reader_backlog(
+        notes_path, inbox_path, readwise_token, limit=limit, dry_run=dry_run
+    )
+
+    typer.echo(f"Checked {result.documents_checked} unread Reader documents.")
+    typer.echo(f"Already captured (note or inbox file exists): {result.already_captured}")
+    if not result.imported and not result.failed:
+        typer.echo("Nothing new to import.")
+        return
+    for title in result.imported:
+        typer.echo(f"  {'[dry-run] ' if dry_run else ''}imported: {title[:65]}")
+    for title in result.failed:
+        typer.echo(f"  FAILED to write: {title[:65]}")
+    if dry_run:
+        typer.echo(f"\nWould import {len(result.imported)} items (limit {limit}).")
+    else:
+        typer.echo(f"\nImported {len(result.imported)} of {limit} requested.")
+        if result.failed:
+            typer.echo(f"{len(result.failed)} failed to write.")
+        remaining = result.documents_checked - result.already_captured - len(result.imported) - len(result.failed)
+        if remaining > 0:
+            typer.echo(f"{remaining} more uncaptured items waiting; raise --limit or run again.")
 
 
 @app.command(
