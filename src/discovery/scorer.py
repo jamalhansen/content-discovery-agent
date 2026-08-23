@@ -11,8 +11,22 @@ SYSTEM_PROMPT = """You are a content relevance scorer. Given a feed item and a d
   - 0.4-0.6: somewhat relevant, touches on related areas
   - 0.7-1.0: highly relevant, directly addresses their interests or current work
 - tags: array of at most 2 short strings describing what this item is about (e.g. ["sql", "query optimization"] or ["local AI", "ollama"]).
-- summary: one sentence (maximum 20 words) describing what this item is about.
+- summary: one sentence (maximum 20 words) describing what the item covers, not what it concludes or claims.
 - language: two-letter ISO 639-1 code for the article's language (e.g. "en", "ru", "de", "fr", "zh").
+
+The summary is a label for triage, not a verdict. State the topic and the kind of
+content (a benchmark, a tutorial, an announcement, an opinion), never the outcome
+someone might read into it. This applies most where a headline overstates its
+own body: an article's title can claim a comparison the article itself hedges,
+qualifies, or contradicts, and repeating that framing in the summary launders it
+into something that reads as a settled fact. On a headline like "X beats Y",
+write what X and Y were compared on, not who won.
+
+Bad:  "Open-weight model outperforms frontier models at lower cost."
+Good: "Compares GLM-5.3 against frontier models on cost and benchmark scores."
+
+Bad:  "New framework resolves queries more reliably than semantic search."
+Good: "Proposes a filesystem-style interface as an alternative to RAG."
 
 Return only valid JSON. No preamble, no explanation."""
 

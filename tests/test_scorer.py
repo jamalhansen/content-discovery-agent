@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock
-from discovery.scorer import build_user_message, parse_response, score_item, ScoredItem
+from discovery.scorer import SYSTEM_PROMPT, build_user_message, parse_response, score_item, ScoredItem
 
 PROFILE = "I write and teach SQL and Python for developers. I'm interested in local AI and LLMs."
 
@@ -161,3 +161,23 @@ class TestScoreItem:
         score_item(provider, "Title", "Desc", PROFILE)
         system_prompt, _ = provider.complete.call_args[0]
         assert "language" in system_prompt
+
+
+class TestSystemPromptDescribesRatherThanConcludes:
+    """The scoring summary is what gets shown next to items and written into
+    Contexta inbox files, above the fetched article body. On 2026-08-23 an item
+    whose body fetched cleanly still produced a summary asserting a conclusion
+    ("outperforms frontier models") the article itself did not support, an
+    overclaim that survived a complete, successful capture. These tests lock in
+    the instruction that prevents it, so a future edit cannot drop it silently.
+    """
+
+    def test_instructs_describing_not_concluding(self):
+        assert "not what it concludes" in SYSTEM_PROMPT
+
+    def test_names_the_headline_overstatement_case(self):
+        assert "headline overstates" in SYSTEM_PROMPT
+
+    def test_gives_a_worked_bad_and_good_example(self):
+        assert "Bad:" in SYSTEM_PROMPT
+        assert "Good:" in SYSTEM_PROMPT

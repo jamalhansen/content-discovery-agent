@@ -41,7 +41,7 @@ class TestSaveCommand:
              patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
              patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
              patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.readwise.save_to_readwise", return_value=True):
+             patch("discovery.orchestrator.save_to_readwise", return_value=True):
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 0, result.output
@@ -70,7 +70,7 @@ class TestSaveCommand:
         opts = _base_opts(tmp_path) + ["--no-score"]
         with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
              patch("discovery.orchestrator.score_item") as mock_score, \
-             patch("discovery.readwise.save_to_readwise", return_value=True):
+             patch("discovery.orchestrator.save_to_readwise", return_value=True):
             result = runner.invoke(app, opts)
 
         mock_score.assert_not_called()
@@ -86,7 +86,7 @@ class TestSaveCommand:
              patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED) as mock_score, \
              patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
              patch("local_first_common.cli.resolve_provider", return_value=MagicMock()), \
-             patch("discovery.readwise.save_to_readwise") as mock_rw:
+             patch("discovery.orchestrator.save_to_readwise") as mock_rw:
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 0
@@ -101,7 +101,7 @@ class TestSaveCommand:
 
         with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
              patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED) as mock_score, \
-             patch("discovery.readwise.save_to_readwise"):
+             patch("discovery.orchestrator.save_to_readwise"):
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 0
@@ -141,7 +141,7 @@ class TestSaveCommand:
              patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
              patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
              patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.readwise.save_to_readwise", return_value=False):
+             patch("discovery.orchestrator.save_to_readwise", return_value=False):
             result = runner.invoke(app, opts)
 
         assert result.exit_code == 0, result.output
@@ -154,7 +154,7 @@ class TestSaveCommand:
              patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
              patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
              patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.readwise.save_to_readwise", return_value=True), \
+             patch("discovery.orchestrator.save_to_readwise", return_value=True), \
              patch("discovery.orchestrator.save_to_vault_inbox") as mock_inbox:
             result = runner.invoke(app, opts)
 
@@ -167,7 +167,7 @@ class TestSaveCommand:
              patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
              patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
              patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
-             patch("discovery.readwise.save_to_readwise", return_value=True), \
+             patch("discovery.orchestrator.save_to_readwise", return_value=True), \
              patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", True), \
              patch("discovery.orchestrator.CONTEXTA_INBOX_PATH", str(tmp_path)), \
              patch("discovery.orchestrator.save_to_vault_inbox", return_value=True) as mock_inbox:
