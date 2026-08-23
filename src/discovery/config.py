@@ -56,6 +56,15 @@ CONTEXTA_INBOX_PATH: str = os.path.expanduser(
     )
 )
 
+# Where finished notes live. `reconcile` reads their source_url frontmatter and
+# treats a note as a read receipt for the article it was made from.
+CONTEXTA_NOTES_PATH: str = os.path.expanduser(
+    get_setting(
+        TOOL_NAME, "contexta_notes_path", env_var="CONTEXTA_NOTES_PATH",
+        default=_settings.get("contexta_notes_path", "~/vaults/Contexta/notes"),
+    )
+)
+
 STORE_PATH = os.path.expanduser(
     get_setting(
         TOOL_NAME,

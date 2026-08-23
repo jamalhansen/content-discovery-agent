@@ -6,6 +6,7 @@ from typing import Optional
 import typer
 
 from .config import (
+    CONTEXTA_NOTES_PATH,
     DEFAULT_BACKUP_DIR,
     READWISE_TOKEN,
 )
@@ -33,6 +34,7 @@ from .options import (
     validate_threshold_or_raise,
 )
 from .orchestrator import run_discovery, run_review, run_save
+from .reconcile import reconcile
 from .db_commands import (
     run_report,
     run_purge_blocked,
@@ -159,6 +161,8 @@ def cmd_review(
         READWISE_TOKEN,
         "--readwise-token",
         envvar="READWISE_TOKEN",
+        # Without this the resolved token is printed verbatim in --help output.
+        show_default=False,
         help="Readwise access token (or set READWISE_TOKEN env var)",
     ),
 ):
@@ -206,6 +210,54 @@ def cmd_dismiss_source(
 ):
     """Dismiss pending items from a specific source."""
     run_dismiss_source(query, store_path)
+
+
+@app.command(
+    "reconcile",
+    help="Archive Reader items whose article already became a vault note.",
+)
+def cmd_reconcile(
+    notes_path: str = typer.Option(
+        CONTEXTA_NOTES_PATH,
+        "--notes-path",
+        envvar="CONTEXTA_NOTES_PATH",
+        help="Vault notes/ directory to read source_url frontmatter from",
+    ),
+    readwise_token: str = typer.Option(
+        READWISE_TOKEN,
+        "--readwise-token",
+        envvar="READWISE_TOKEN",
+        # Without this the resolved token is printed verbatim in --help output.
+        show_default=False,
+        help="Readwise access token (or set READWISE_TOKEN env var)",
+    ),
+    dry_run: bool = dry_run_opt(),
+):
+    """Treat a note's source_url as a read receipt and archive the Reader copy."""
+    try:
+        validate_readwise_token_or_raise(readwise_token)
+    except ReadwiseTokenError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+    result = reconcile(notes_path, readwise_token, dry_run=dry_run)
+
+    typer.echo(
+        f"Scanned {result.notes_scanned} notes, "
+        f"{result.notes_with_source_url} carry a source_url."
+    )
+    typer.echo(f"Checked {result.documents_checked} unread Reader documents.")
+    if not result.matched:
+        typer.echo("No Reader items matched a note. Nothing to archive.")
+        return
+    for title, url in result.matched:
+        typer.echo(f"  {'[dry-run] ' if dry_run else ''}{title[:65]}\n    {url}")
+    if dry_run:
+        typer.echo(f"\nWould archive {len(result.matched)} items.")
+    else:
+        typer.echo(f"\nArchived {result.archived} of {len(result.matched)} matched items.")
+        if result.failed:
+            typer.echo(f"Failed to archive {len(result.failed)}: {', '.join(result.failed)}")
 
 
 @app.command(
