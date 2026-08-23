@@ -147,3 +147,32 @@ class TestSaveCommand:
         assert result.exit_code == 0, result.output
         assert "Saved" in result.output or "Score:" in result.output
         assert "failed" in result.output.lower()
+
+    def test_contexta_inbox_routing_disabled_by_default(self, tmp_path):
+        opts = _base_opts(tmp_path)
+        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
+             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
+             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
+             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
+             patch("discovery.readwise.save_to_readwise", return_value=True), \
+             patch("discovery.orchestrator.save_to_vault_inbox") as mock_inbox:
+            result = runner.invoke(app, opts)
+
+        assert result.exit_code == 0, result.output
+        mock_inbox.assert_not_called()
+
+    def test_contexta_inbox_routing_enabled_calls_save(self, tmp_path):
+        opts = _base_opts(tmp_path)
+        with patch("discovery.orchestrator.fetch_article_metadata", return_value=_FAKE_ITEM), \
+             patch("discovery.orchestrator.score_item", return_value=_FAKE_SCORED), \
+             patch("discovery.orchestrator.store.get_examples", return_value={"kept": [], "dismissed": []}), \
+             patch("local_first_common.providers.PROVIDERS", {"local": MagicMock(return_value=MagicMock())}), \
+             patch("discovery.readwise.save_to_readwise", return_value=True), \
+             patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", True), \
+             patch("discovery.orchestrator.CONTEXTA_INBOX_PATH", str(tmp_path)), \
+             patch("discovery.orchestrator.save_to_vault_inbox", return_value=True) as mock_inbox:
+            result = runner.invoke(app, opts)
+
+        assert result.exit_code == 0, result.output
+        mock_inbox.assert_called_once()
+        assert "Contexta inbox" in result.output

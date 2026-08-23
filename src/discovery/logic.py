@@ -151,7 +151,7 @@ def cmd_run(
 
 @app.command(
     "review",
-    help="Interactively review pending items; send kept items to Readwise Reader.",
+    help="Interactively review pending items; keep and route each to Readwise, Contexta, or both.",
 )
 def cmd_review(
     store_path: str = store_opt(),
