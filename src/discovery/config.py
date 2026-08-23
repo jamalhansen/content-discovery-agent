@@ -65,6 +65,18 @@ CONTEXTA_NOTES_PATH: str = os.path.expanduser(
     )
 )
 
+# Real-browser fallback for pages that fetch thin because their content is
+# injected by client-side JS (verified 2026-08-23: x.com serves a
+# "JavaScript is not available" page to any client that doesn't run JS; a
+# rendered fetch of the same URL recovered the full tweet). Off switch is
+# js_render_enabled = false in [settings] — set it if playwright is not
+# installed, or if you never want the slower rendered fetch attempted.
+JS_RENDER_ENABLED: bool = bool(_settings.get("js_render_enabled", True))
+JS_RENDER_DOMAINS: frozenset[str] = frozenset(
+    str(d).lower().removeprefix("www.")
+    for d in _settings.get("js_render_domains", ["x.com", "twitter.com"])
+)
+
 STORE_PATH = os.path.expanduser(
     get_setting(
         TOOL_NAME,

@@ -13,6 +13,11 @@ dependencies = [
 [project.scripts]
 discover = "discovery.logic:app"
 
+[project.optional-dependencies]
+playwright = [
+    "playwright>=1.40",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

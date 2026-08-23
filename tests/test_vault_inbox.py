@@ -198,3 +198,151 @@ class TestThinExtraction:
         text = list(tmp_path.glob("*.md"))[0].read_text()
         assert "fetch_status: ok" in text
         assert "THIN EXTRACTION" not in text
+
+
+class TestRenderFallback:
+    def test_uses_render_when_plain_fetch_is_thin_and_host_is_in_render_domains(self):
+        body, err = fetch_article_body(
+            "https://x.com/a/status/1",
+            fetcher=lambda _u: "<html><body>JavaScript is not available.</body></html>",
+            extractor=lambda h: "JavaScript is not available.",
+            render_domains=frozenset({"x.com"}),
+            renderer=lambda _u: "Full rendered tweet content, much longer than the noscript wall.",
+        )
+        assert body == "Full rendered tweet content, much longer than the noscript wall."
+        assert err == ""
+
+    def test_does_not_render_when_host_is_not_in_render_domains(self):
+        calls = []
+        body, err = fetch_article_body(
+            "https://example.com/a",
+            fetcher=lambda _u: "<html><body>short</body></html>",
+            extractor=lambda h: "short",
+            render_domains=frozenset({"x.com"}),
+            renderer=lambda u: calls.append(u) or "should not be used",
+        )
+        assert body == "short"
+        assert calls == []
+
+    def test_does_not_render_when_the_plain_fetch_is_already_long_enough(self):
+        calls = []
+        long_body = ("word " * 500).strip()
+        body, _ = fetch_article_body(
+            "https://x.com/a/status/1",
+            fetcher=lambda _u: "<html></html>",
+            extractor=lambda h: long_body,
+            render_domains=frozenset({"x.com"}),
+            renderer=lambda u: calls.append(u) or "unused",
+        )
+        assert body == long_body
+        assert calls == []
+
+    def test_does_not_render_when_render_domains_is_empty(self):
+        calls = []
+        body, _ = fetch_article_body(
+            "https://x.com/a/status/1",
+            fetcher=lambda _u: "<html></html>",
+            extractor=lambda h: "short",
+            render_domains=frozenset(),
+            renderer=lambda u: calls.append(u) or "unused",
+        )
+        assert body == "short"
+        assert calls == []
+
+    def test_keeps_the_plain_fetch_result_when_rendering_also_comes_back_thin(self):
+        body, _ = fetch_article_body(
+            "https://x.com/a/status/1",
+            fetcher=lambda _u: "<html></html>",
+            extractor=lambda h: "twelve chars",
+            render_domains=frozenset({"x.com"}),
+            renderer=lambda _u: "short",
+        )
+        assert body == "twelve chars"
+
+    def test_falls_back_to_the_plain_result_when_rendering_raises(self):
+        body, err = fetch_article_body(
+            "https://x.com/a/status/1",
+            fetcher=lambda _u: "<html></html>",
+            extractor=lambda h: "twelve chars",
+            render_domains=frozenset({"x.com"}),
+            renderer=lambda _u: (_ for _ in ()).throw(RuntimeError("no browser installed")),
+        )
+        assert body == "twelve chars"
+        assert err == ""
+
+    def test_matches_www_prefixed_host_against_a_bare_render_domain(self):
+        body, _ = fetch_article_body(
+            "https://www.x.com/a/status/1",
+            fetcher=lambda _u: "<html></html>",
+            extractor=lambda h: "short",
+            render_domains=frozenset({"x.com"}),
+            renderer=lambda _u: "the real rendered content, much longer than short",
+        )
+        assert body == "the real rendered content, much longer than short"
+
+
+class TestSaveToVaultInboxRenderConfig:
+    def test_passes_configured_render_domains_to_the_default_fetcher(self, tmp_path, monkeypatch):
+        import discovery.vault_inbox as vi
+
+        monkeypatch.setattr(vi, "JS_RENDER_ENABLED", True)
+        monkeypatch.setattr(vi, "JS_RENDER_DOMAINS", frozenset({"x.com"}))
+
+        captured = {}
+
+        def fake_fetch_article_body(url, render_domains=frozenset(), **kwargs):
+            captured["render_domains"] = render_domains
+            return "body text", ""
+
+        monkeypatch.setattr(vi, "fetch_article_body", fake_fetch_article_body)
+
+        save_to_vault_inbox(str(tmp_path), "https://x.com/a", "A Title")
+        assert captured["render_domains"] == frozenset({"x.com"})
+
+    def test_js_render_enabled_false_disables_rendering_regardless_of_domains(self, tmp_path, monkeypatch):
+        import discovery.vault_inbox as vi
+
+        monkeypatch.setattr(vi, "JS_RENDER_ENABLED", False)
+        monkeypatch.setattr(vi, "JS_RENDER_DOMAINS", frozenset({"x.com"}))
+
+        captured = {}
+
+        def fake_fetch_article_body(url, render_domains=frozenset(), **kwargs):
+            captured["render_domains"] = render_domains
+            return "body text", ""
+
+        monkeypatch.setattr(vi, "fetch_article_body", fake_fetch_article_body)
+
+        save_to_vault_inbox(str(tmp_path), "https://x.com/a", "A Title")
+        assert captured["render_domains"] == frozenset()
+
+
+class TestUrlNormalizationBeforeFetch:
+    def test_strips_a_trailing_slash_before_the_query_string(self):
+        seen_urls = []
+
+        def fetcher(u):
+            seen_urls.append(u)
+            return "<html><body>content</body></html>"
+
+        fetch_article_body(
+            "https://x.com/a/status/1/?rw_tt_thread=True",
+            fetcher=fetcher,
+            extractor=lambda h: "x" * 2000,
+        )
+        assert seen_urls == ["https://x.com/a/status/1?rw_tt_thread=True"]
+
+    def test_normalization_failure_falls_back_to_the_original_url(self, monkeypatch):
+        def broken_normalize(_u):
+            raise ValueError("boom")
+
+        monkeypatch.setattr(
+            "local_first_common.url.normalize_url", broken_normalize
+        )
+        seen_urls = []
+        fetch_article_body(
+            "https://example.com/a",
+            fetcher=lambda u: seen_urls.append(u) or "<html></html>",
+            extractor=lambda h: "content",
+        )
+        assert seen_urls == ["https://example.com/a"]

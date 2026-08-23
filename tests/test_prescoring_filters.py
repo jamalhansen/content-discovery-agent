@@ -72,10 +72,18 @@ class TestTitleFilter:
 class TestDomainFilter:
 
     def test_rss_items_on_blocked_domains_are_dropped(self, tmp_path):
-        """RSS previously skipped the blocklist that social sources apply."""
+        """RSS previously skipped the blocklist that social sources apply.
+
+        x.com is not a usable example here: it was in the blocklist until
+        2026-08-23, when the "no title, just warning noise" problem turned
+        out to be a missing normalize_url() call rather than the domain being
+        genuinely unscrapeable, so it was removed. bsky.app remains blocked
+        (search/post pages get mistaken for articles) and still exercises the
+        same code path.
+        """
         items = [
             _make_feed_item(
-                url="https://x.com/tempo/status/123", title="An X Thread"
+                url="https://bsky.app/profile/tempo/post/123", title="A Bluesky Post"
             ),
             _make_feed_item(
                 url="https://simonwillison.net/2026/Aug/21/qwen/",

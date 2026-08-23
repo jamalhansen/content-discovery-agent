@@ -10,9 +10,14 @@ exactly what happened to the April 2026 batch: notes written from summaries
 asserted things their sources never said. Capture the text or capture the
 failure, but do not capture a stub and call it a source.
 """
+import logging
 import os
 import re
 from datetime import date
+
+from .config import JS_RENDER_DOMAINS, JS_RENDER_ENABLED
+
+logger = logging.getLogger(__name__)
 
 # Long enough for a substantial essay, short enough that one pathological page
 # cannot dominate the inbox. Truncation is marked in the file, never silent.
@@ -31,12 +36,52 @@ def _slugify(title: str) -> str:
     return slug or "untitled"
 
 
-def fetch_article_body(url: str, fetcher=None, extractor=None) -> tuple[str, str]:
+def _try_render(url: str, renderer) -> str:
+    """Best-effort rendered fetch. Returns "" on any failure, including a
+    missing playwright install — rendering is a fallback, never a hard
+    requirement, and the caller already has a plain-fetch result to fall
+    back to.
+    """
+    if renderer is None:
+        from local_first_common.js_render import fetch_rendered_text
+
+        renderer = fetch_rendered_text
+    try:
+        return (renderer(url) or "").strip()
+    except Exception as e:
+        logger.info("Rendered fetch failed for %s: %s: %s", url, type(e).__name__, e)
+        return ""
+
+
+def fetch_article_body(
+    url: str,
+    fetcher=None,
+    extractor=None,
+    render_domains: frozenset[str] = frozenset(),
+    renderer=None,
+) -> tuple[str, str]:
     """Return (body, error) for an article URL. Exactly one is non-empty.
 
     A failed fetch and an empty article are different states, and collapsing
     them silently corrupts the record, so the error is returned rather than
     swallowed. ``fetcher`` and ``extractor`` are injectable for testing.
+
+    The URL is normalized before fetching (stripping things like a trailing
+    slash before a query string) because some sites serve a materially
+    different, worse response to the unnormalized form: x.com returns a
+    "JavaScript is not available" wall for ".../status/ID/?q=1" and the real
+    page for ".../status/ID?q=1", via a plain fetch, no rendering required.
+    This is what actually fixed x.com's thin captures; it was never a
+    rendering problem.
+
+    ``render_domains`` names hosts known to genuinely need a real browser
+    (client-side JS walls that survive normalization). When the plain fetch
+    still comes back thin or empty and the URL's host is in this set, a
+    second attempt is made with ``renderer`` (default:
+    ``local_first_common.js_render.fetch_rendered_text``, imported lazily so
+    this module never requires playwright to be installed). Empty by default:
+    rendering only happens when a caller opts in, matching the config flag
+    that gates it in save_to_vault_inbox.
     """
     if not url:
         return "", "no URL"
@@ -48,6 +93,19 @@ def fetch_article_body(url: str, fetcher=None, extractor=None) -> tuple[str, str
         fetcher = fetcher or fetch_url
         extractor = extractor or extract_main_content
 
+    # A trailing slash before a query string changes what some sites serve:
+    # x.com returns a "JavaScript is not available" wall for
+    # ".../status/ID/?q=1" and the real page, full tweet text included, for
+    # ".../status/ID?q=1". fetch_article_metadata already normalizes; this
+    # fetch path did not, which is why an item scored fine but its inbox
+    # capture came back thin from the exact same URL.
+    try:
+        from local_first_common.url import normalize_url
+
+        url = normalize_url(url)
+    except Exception:
+        pass
+
     try:
         raw = fetcher(url)
     except Exception as e:
@@ -57,6 +115,14 @@ def fetch_article_body(url: str, fetcher=None, extractor=None) -> tuple[str, str
         body = (extractor(raw) or "").strip()
     except Exception as e:
         return "", f"extraction failed, {type(e).__name__}: {e}"
+
+    if len(body) < THIN_BODY_CHARS and render_domains:
+        from local_first_common.js_render import host_of
+
+        if host_of(url) in render_domains:
+            rendered = _try_render(url, renderer)
+            if len(rendered) > len(body):
+                body = rendered
 
     if not body:
         return "", "fetched but no article text could be extracted"
@@ -88,7 +154,11 @@ def save_to_vault_inbox(
     """
     body, fetch_error = "", ""
     if include_body:
-        body, fetch_error = (body_fetcher or fetch_article_body)(url)
+        if body_fetcher is not None:
+            body, fetch_error = body_fetcher(url)
+        else:
+            render_domains = JS_RENDER_DOMAINS if JS_RENDER_ENABLED else frozenset()
+            body, fetch_error = fetch_article_body(url, render_domains=render_domains)
 
     try:
         target_dir = os.path.expanduser(inbox_path)
