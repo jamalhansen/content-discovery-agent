@@ -26,7 +26,7 @@ def _run(provider, items, sources="reader", token="tok_abc", routing=False, no_d
          patch("discovery.orchestrator.READWISE_TOKEN", token), \
          patch("discovery.orchestrator.READWISE_ROUTING", routing), \
          patch("discovery.orchestrator.save_to_readwise") as mock_save:
-        candidates, scored, skipped = run_discovery(
+        candidates, scored, skipped, _dismissed = run_discovery(
             provider, sources, None, 0.5,
             no_dedup, False, False, None, "unused.db",
             dry_run=False,

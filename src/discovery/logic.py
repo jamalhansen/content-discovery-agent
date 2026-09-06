@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import logging
-from datetime import date
 from typing import Optional
 
 import typer
@@ -106,7 +105,7 @@ def cmd_run(
 
     _setup_tool_logging(verbose)
 
-    candidates, scored_count, skipped_count = run_discovery(
+    candidates, scored_count, skipped_count, dismissed_this_run = run_discovery(
         llm_provider,
         sources,
         feed,
@@ -133,14 +132,13 @@ def cmd_run(
         typer.echo(f"\n{len(candidates)} candidates stored. Run review to triage.")
 
     if not candidates and scored_count > 0:
-        today = date.today().isoformat()
         suggested_threshold = max(0.0, round(threshold - 0.1, 2))
-        near_misses = store.get_top_dismissed_for_date(
-            store_path,
-            fetched_at=today,
-            limit=5,
-            min_score=max(0.0, threshold - 0.15),
-        )
+        min_near_miss_score = max(0.0, threshold - 0.15)
+        near_misses = sorted(
+            (d for d in dismissed_this_run if d["score"] >= min_near_miss_score),
+            key=lambda d: d["score"],
+            reverse=True,
+        )[:5]
         typer.echo(
             f"No items met threshold {threshold:.2f}. "
             f"Try --threshold {suggested_threshold:.2f} for a wider net."

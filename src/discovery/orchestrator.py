@@ -194,7 +194,7 @@ def run_discovery(
 
     if not all_new_items:
         typer.echo("\nNo new items to score.")
-        return [], 0, 0
+        return [], 0, 0, []
 
     if limit and len(all_new_items) > limit:
         typer.echo(f"\nLimiting to {limit} of {len(all_new_items)} new items.")
@@ -203,6 +203,7 @@ def run_discovery(
     typer.echo(f"\nScoring {len(all_new_items)} items...")
 
     candidates = []
+    dismissed_this_run = []
     scored_count = 0
     skipped_count = 0
     today = date.today().isoformat()
@@ -234,6 +235,8 @@ def run_discovery(
             )
             if not is_english or result.score < threshold:
                 store.mark_item(item.url, "dismissed", store_path)
+                if is_english:
+                    dismissed_this_run.append({"title": item.title, "score": result.score})
 
             if is_english and result.score >= threshold:
                 candidates.append({
@@ -276,7 +279,7 @@ def run_discovery(
             run.xml_fallbacks = scorer.xml_fallback_count or None
             run.parse_errors = scorer.parse_error_count or None
 
-    return candidates, scored_count, skipped_count
+    return candidates, scored_count, skipped_count, dismissed_this_run
 
 def _keep_and_route(item: dict, store_path: str, readwise_token: str, destinations: set[str]) -> None:
     """Mark an item kept and route it to the requested destinations."""
