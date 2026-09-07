@@ -421,6 +421,22 @@ def update_item_score(
         )
 
 
+def get_recent_kept(path: str, limit: int = 10) -> list[dict]:
+    """Return the most recently kept items, for citation crawling.
+
+    An article you already trusted enough to keep is higher-signal for
+    finding new sources than a keyword search -- see discovery/citations.py.
+    Each dict has keys: url, title.
+    """
+    with _connect(path) as conn:
+        rows = conn.execute(
+            "SELECT url, title FROM items WHERE status = 'kept' "
+            "ORDER BY reviewed_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_eval_sample(
     path: str,
     n_kept: int = 40,

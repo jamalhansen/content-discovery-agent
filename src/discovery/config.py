@@ -97,6 +97,12 @@ DEFAULT_BACKUP_DIR: str = os.path.expanduser(
     )
 )
 
+# Citation crawling: mines outbound links from your own recently-kept
+# articles as a source of new candidates an RSS-only feed list can't reach
+# on its own. See discovery/citations.py for the rationale.
+CITATION_KEPT_LIMIT: int = int(_settings.get("citation_kept_limit", 10))
+CITATION_MAX_LINKS_PER_ITEM: int = int(_settings.get("citation_max_links_per_item", 8))
+
 SOCIAL_KEYWORDS: list[str] = _social.get("keywords", [])
 SOCIAL_MASTODON_INSTANCES: list[str] = _social.get(
     "mastodon_instances", ["mastodon.social"]

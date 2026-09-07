@@ -15,6 +15,8 @@ from .config import (
     BLOCKED_TITLE_PATTERNS,
     BLUESKY_APP_PASSWORD,
     BLUESKY_HANDLE,
+    CITATION_KEPT_LIMIT,
+    CITATION_MAX_LINKS_PER_ITEM,
     CONTEXTA_INBOX_PATH,
     CONTEXTA_INBOX_ROUTING,
     FEEDS,
@@ -28,6 +30,7 @@ from .config import (
     SOCIAL_KEYWORDS,
     SOCIAL_MASTODON_INSTANCES,
 )
+from .citations import discover_citation_candidates
 from .social.bluesky import BlueskyReader
 from .social.mastodon import MastodonReader
 from .feed_cache import (
@@ -159,6 +162,24 @@ def run_discovery(
             all_new_items.extend(reader_new)
         else:
             typer.echo("  Reader: skipped (no READWISE_TOKEN set)")
+
+    # --- Citations source: mine outbound links from recently-kept articles ---
+    if "citations" in source_list:
+        recent_kept = store.get_recent_kept(store_path, limit=CITATION_KEPT_LIMIT)
+        if recent_kept:
+            typer.echo(f"Crawling citations from {len(recent_kept)} recently kept item(s)...")
+            citation_items = discover_citation_candidates(
+                recent_kept,
+                blocked_domains=_DEFAULT_BLOCKED_DOMAINS | SOCIAL_BLOCKED_DOMAINS,
+                max_links_per_item=CITATION_MAX_LINKS_PER_ITEM,
+            )
+            citation_new = [i for i in citation_items if not session.should_skip_url(i.url)]
+            for i in citation_new:
+                session.mark_seen(i.url)
+            typer.echo(f"  Citations: {len(citation_items)} link{'s' if len(citation_items) != 1 else ''} found ({len(citation_new)} new)")
+            all_new_items.extend(citation_new)
+        else:
+            typer.echo("  Citations: skipped (no kept items yet)")
 
     # Drop disqualified items before scoring, so they never reach the LLM, the
     # store, or review. Social sources filter blocked domains at fetch time, but

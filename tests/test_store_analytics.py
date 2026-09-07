@@ -11,6 +11,7 @@ from discovery.store import (
     get_score_distribution,
     get_top_dismissed_for_date,
     get_eval_sample,
+    get_recent_kept,
 )
 
 
@@ -388,6 +389,55 @@ class TestGetScoreDistribution:
         }
         assert new_dist["0.9"] == 1
         assert dismissed_dist["0.5"] == 1
+
+
+class TestGetRecentKept:
+    def test_empty_db_returns_empty_list(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        assert get_recent_kept(path) == []
+
+    def test_returns_only_kept_items(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        upsert_item(**make_item(url="https://a.com/1"), path=path)
+        mark_item("https://a.com/1", "kept", path)
+        upsert_item(**make_item(url="https://a.com/2"), path=path)
+        mark_item("https://a.com/2", "dismissed", path)
+        upsert_item(**make_item(url="https://a.com/3"), path=path)  # stays 'new'
+
+        result = get_recent_kept(path)
+        assert [r["url"] for r in result] == ["https://a.com/1"]
+
+    def test_most_recent_first(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        upsert_item(**make_item(url="https://a.com/1", title="First"), path=path)
+        upsert_item(**make_item(url="https://a.com/2", title="Second"), path=path)
+        conn = sqlite3.connect(path)
+        conn.execute(
+            "UPDATE items SET status='kept', reviewed_at=? WHERE url=?",
+            ("2026-03-07T10:00:00+00:00", "https://a.com/1"),
+        )
+        conn.execute(
+            "UPDATE items SET status='kept', reviewed_at=? WHERE url=?",
+            ("2026-03-07T11:00:00+00:00", "https://a.com/2"),
+        )
+        conn.commit()
+        conn.close()
+
+        result = get_recent_kept(path)
+        assert result[0]["title"] == "Second"
+
+    def test_respects_limit(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        for i in range(5):
+            upsert_item(**make_item(url=f"https://a.com/{i}"), path=path)
+            mark_item(f"https://a.com/{i}", "kept", path)
+
+        result = get_recent_kept(path, limit=2)
+        assert len(result) == 2
 
 
 class TestGetEvalSample:

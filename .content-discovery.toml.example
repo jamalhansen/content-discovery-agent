@@ -33,6 +33,19 @@ I follow technical writing craft and practical developer tooling.
 # Minimum relevance score to include an item (0.0–1.0)
 threshold = 0.7
 
+# Which sources to fetch: rss, bluesky, mastodon, reader, citations.
+# "citations" mines outbound links from your own recently-kept articles as a
+# source of new candidates a fixed RSS list can't reach on its own -- see
+# discovery/citations.py. It never adds a feed on its own; a domain that
+# keeps producing kept items shows up as a raw hostname in `discover
+# report`'s per-source stats, which is your signal to add it as a real feed.
+# sources = ["rss", "citations"]
+
+# How many recently-kept items to crawl for outbound links per run, and how
+# many candidate links to take from each one (both live HTTP requests).
+# citation_kept_limit = 10
+# citation_max_links_per_item = 8
+
 # Default LLM provider: local, anthropic, groq, deepseek
 provider = "local"
 model = "@best"
