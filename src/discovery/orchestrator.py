@@ -244,18 +244,23 @@ def run_discovery(
                 lang_flag = f" [{result.language}]" if not is_english else ""
                 typer.echo(f"  [{result.score:.2f}]{lang_flag} {item.title[:70]}")
 
-            store.upsert_item(
-                url=item.url, title=item.title, source=item.source,
-                description=item.description or "", score=result.score,
-                tags=result.tags, summary=result.summary,
-                fetched_at=today, published_at=item.published,
-                found_at=item.found_at, 
-                search_term=item.search_term,
-                platform=item.platform,
-                path=store_path,
-            )
+            # --dry-run means "write nothing" (documented in this repo's
+            # CLAUDE.md and in local-first-common's shared dry_run_option)
+            # -- the store write is not exempt from that.
+            if not dry_run:
+                store.upsert_item(
+                    url=item.url, title=item.title, source=item.source,
+                    description=item.description or "", score=result.score,
+                    tags=result.tags, summary=result.summary,
+                    fetched_at=today, published_at=item.published,
+                    found_at=item.found_at,
+                    search_term=item.search_term,
+                    platform=item.platform,
+                    path=store_path,
+                )
             if not is_english or result.score < threshold:
-                store.mark_item(item.url, "dismissed", store_path)
+                if not dry_run:
+                    store.mark_item(item.url, "dismissed", store_path)
                 if is_english:
                     dismissed_this_run.append({"title": item.title, "score": result.score})
 
