@@ -201,25 +201,27 @@ class TestThinExtraction:
 
 
 class TestRenderFallback:
-    def test_uses_render_when_plain_fetch_is_thin_and_host_is_in_render_domains(self):
+    def test_uses_render_when_plain_fetch_is_thin_and_attempt_render_is_true(self):
         body, err = fetch_article_body(
             "https://x.com/a/status/1",
             fetcher=lambda _u: "<html><body>JavaScript is not available.</body></html>",
-            extractor=lambda h: "JavaScript is not available.",
-            render_domains=frozenset({"x.com"}),
-            renderer=lambda _u: "Full rendered tweet content, much longer than the noscript wall.",
+            extractor=lambda h: "Full rendered tweet content, much longer than the noscript wall."
+            if "rendered-html-marker" in h
+            else "JavaScript is not available.",
+            attempt_render=True,
+            renderer=lambda _u: "<html>rendered-html-marker</html>",
         )
         assert body == "Full rendered tweet content, much longer than the noscript wall."
         assert err == ""
 
-    def test_does_not_render_when_host_is_not_in_render_domains(self):
+    def test_does_not_render_when_attempt_render_is_false(self):
         calls = []
         body, err = fetch_article_body(
             "https://example.com/a",
             fetcher=lambda _u: "<html><body>short</body></html>",
             extractor=lambda h: "short",
-            render_domains=frozenset({"x.com"}),
-            renderer=lambda u: calls.append(u) or "should not be used",
+            attempt_render=False,
+            renderer=lambda u: calls.append(u) or "<html>should not be used</html>",
         )
         assert body == "short"
         assert calls == []
@@ -231,31 +233,32 @@ class TestRenderFallback:
             "https://x.com/a/status/1",
             fetcher=lambda _u: "<html></html>",
             extractor=lambda h: long_body,
-            render_domains=frozenset({"x.com"}),
-            renderer=lambda u: calls.append(u) or "unused",
+            attempt_render=True,
+            renderer=lambda u: calls.append(u) or "<html>unused</html>",
         )
         assert body == long_body
         assert calls == []
 
-    def test_does_not_render_when_render_domains_is_empty(self):
-        calls = []
+    def test_renders_regardless_of_which_domain_is_thin(self):
+        """No per-domain allowlist for this path -- attempt_render applies to
+        any thin result, unlike fetch_article_metadata's scoring-time
+        fallback which does gate on a domain list for volume reasons."""
         body, _ = fetch_article_body(
-            "https://x.com/a/status/1",
+            "https://some-previously-unseen-domain.example/a",
             fetcher=lambda _u: "<html></html>",
-            extractor=lambda h: "short",
-            render_domains=frozenset(),
-            renderer=lambda u: calls.append(u) or "unused",
+            extractor=lambda h: "short" if "rendered" not in h else "much longer real content here",
+            attempt_render=True,
+            renderer=lambda _u: "<html>rendered content</html>",
         )
-        assert body == "short"
-        assert calls == []
+        assert body == "much longer real content here"
 
     def test_keeps_the_plain_fetch_result_when_rendering_also_comes_back_thin(self):
         body, _ = fetch_article_body(
             "https://x.com/a/status/1",
             fetcher=lambda _u: "<html></html>",
             extractor=lambda h: "twelve chars",
-            render_domains=frozenset({"x.com"}),
-            renderer=lambda _u: "short",
+            attempt_render=True,
+            renderer=lambda _u: "<html>short</html>",
         )
         assert body == "twelve chars"
 
@@ -264,57 +267,61 @@ class TestRenderFallback:
             "https://x.com/a/status/1",
             fetcher=lambda _u: "<html></html>",
             extractor=lambda h: "twelve chars",
-            render_domains=frozenset({"x.com"}),
+            attempt_render=True,
             renderer=lambda _u: (_ for _ in ()).throw(RuntimeError("no browser installed")),
         )
         assert body == "twelve chars"
         assert err == ""
 
-    def test_matches_www_prefixed_host_against_a_bare_render_domain(self):
-        body, _ = fetch_article_body(
-            "https://www.x.com/a/status/1",
+    def test_falls_back_to_the_plain_result_when_render_extraction_raises(self):
+        def bad_extractor(h):
+            if "rendered-marker" in h:
+                raise ValueError("boom")
+            return "twelve chars"
+
+        body, err = fetch_article_body(
+            "https://x.com/a/status/1",
             fetcher=lambda _u: "<html></html>",
-            extractor=lambda h: "short",
-            render_domains=frozenset({"x.com"}),
-            renderer=lambda _u: "the real rendered content, much longer than short",
+            extractor=bad_extractor,
+            attempt_render=True,
+            renderer=lambda _u: "<html>rendered-marker</html>",
         )
-        assert body == "the real rendered content, much longer than short"
+        assert body == "twelve chars"
+        assert err == ""
 
 
 class TestSaveToVaultInboxRenderConfig:
-    def test_passes_configured_render_domains_to_the_default_fetcher(self, tmp_path, monkeypatch):
+    def test_passes_attempt_render_true_when_js_render_enabled(self, tmp_path, monkeypatch):
         import discovery.vault_inbox as vi
 
         monkeypatch.setattr(vi, "JS_RENDER_ENABLED", True)
-        monkeypatch.setattr(vi, "JS_RENDER_DOMAINS", frozenset({"x.com"}))
 
         captured = {}
 
-        def fake_fetch_article_body(url, render_domains=frozenset(), **kwargs):
-            captured["render_domains"] = render_domains
+        def fake_fetch_article_body(url, attempt_render=False, **kwargs):
+            captured["attempt_render"] = attempt_render
             return "body text", ""
 
         monkeypatch.setattr(vi, "fetch_article_body", fake_fetch_article_body)
 
         save_to_vault_inbox(str(tmp_path), "https://x.com/a", "A Title")
-        assert captured["render_domains"] == frozenset({"x.com"})
+        assert captured["attempt_render"] is True
 
-    def test_js_render_enabled_false_disables_rendering_regardless_of_domains(self, tmp_path, monkeypatch):
+    def test_passes_attempt_render_false_when_js_render_disabled(self, tmp_path, monkeypatch):
         import discovery.vault_inbox as vi
 
         monkeypatch.setattr(vi, "JS_RENDER_ENABLED", False)
-        monkeypatch.setattr(vi, "JS_RENDER_DOMAINS", frozenset({"x.com"}))
 
         captured = {}
 
-        def fake_fetch_article_body(url, render_domains=frozenset(), **kwargs):
-            captured["render_domains"] = render_domains
+        def fake_fetch_article_body(url, attempt_render=False, **kwargs):
+            captured["attempt_render"] = attempt_render
             return "body text", ""
 
         monkeypatch.setattr(vi, "fetch_article_body", fake_fetch_article_body)
 
         save_to_vault_inbox(str(tmp_path), "https://x.com/a", "A Title")
-        assert captured["render_domains"] == frozenset()
+        assert captured["attempt_render"] is False
 
 
 class TestUrlNormalizationBeforeFetch:

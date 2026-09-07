@@ -15,7 +15,7 @@ import os
 import re
 from datetime import date
 
-from .config import JS_RENDER_DOMAINS, JS_RENDER_ENABLED
+from .config import JS_RENDER_ENABLED
 
 logger = logging.getLogger(__name__)
 
@@ -36,20 +36,38 @@ def _slugify(title: str) -> str:
     return slug or "untitled"
 
 
-def _try_render(url: str, renderer) -> str:
-    """Best-effort rendered fetch. Returns "" on any failure, including a
-    missing playwright install — rendering is a fallback, never a hard
-    requirement, and the caller already has a plain-fetch result to fall
-    back to.
+def _try_render(url: str, extractor, renderer) -> str:
+    """Best-effort rendered fetch, narrowed through ``extractor`` the same
+    way the plain-fetch path already is -- a raw render's inner_text/HTML
+    carries nav/footer/ad chrome right along with the actual content, same
+    as an un-narrowed plain fetch would.
+
+    Returns "" on any failure. A missing playwright install is a
+    configuration problem worth surfacing (warning, since js_render_enabled
+    was already turned on for this run) rather than swallowed at info level
+    like a page-specific render failure, which is expected background noise
+    for a best-effort fallback.
     """
     if renderer is None:
-        from local_first_common.js_render import fetch_rendered_text
+        from local_first_common.js_render import fetch_rendered_html
 
-        renderer = fetch_rendered_text
+        renderer = fetch_rendered_html
     try:
-        return (renderer(url) or "").strip()
+        html = renderer(url) or ""
     except Exception as e:
-        logger.info("Rendered fetch failed for %s: %s: %s", url, type(e).__name__, e)
+        from local_first_common.js_render import RenderUnavailable
+
+        if isinstance(e, RenderUnavailable):
+            logger.warning("Rendered fetch requested for %s but unavailable: %s", url, e)
+        else:
+            logger.info("Rendered fetch failed for %s: %s: %s", url, type(e).__name__, e)
+        return ""
+    if not html:
+        return ""
+    try:
+        return (extractor(html) or "").strip()
+    except Exception as e:
+        logger.info("Rendered-HTML extraction failed for %s: %s: %s", url, type(e).__name__, e)
         return ""
 
 
@@ -57,7 +75,7 @@ def fetch_article_body(
     url: str,
     fetcher=None,
     extractor=None,
-    render_domains: frozenset[str] = frozenset(),
+    attempt_render: bool = False,
     renderer=None,
 ) -> tuple[str, str]:
     """Return (body, error) for an article URL. Exactly one is non-empty.
@@ -74,14 +92,16 @@ def fetch_article_body(
     This is what actually fixed x.com's thin captures; it was never a
     rendering problem.
 
-    ``render_domains`` names hosts known to genuinely need a real browser
-    (client-side JS walls that survive normalization). When the plain fetch
-    still comes back thin or empty and the URL's host is in this set, a
-    second attempt is made with ``renderer`` (default:
-    ``local_first_common.js_render.fetch_rendered_text``, imported lazily so
-    this module never requires playwright to be installed). Empty by default:
-    rendering only happens when a caller opts in, matching the config flag
-    that gates it in save_to_vault_inbox.
+    ``attempt_render`` controls whether a thin/empty plain-fetch result gets
+    a second attempt via a real headless-Chromium render (``renderer``,
+    default ``local_first_common.js_render.fetch_rendered_html``, imported
+    lazily so this module never requires playwright to be installed). No
+    per-domain allowlist here, unlike fetch_article_metadata's scoring-time
+    render fallback: that one runs at much higher volume (every scored
+    candidate, most of which get dismissed) and genuinely needs one to bound
+    cost; this only ever runs for an item that already cleared the keep
+    threshold, so trying it for any thin result is cheap and doesn't require
+    pre-naming every domain that turns out to need it.
     """
     if not url:
         return "", "no URL"
@@ -116,13 +136,10 @@ def fetch_article_body(
     except Exception as e:
         return "", f"extraction failed, {type(e).__name__}: {e}"
 
-    if len(body) < THIN_BODY_CHARS and render_domains:
-        from local_first_common.js_render import host_of
-
-        if host_of(url) in render_domains:
-            rendered = _try_render(url, renderer)
-            if len(rendered) > len(body):
-                body = rendered
+    if len(body) < THIN_BODY_CHARS and attempt_render:
+        rendered = _try_render(url, extractor, renderer)
+        if len(rendered) > len(body):
+            body = rendered
 
     if not body:
         return "", "fetched but no article text could be extracted"
@@ -157,8 +174,7 @@ def save_to_vault_inbox(
         if body_fetcher is not None:
             body, fetch_error = body_fetcher(url)
         else:
-            render_domains = JS_RENDER_DOMAINS if JS_RENDER_ENABLED else frozenset()
-            body, fetch_error = fetch_article_body(url, render_domains=render_domains)
+            body, fetch_error = fetch_article_body(url, attempt_render=JS_RENDER_ENABLED)
 
     try:
         target_dir = os.path.expanduser(inbox_path)

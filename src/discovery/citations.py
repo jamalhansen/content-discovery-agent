@@ -18,16 +18,46 @@ so a domain that keeps producing kept items stands out in `discover
 report`'s per-source stats as a raw hostname (not a configured feed name) --
 that's the signal to manually promote it to a real feed, the same
 evidence-based way mastodon/bluesky got removed.
+
+First live batch (2026-09-07) scored 5/5 above threshold and was 0/5 good
+by human review: a company's own launch-post blog linking to its own
+product, an author linking to their own social profile from a different
+domain (missed by the same-registrable-domain self-link check below), a
+corporate blog's tool mention, and a news article's two generic
+"background reading" links. All four failure shapes shared one root cause:
+the destination page was scored in isolation, so a promotional CTA link and
+a genuine "you should read this" citation looked identical -- neither the
+scorer nor this module ever saw *why* the origin article linked out. Fixed
+two ways: (1) a cheap pre-fetch filter for the most obvious shape (a bare
+domain or a common marketing/account path is essentially never a specific
+content citation), and (2) capturing the anchor text and surrounding
+sentence for the LLM to judge citation intent from -- see the CITATION
+description prefix below and scorer.py's matching prompt instruction.
 """
 import logging
 from urllib.parse import urlparse
 
 from local_first_common.article_fetcher import FeedItem, _is_blocked, fetch_article_metadata
-from local_first_common.html import extract_outbound_links
+from local_first_common.html import extract_link_contexts
 from local_first_common.http import fetch_url
 from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
+
+# First path segment implies a homepage/account/CTA page rather than a
+# specific piece of content, regardless of what topic the LLM thinks it
+# smells like from the title/description alone.
+_MARKETING_PATH_SEGMENTS = frozenset({
+    "pricing", "signup", "sign-up", "login", "log-in", "get-started",
+    "getting-started", "download", "contact", "about", "careers", "jobs",
+    "demo", "request-demo", "book-a-demo", "waitlist",
+})
+
+# Prefix marker scorer.py's SYSTEM_PROMPT is written to recognize -- keep
+# these in sync if either changes.
+_CITATION_CONTEXT_TEMPLATE = (
+    '[Cited via: anchor text "{anchor}"; surrounding text: "{surrounding}"]\n\n{description}'
+)
 
 
 def _registrable_domain(netloc: str) -> str:
@@ -35,6 +65,23 @@ def _registrable_domain(netloc: str) -> str:
     host = netloc.lower().split(":")[0].removeprefix("www.")
     parts = host.split(".")
     return ".".join(parts[-2:]) if len(parts) >= 2 else host
+
+
+def _looks_like_marketing_page(url: str) -> bool:
+    """True for a bare domain or a common CTA/account path.
+
+    A link to a company's root domain, or to /pricing, /signup, /demo, etc.,
+    is essentially always a product mention rather than a citation to
+    specific content -- cheap enough to catch before spending a live
+    metadata fetch on it. Deliberately narrow (checks only the first path
+    segment) so a real content path like /docs/getting-started/intro isn't
+    caught by "getting-started" appearing deeper in the path.
+    """
+    path = urlparse(url).path.strip("/")
+    if not path:
+        return True
+    first_segment = path.split("/")[0].lower()
+    return first_segment in _MARKETING_PATH_SEGMENTS
 
 
 def discover_citation_candidates(
@@ -73,15 +120,15 @@ def discover_citation_candidates(
         if not html:
             continue
 
-        links = extract_outbound_links(html, base_url=origin_url)
+        link_contexts = extract_link_contexts(html, base_url=origin_url)
         found = 0
-        for link in links:
+        for lc in link_contexts:
             if found >= max_links_per_item:
                 break
             try:
-                link = normalize_url(link)
+                link = normalize_url(lc.url)
             except Exception:  # noqa: BLE001
-                pass
+                link = lc.url
             if link in seen_urls:
                 continue
             netloc = urlparse(link).netloc
@@ -90,6 +137,8 @@ def discover_citation_candidates(
             if _registrable_domain(netloc) == origin_domain:
                 continue  # self-link, not a citation to another source
             if _is_blocked(netloc, blocked_domains):
+                continue
+            if _looks_like_marketing_page(link):
                 continue
 
             seen_urls.add(link)
@@ -102,6 +151,11 @@ def discover_citation_candidates(
             )
             if item is None:
                 continue
+
+            item.description = _CITATION_CONTEXT_TEMPLATE.format(
+                anchor=lc.anchor_text, surrounding=lc.surrounding_text,
+                description=item.description,
+            )
             found += 1
             candidates.append(item)
 
