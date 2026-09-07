@@ -36,6 +36,7 @@ from .options import (
 from .orchestrator import run_discovery, run_review, run_save
 from .reconcile import reconcile
 from .import_reader import import_reader_backlog
+from .eval import run_eval
 from .db_commands import (
     run_report,
     run_purge_blocked,
@@ -131,22 +132,27 @@ def cmd_run(
     else:
         typer.echo(f"\n{len(candidates)} candidates stored. Run review to triage.")
 
+    min_near_miss_score = max(0.0, threshold - 0.15)
+    near_misses = sorted(
+        (d for d in dismissed_this_run if d["score"] >= min_near_miss_score),
+        key=lambda d: d["score"],
+        reverse=True,
+    )[:5]
+
     if not candidates and scored_count > 0:
         suggested_threshold = max(0.0, round(threshold - 0.1, 2))
-        min_near_miss_score = max(0.0, threshold - 0.15)
-        near_misses = sorted(
-            (d for d in dismissed_this_run if d["score"] >= min_near_miss_score),
-            key=lambda d: d["score"],
-            reverse=True,
-        )[:5]
         typer.echo(
             f"No items met threshold {threshold:.2f}. "
             f"Try --threshold {suggested_threshold:.2f} for a wider net."
         )
-        if near_misses:
-            typer.echo("Top near misses from this run:")
-            for item in near_misses:
-                typer.echo(f"  [{item['score']:.2f}] {item['title']}")
+
+    # Shown on every run, not just zero-candidate ones -- otherwise a
+    # near-miss dismissed the same day as several above-threshold candidates
+    # is invisible unless you go query the DB by hand.
+    if near_misses:
+        typer.echo("\nNear misses (dismissed, close to threshold):")
+        for item in near_misses:
+            typer.echo(f"  [{item['score']:.2f}] {item['title']}")
 
     typer.echo(f"Done. Processed: {scored_count}, Skipped: {skipped_count}")
 
@@ -411,6 +417,69 @@ def cmd_rescore(
                 path=store_path,
             )
     typer.echo("\nRe-scoring complete.")
+
+
+@app.command(
+    "eval",
+    help="Re-score a random sample of kept/dismissed history against the current "
+    "config; report where it agrees or disagrees with those past decisions.",
+)
+def cmd_eval(
+    provider: str = scoring_provider_opt(),
+    model: Optional[str] = scoring_model_opt(),
+    no_llm: bool = no_llm_opt(),
+    threshold: float = threshold_opt(),
+    store_path: str = store_opt(),
+    n_kept: int = typer.Option(40, "--n-kept", help="How many past kept items to sample"),
+    n_dismissed: int = typer.Option(
+        80, "--n-dismissed", help="How many past dismissed items to sample"
+    ),
+):
+    """Measure whether a scoring/prompt/profile change agrees with past decisions.
+
+    Doesn't write anything -- historical score/status are left untouched. Use
+    this after editing the interest profile, exclusions, or scorer prompt, to
+    get a number instead of a feeling for whether the change helped.
+    """
+    from .config import INTEREST_PROFILE, INTEREST_EXCLUSIONS
+
+    try:
+        validate_threshold_or_raise(threshold)
+        llm_provider = make_provider_or_raise(provider, model, no_llm=no_llm)
+    except (ThresholdValidationError, ProviderSetupError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+    result = run_eval(
+        llm_provider, threshold, INTEREST_PROFILE, INTEREST_EXCLUSIONS,
+        store_path, n_kept=n_kept, n_dismissed=n_dismissed,
+    )
+
+    typer.echo(
+        f"Sampled {result.n_kept_sampled} kept, {result.n_dismissed_sampled} dismissed. "
+        f"Re-scored {result.n_scored} (skipped {result.n_skipped})."
+    )
+
+    rate = result.agreement_rate
+    if rate is None:
+        typer.echo("Nothing to compare.")
+        return
+    typer.echo(f"Agreement with past decisions: {rate:.0%} ({result.agreements}/{result.n_compared})")
+
+    if result.regressions:
+        typer.echo(
+            f"\nRegressions -- previously kept, would now score below {threshold:.2f}:"
+        )
+        for i in result.regressions:
+            typer.echo(f"  [{i.old_score:.2f} -> {i.new_score:.2f}] {i.title}  ({i.source})")
+
+    if result.drift:
+        typer.echo(
+            f"\nDrift -- previously dismissed, would now score at/above {threshold:.2f} "
+            "(not necessarily bad -- worth a glance):"
+        )
+        for i in result.drift:
+            typer.echo(f"  [{i.old_score:.2f} -> {i.new_score:.2f}] {i.title}  ({i.source})")
 
 
 @app.command("save", help="Save a URL directly to Readwise Reader as a kept item.")

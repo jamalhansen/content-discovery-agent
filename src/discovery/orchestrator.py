@@ -243,6 +243,7 @@ def run_discovery(
                     "title": item.title, "url": item.url, "score": result.score,
                     "tags": result.tags, "summary": result.summary,
                 })
+                routed = False
                 if READWISE_ROUTING and READWISE_TOKEN and item.source != "readwise-reader":
                     if dry_run:
                         typer.echo(f"  [dry-run] Would route to Readwise: {item.title[:60]}")
@@ -257,6 +258,7 @@ def run_discovery(
                             search_term=item.search_term,
                             platform=item.platform,
                         )
+                        routed = True
 
                 if CONTEXTA_INBOX_ROUTING:
                     if dry_run:
@@ -272,6 +274,14 @@ def run_discovery(
                             search_term=item.search_term,
                             platform=item.platform,
                         )
+                        routed = True
+
+                # Auto-routing bypasses interactive `review` by design, but the
+                # item still needs status='kept' -- otherwise it sits at 'new'
+                # forever and the local DB's kept/dismissed split stops
+                # reflecting what actually happened to items scored this way.
+                if routed:
+                    store.mark_item(item.url, "kept", store_path)
 
             run.item_count = 1
             run.input_tokens = getattr(llm_provider, "input_tokens", None) or None

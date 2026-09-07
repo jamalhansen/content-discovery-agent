@@ -181,3 +181,19 @@ class TestSystemPromptDescribesRatherThanConcludes:
     def test_gives_a_worked_bad_and_good_example(self):
         assert "Bad:" in SYSTEM_PROMPT
         assert "Good:" in SYSTEM_PROMPT
+
+
+class TestSystemPromptPenalizesAIGeneratedContent:
+    """Locks in the instruction to score down AI-generated-sounding content
+    regardless of topic relevance, added 2026-09-06 so an on-topic item that
+    is undifferentiated LLM filler doesn't automatically clear threshold."""
+
+    def test_instructs_penalizing_ai_generated_content(self):
+        assert "AI-generated" in SYSTEM_PROMPT
+
+    def test_names_concrete_tells(self):
+        assert "hedge-everything" in SYSTEM_PROMPT
+        assert "listicle" in SYSTEM_PROMPT
+
+    def test_states_relevance_does_not_override_the_penalty(self):
+        assert "regardless of topic relevance" in SYSTEM_PROMPT

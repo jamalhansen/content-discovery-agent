@@ -421,6 +421,34 @@ def update_item_score(
         )
 
 
+def get_eval_sample(
+    path: str,
+    n_kept: int = 40,
+    n_dismissed: int = 80,
+) -> list[dict]:
+    """Return a random sample of historical kept/dismissed items for `discover eval`.
+
+    Random rather than recent: a recency-biased sample would mostly reflect
+    decisions already made under something close to the current prompt, which
+    makes agreement look artificially high and hides drift that would only
+    show up against the older end of the history.
+
+    Each dict has keys: url, title, description, source, score (the score
+    recorded at review time), status ('kept' or 'dismissed').
+    """
+    with _connect(path) as conn:
+        rows = []
+        for status, n in (("kept", n_kept), ("dismissed", n_dismissed)):
+            rows.extend(
+                conn.execute(
+                    "SELECT url, title, description, source, score, status "
+                    "FROM items WHERE status = ? ORDER BY RANDOM() LIMIT ?",
+                    (status, n),
+                ).fetchall()
+            )
+    return [dict(r) for r in rows]
+
+
 def migrate_all_urls(path: str) -> tuple[int, int]:
     """Normalize all URLs in the database.
 

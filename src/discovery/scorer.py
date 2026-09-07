@@ -28,6 +28,16 @@ Good: "Compares GLM-5.3 against frontier models on cost and benchmark scores."
 Bad:  "New framework resolves queries more reliably than semantic search."
 Good: "Proposes a filesystem-style interface as an alternative to RAG."
 
+Separately, penalize content that reads as AI-generated rather than
+human-written, regardless of topic relevance. Tells include: generic
+listicle framing with no distinct voice, hedge-everything language that
+never commits to a claim, transitions that restate the previous sentence
+instead of adding information, buzzword density with no concrete example
+or number, and a title-vs-body mismatch where the body never delivers what
+the headline promises. An on-topic article that reads this way should
+score no higher than 0.3 -- being about the right subject does not make
+undifferentiated AI-generated filler worth surfacing.
+
 Return only valid JSON. No preamble, no explanation."""
 
 

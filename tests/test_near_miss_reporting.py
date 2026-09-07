@@ -114,3 +114,28 @@ class TestNearMissCliOutput:
         assert result.exit_code == 0, result.output
         assert "This Run's Near Miss" in result.output
         assert "From An Earlier Run Today" not in result.output
+
+    def test_near_misses_shown_even_when_candidates_clear_threshold(self, tmp_path):
+        """Near misses used to only print on a zero-candidate run. A near miss
+        sitting alongside several above-threshold candidates the same day was
+        invisible without querying the DB by hand -- fixed 2026-09-06."""
+        db = str(tmp_path / "store.db")
+        items = [
+            _make_feed_item(url="https://example.com/near-miss", title="Near Miss Item"),
+            _make_feed_item(url="https://example.com/clears", title="Clears Threshold Item"),
+        ]
+        with patch("discovery.orchestrator.fetch_feed", return_value=items), \
+             patch("discovery.orchestrator.FEEDS", ["https://example.com/feed"]), \
+             patch("discovery.orchestrator.READWISE_ROUTING", False), \
+             patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False), \
+             patch("discovery.orchestrator.score_item") as mock_score:
+            mock_score.side_effect = [
+                ScoredItem(score=0.72, tags=[], summary="s", language="en"),
+                ScoredItem(score=0.95, tags=[], summary="s", language="en"),
+            ]
+            result = runner.invoke(app, ["run", "--store", db, "--threshold", "0.75", "--no-dedup"])
+
+        assert result.exit_code == 0, result.output
+        assert "Clears Threshold Item" in result.output
+        assert "Near misses" in result.output
+        assert "Near Miss Item" in result.output

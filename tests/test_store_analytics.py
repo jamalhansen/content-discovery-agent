@@ -10,6 +10,7 @@ from discovery.store import (
     get_tag_counts,
     get_score_distribution,
     get_top_dismissed_for_date,
+    get_eval_sample,
 )
 
 
@@ -387,6 +388,54 @@ class TestGetScoreDistribution:
         }
         assert new_dist["0.9"] == 1
         assert dismissed_dist["0.5"] == 1
+
+
+class TestGetEvalSample:
+    def test_empty_db_returns_empty_list(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        assert get_eval_sample(path) == []
+
+    def test_returns_only_kept_and_dismissed(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        upsert_item(**make_item(url="https://a.com/1"), path=path)
+        mark_item("https://a.com/1", "kept", path)
+        upsert_item(**make_item(url="https://a.com/2"), path=path)
+        mark_item("https://a.com/2", "dismissed", path)
+        upsert_item(**make_item(url="https://a.com/3"), path=path)  # stays 'new'
+
+        result = get_eval_sample(path, n_kept=10, n_dismissed=10)
+        statuses = {r["status"] for r in result}
+        assert statuses == {"kept", "dismissed"}
+        assert len(result) == 2
+
+    def test_respects_separate_limits(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        for i in range(5):
+            upsert_item(**make_item(url=f"https://k.com/{i}"), path=path)
+            mark_item(f"https://k.com/{i}", "kept", path)
+        for i in range(5):
+            upsert_item(**make_item(url=f"https://d.com/{i}"), path=path)
+            mark_item(f"https://d.com/{i}", "dismissed", path)
+
+        result = get_eval_sample(path, n_kept=2, n_dismissed=3)
+        kept = [r for r in result if r["status"] == "kept"]
+        dismissed = [r for r in result if r["status"] == "dismissed"]
+        assert len(kept) == 2
+        assert len(dismissed) == 3
+
+    def test_includes_fields_needed_to_rescore(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        upsert_item(**make_item(url="https://a.com/1"), path=path)
+        mark_item("https://a.com/1", "kept", path)
+
+        result = get_eval_sample(path, n_kept=5, n_dismissed=5)
+        row = result[0]
+        for key in ("url", "title", "description", "source", "score", "status"):
+            assert key in row
 
 
 class TestGetTopDismissedForDate:
