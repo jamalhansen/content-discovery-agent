@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import logging
-from typing import Optional
+from typing import Annotated, Optional
 
 import typer
 
@@ -91,10 +91,13 @@ def cmd_run(
     limit: Optional[int] = limit_opt(),
     store_path: str = store_opt(),
     sources: str = sources_opt(),
-    init_config: bool = init_config_option(
-        "content-discovery-agent",
-        {"scoring_provider": "anthropic", "sources": "rss,mastodon,bluesky"},
-    ),
+    init_config: Annotated[
+        bool,
+        init_config_option(
+            "content-discovery-agent",
+            {"scoring_provider": "anthropic", "sources": "rss,mastodon,bluesky"},
+        ),
+    ] = False,
 ):
     """Fetch feeds, score items, and store candidates in the DB."""
     try:

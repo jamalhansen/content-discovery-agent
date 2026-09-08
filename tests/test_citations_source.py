@@ -1,7 +1,7 @@
 """Tests for wiring the "citations" source into run_discovery: candidates it
 finds must flow through the exact same score/threshold/routing path as any
 other source (see discovery/citations.py for why)."""
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from local_first_common.article_fetcher import FeedItem
 from local_first_common.scoring import ScoredItem
