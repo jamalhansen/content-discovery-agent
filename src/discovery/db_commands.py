@@ -1,13 +1,14 @@
-import os
-import sqlite3
 import glob
+import json
+import os
 import shutil
+import sqlite3
 from datetime import datetime
 import typer
 from .config import SOCIAL_BLOCKED_DOMAINS
 from . import store
 
-def run_report(store_path: str, days: int):
+def run_report(store_path: str, days: int, json_output: bool = False):
     """Print a summary report of feed trends and scoring history."""
     store.init_db(store_path)
     conn = sqlite3.connect(store_path)
@@ -18,14 +19,7 @@ def run_report(store_path: str, days: int):
         dismissed = conn.execute("SELECT COUNT(*) FROM items WHERE status = 'dismissed'").fetchone()[0]
         pending = conn.execute("SELECT COUNT(*) FROM items WHERE status = 'new'").fetchone()[0]
 
-        typer.echo(f"\n--- Content Discovery Report (Last {days} days) ---")
-        typer.echo(f"Total items in DB: {total}")
-        typer.echo(f"  Kept:      {kept}")
-        typer.echo(f"  Dismissed: {dismissed}")
-        typer.echo(f"  Pending:   {pending}")
-
         # Best sources
-        typer.echo("\nTop Sources (by average score):")
         sources = conn.execute("""
             SELECT source, AVG(score) as avg_score, COUNT(*) as count
             FROM items
@@ -34,6 +28,33 @@ def run_report(store_path: str, days: int):
             ORDER BY avg_score DESC
             LIMIT 10
         """).fetchall()
+
+        if json_output:
+            typer.echo(
+                json.dumps(
+                    {
+                        "days": days,
+                        "total": total,
+                        "kept": kept,
+                        "dismissed": dismissed,
+                        "pending": pending,
+                        "top_sources": [
+                            {"source": src, "avg_score": round(avg, 2) if avg is not None else None, "count": count}
+                            for src, avg, count in sources
+                        ],
+                    },
+                    indent=2,
+                )
+            )
+            return
+
+        typer.echo(f"\n--- Content Discovery Report (Last {days} days) ---")
+        typer.echo(f"Total items in DB: {total}")
+        typer.echo(f"  Kept:      {kept}")
+        typer.echo(f"  Dismissed: {dismissed}")
+        typer.echo(f"  Pending:   {pending}")
+
+        typer.echo("\nTop Sources (by average score):")
         for src, avg, count in sources:
             typer.echo(f"  {avg:.2f} ({count:3} items)  {src}")
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+import json
 import logging
 from typing import Annotated, Optional
 
@@ -10,7 +10,7 @@ from .config import (
     DEFAULT_BACKUP_DIR,
     READWISE_TOKEN,
 )
-from local_first_common.cli import resolve_dry_run, init_config_option
+from local_first_common.cli import resolve_dry_run, init_config_option, json_option
 from local_first_common.logging import setup_logging
 from .options import (
     provider_opt,
@@ -91,6 +91,7 @@ def cmd_run(
     limit: Optional[int] = limit_opt(),
     store_path: str = store_opt(),
     sources: str = sources_opt(),
+    json_output: Annotated[bool, json_option()] = False,
     init_config: Annotated[
         bool,
         init_config_option(
@@ -122,6 +123,24 @@ def cmd_run(
         dry_run=dry_run,
     )
 
+    min_near_miss_score = max(0.0, threshold - 0.15)
+    near_misses = sorted(
+        (d for d in dismissed_this_run if d["score"] >= min_near_miss_score),
+        key=lambda d: d["score"],
+        reverse=True,
+    )[:5]
+
+    if json_output:
+        out = {
+            "candidates": candidates,
+            "scored_count": scored_count,
+            "skipped_count": skipped_count,
+            "near_misses": near_misses,
+            "dry_run": dry_run,
+        }
+        typer.echo(json.dumps(out, indent=2, default=str))
+        return
+
     if candidates:
         typer.echo(f"\nCandidates above threshold ({threshold}):")
         for c in candidates:
@@ -134,13 +153,6 @@ def cmd_run(
         typer.echo(f"\n{len(candidates)} candidates found. Dry run -- nothing written.")
     else:
         typer.echo(f"\n{len(candidates)} candidates stored. Run review to triage.")
-
-    min_near_miss_score = max(0.0, threshold - 0.15)
-    near_misses = sorted(
-        (d for d in dismissed_this_run if d["score"] >= min_near_miss_score),
-        key=lambda d: d["score"],
-        reverse=True,
-    )[:5]
 
     if not candidates and scored_count > 0:
         suggested_threshold = max(0.0, round(threshold - 0.1, 2))
@@ -195,9 +207,34 @@ def cmd_report(
     days: int = typer.Option(
         30, "--days", "-d", help="Number of days to include in the report"
     ),
+    json_output: Annotated[bool, json_option()] = False,
 ):
     """Print a summary report of feed trends and scoring history."""
-    run_report(store_path, days)
+    run_report(store_path, days, json_output=json_output)
+
+
+@app.command("list-candidates", help="List pending candidate items awaiting review.")
+def cmd_list_candidates(
+    store_path: str = store_opt(),
+    json_output: Annotated[bool, json_option()] = False,
+):
+    """List pending candidate items awaiting review."""
+    store.init_db(store_path)
+    items = store.get_new_items(store_path)
+    if json_output:
+        typer.echo(json.dumps(items, indent=2, default=str))
+        return
+    if not items:
+        typer.echo("No pending items to review.")
+        return
+    typer.echo(f"\nPending items ({len(items)}):")
+    for item in items:
+        tags = item.get("tags") or []
+        tag_str = " ".join(f"#{t}" for t in tags) if tags else ""
+        typer.echo(f"\n  [{item['score']:.2f}] {item['title']}")
+        if item.get("summary"):
+            typer.echo(f"  {item['summary']}")
+        typer.echo(f"  {item['url']}  {tag_str}")
 
 
 @app.command(
