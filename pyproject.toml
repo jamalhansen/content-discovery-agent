@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [project.scripts]
-discover = "discovery.logic:app"
+discover = "discovery.cli:app"
 
 [project.optional-dependencies]
 playwright = [

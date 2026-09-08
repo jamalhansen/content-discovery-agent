@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
-from discovery.logic import app
+from discovery.cli import app
 from discovery.feed_reader import FeedItem
 from discovery.scorer import ScoredItem
 

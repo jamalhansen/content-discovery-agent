@@ -13,7 +13,7 @@ from local_first_common.testing import MockProvider
 from typer.testing import CliRunner
 
 from discovery import store
-from discovery.logic import app
+from discovery.cli import app
 from discovery.orchestrator import run_discovery
 
 runner = CliRunner()
