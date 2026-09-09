@@ -148,8 +148,8 @@ This tool follows the [Local-First AI project blueprint](https://github.com/jama
 ```
 content-discovery-agent/
 ├── src/
-│   ├── main.py           # Typer CLI entry point
-│   ├── logic.py          # Core triage orchestration
+│   ├── cli.py            # Typer CLI entry point
+│   ├── core.py           # Core triage orchestration
 │   ├── config.py         # Feeds, interest profile, social config
 │   ├── store.py          # SQLite storage layer
 │   ├── scorer.py         # Prompt construction and JSON parsing
