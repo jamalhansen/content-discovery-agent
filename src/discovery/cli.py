@@ -237,6 +237,39 @@ def cmd_list_candidates(
         typer.echo(f"  {item['url']}  {tag_str}")
 
 
+@app.command("search-kept", help="Search kept items by topic, tag, or keyword.")
+def cmd_search_kept(
+    query: Optional[str] = typer.Option(
+        None, "--query", "-q", help="Search text in title, summary, or description"
+    ),
+    tag: Optional[list[str]] = typer.Option(
+        None, "--tag", "-t", help="Tag to match (repeatable)"
+    ),
+    limit: int = typer.Option(10, "--limit", "-l", help="Max results to return"),
+    store_path: str = store_opt(),
+    json_output: Annotated[bool, json_option()] = False,
+):
+    """Search kept items by topic, tag, or keyword."""
+    store.init_db(store_path)
+    items = store.search_kept_items(
+        store_path, tags=tag, query=query, limit=limit
+    )
+    if json_output:
+        typer.echo(json.dumps(items, indent=2, default=str))
+        return
+    if not items:
+        typer.echo("No kept items found matching criteria.")
+        return
+    typer.echo(f"\nFound {len(items)} kept item(s):")
+    for item in items:
+        tags = item.get("tags") or []
+        tag_str = " ".join(f"#{t}" for t in tags) if tags else ""
+        typer.echo(f"\n  [{item['score']:.2f}] {item['title']}")
+        if item.get("summary"):
+            typer.echo(f"  {item['summary']}")
+        typer.echo(f"  {item['url']}  {tag_str}")
+
+
 @app.command(
     "purge-blocked",
     help="Dismiss all pending items whose URLs match the current domain blocklist.",

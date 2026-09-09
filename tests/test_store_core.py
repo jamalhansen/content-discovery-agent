@@ -8,6 +8,7 @@ from discovery.store import (
     mark_item,
     dismiss_items_by_urls,
     update_item_score,
+    search_kept_items,
 )
 
 
@@ -384,3 +385,68 @@ class TestUpdateItemScore:
             summary="Ghost.",
             path=path,
         )
+
+
+class TestSearchKeptItems:
+    def test_search_by_tag_and_query(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+
+        upsert_item(
+            **make_item(
+                url="https://a.com/1",
+                title="Building Local AI Workflows",
+                tags=["ai", "local-first"],
+                summary="A guide to local offline models.",
+            ),
+            path=path,
+        )
+        upsert_item(
+            **make_item(
+                url="https://a.com/2",
+                title="Python Web Scraping",
+                tags=["python", "scraping"],
+                summary="Scraping techniques.",
+            ),
+            path=path,
+        )
+        upsert_item(
+            **make_item(
+                url="https://a.com/3",
+                title="Local Databases with SQLite",
+                tags=["sqlite", "local-first"],
+                summary="SQLite storage patterns.",
+            ),
+            path=path,
+        )
+
+        # Mark 1 and 3 as kept, 2 stays new
+        mark_item("https://a.com/1", "kept", path=path)
+        mark_item("https://a.com/3", "kept", path=path)
+
+        # 1. Search without filters: returns all kept
+        results = search_kept_items(path)
+        assert len(results) == 2
+
+        # 2. Search by tag 'sqlite'
+        results = search_kept_items(path, tags=["sqlite"])
+        assert len(results) == 1
+        assert results[0]["title"] == "Local Databases with SQLite"
+
+        # 3. Search by multiple tags
+        results = search_kept_items(path, tags=["ai", "sqlite"])
+        assert len(results) == 2
+
+        # 4. Search by query text
+        results = search_kept_items(path, query="offline")
+        assert len(results) == 1
+        assert results[0]["url"] == "https://a.com/1"
+
+        # 5. Search by both tag and query
+        results = search_kept_items(path, tags=["local-first"], query="sqlite")
+        assert len(results) == 1
+        assert results[0]["title"] == "Local Databases with SQLite"
+
+        # 6. Non-matching query
+        results = search_kept_items(path, query="nonexistent")
+        assert len(results) == 0

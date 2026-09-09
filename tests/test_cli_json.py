@@ -63,3 +63,38 @@ def test_cmd_run_json(tmp_path):
         assert len(data["candidates"]) == 1
         assert data["scored_count"] == 1
         assert data["candidates"][0]["title"] == "Cand 1"
+
+
+def test_cmd_search_kept_json(tmp_path):
+    db_path = str(tmp_path / "test.db")
+    store.init_db(db_path)
+    store.upsert_item(
+        url="https://example.com/kept1",
+        title="Offline Search Strategies",
+        source="Source 1",
+        description="Desc",
+        score=0.92,
+        tags=["sqlite", "offline"],
+        summary="A summary about offline search",
+        fetched_at="2026-09-08",
+        path=db_path,
+    )
+    store.mark_item("https://example.com/kept1", "kept", path=db_path)
+
+    # Search with tag and query
+    result = runner.invoke(
+        app,
+        ["search-kept", "--store", db_path, "--tag", "sqlite", "--query", "search", "--json"],
+    )
+    assert result.exit_code == 0
+    items = json.loads(result.output)
+    assert len(items) == 1
+    assert items[0]["url"] == "https://example.com/kept1"
+
+    # Human-readable output
+    result_text = runner.invoke(
+        app,
+        ["search-kept", "--store", db_path, "--query", "Offline"],
+    )
+    assert result_text.exit_code == 0
+    assert "Offline Search Strategies" in result_text.output

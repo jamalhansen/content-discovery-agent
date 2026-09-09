@@ -437,6 +437,72 @@ def get_recent_kept(path: str, limit: int = 10) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def search_kept_items(
+    path: str,
+    tags: list[str] | None = None,
+    query: str | None = None,
+    limit: int = 10,
+) -> list[dict]:
+    """Search kept items by tags and/or text query.
+
+    Matches:
+    - tags: checks if any provided tag is present in the item's JSON tags array.
+    - query: checks if query substring matches title, description, summary, source, or tags.
+
+    Returns dicts with full item details (id, url, title, source, description,
+    score, tags, summary, status, fetched_at, reviewed_at).
+    """
+    with _connect(path) as conn:
+        rows = conn.execute(
+            """
+            SELECT id, url, title, source, description, score, tags, summary,
+                   status, fetched_at, published_at, found_at, reviewed_at
+            FROM items
+            WHERE status = 'kept'
+            ORDER BY reviewed_at DESC, score DESC
+            """
+        ).fetchall()
+
+    target_tags = [t.strip().lower() for t in tags] if tags else []
+    target_query = query.strip().lower() if query else None
+
+    results: list[dict] = []
+    for r in rows:
+        item = dict(r)
+        item_tags: list[str] = []
+        try:
+            item_tags = [
+                str(t).strip().lower()
+                for t in json.loads(item.get("tags") or "[]")
+            ]
+        except (json.JSONDecodeError, TypeError):
+            pass
+        item["tags"] = item_tags
+
+        # If tags specified, check for any intersection
+        if target_tags:
+            if not any(t in item_tags for t in target_tags):
+                continue
+
+        # If query specified, check against title, summary, description, source, tags
+        if target_query:
+            searchable = " ".join([
+                item.get("title") or "",
+                item.get("summary") or "",
+                item.get("description") or "",
+                item.get("source") or "",
+                " ".join(item_tags),
+            ]).lower()
+            if target_query not in searchable:
+                continue
+
+        results.append(item)
+        if len(results) >= limit:
+            break
+
+    return results
+
+
 def get_eval_sample(
     path: str,
     n_kept: int = 40,
