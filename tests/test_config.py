@@ -16,7 +16,7 @@ def _reload_config(monkeypatch, cfg_data):
     monkeypatch.setattr("local_first_common.config.load_config", fake_load_config)
     monkeypatch.setattr("local_first_common.config.get_setting", fake_get_setting)
 
-    import discovery.config as config
+    from discovery import config
 
     return importlib.reload(config)
 

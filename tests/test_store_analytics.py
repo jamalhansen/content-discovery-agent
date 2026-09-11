@@ -1,17 +1,18 @@
 import sqlite3
+
 from discovery.store import (
-    init_db,
-    upsert_item,
-    mark_item,
-    get_examples,
-    get_status_summary,
     get_daily_counts,
-    get_source_stats,
-    get_tag_counts,
-    get_score_distribution,
-    get_top_dismissed_for_date,
     get_eval_sample,
+    get_examples,
     get_recent_kept,
+    get_score_distribution,
+    get_source_stats,
+    get_status_summary,
+    get_tag_counts,
+    get_top_dismissed_for_date,
+    init_db,
+    mark_item,
+    upsert_item,
 )
 
 
@@ -20,16 +21,16 @@ def db(tmp_path) -> str:
 
 
 def make_item(**kwargs) -> dict:
-    defaults = dict(
-        url="https://example.com/article",
-        title="Test Article",
-        source="Test Blog",
-        description="A test article about Python.",
-        score=0.85,
-        tags=["python", "llm"],
-        summary="A test article.",
-        fetched_at="2026-03-07",
-    )
+    defaults = {
+        "url": "https://example.com/article",
+        "title": "Test Article",
+        "source": "Test Blog",
+        "description": "A test article about Python.",
+        "score": 0.85,
+        "tags": ["python", "llm"],
+        "summary": "A test article.",
+        "fetched_at": "2026-03-07",
+    }
     defaults.update(kwargs)
     return defaults
 

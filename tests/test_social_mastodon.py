@@ -12,11 +12,12 @@ Patch targets:
   - discovery.social.mastodon.fetch_article_metadata    — article metadata fetch
 """
 
-import requests as req
 from unittest.mock import MagicMock, patch
 
-from discovery.social.mastodon import MastodonReader
+import requests as req
+
 from discovery.feed_reader import FeedItem
+from discovery.social.mastodon import MastodonReader
 
 
 def _make_item(url: str = "https://example.com/article") -> FeedItem:

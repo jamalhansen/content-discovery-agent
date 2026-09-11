@@ -13,7 +13,7 @@ failure, but do not capture a stub and call it a source.
 import logging
 import os
 import re
-from datetime import date
+from datetime import datetime
 
 from .config import JS_RENDER_ENABLED
 
@@ -54,7 +54,7 @@ def _try_render(url: str, extractor, renderer) -> str:
         renderer = fetch_rendered_html
     try:
         html = renderer(url) or ""
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - rendering is a best-effort fallback; both branches below already log and degrade to ""
         from local_first_common.js_render import RenderUnavailable
 
         if isinstance(e, RenderUnavailable):
@@ -66,7 +66,7 @@ def _try_render(url: str, extractor, renderer) -> str:
         return ""
     try:
         return (extractor(html) or "").strip()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - extraction is a best-effort fallback; already logged and degraded to ""
         logger.info("Rendered-HTML extraction failed for %s: %s: %s", url, type(e).__name__, e)
         return ""
 
@@ -123,17 +123,17 @@ def fetch_article_body(
         from local_first_common.url import normalize_url
 
         url = normalize_url(url)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001 - normalization is an optimization, not a requirement; fetch with the original URL rather than fail here
+        logger.debug("URL normalization failed for %s, using as-is: %s", url, e)
 
     try:
         raw = fetcher(url)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - per this function's own contract, the error is returned as data, not swallowed
         return "", f"{type(e).__name__}: {e}"
 
     try:
         body = (extractor(raw) or "").strip()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - per this function's own contract, the error is returned as data, not swallowed
         return "", f"extraction failed, {type(e).__name__}: {e}"
 
     if len(body) < THIN_BODY_CHARS and attempt_render:
@@ -180,7 +180,7 @@ def save_to_vault_inbox(
         target_dir = os.path.expanduser(inbox_path)
         os.makedirs(target_dir, exist_ok=True)
 
-        today = date.today().isoformat()
+        today = datetime.now().astimezone().date().isoformat()
         slug = _slugify(title)
         filename = f"{today}-{slug}.md"
         filepath = os.path.join(target_dir, filename)

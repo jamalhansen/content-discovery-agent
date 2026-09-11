@@ -1,8 +1,9 @@
 """Tests for the 'reader' source in run_discovery() — pulling from Reader's unread queue."""
 from unittest.mock import MagicMock, patch
 
-from discovery.orchestrator import run_discovery
 from local_first_common.testing import MockProvider
+
+from discovery.orchestrator import run_discovery
 
 
 def _make_reader_item(url="https://example.com/original-article", title="Test Article", source="readwise-reader"):
@@ -38,7 +39,7 @@ class TestReaderSource:
 
     def test_skipped_when_no_token(self):
         provider = MockProvider(response='{"score": 0.9, "tags": ["ai"], "summary": "Good.", "language": "en"}')
-        mock_list, _, candidates, scored, _ = _run(provider, [_make_reader_item()], token="")
+        mock_list, _, _candidates, scored, _ = _run(provider, [_make_reader_item()], token="")
         mock_list.assert_not_called()
         assert scored == 0
 
@@ -53,7 +54,7 @@ class TestReaderSource:
     def test_not_included_when_sources_excludes_reader(self):
         provider = MockProvider(response='{"score": 0.9, "tags": ["ai"], "summary": "Good.", "language": "en"}')
         with patch("discovery.orchestrator.fetch_feed", return_value=[]):
-            mock_list, _, candidates, scored, _ = _run(provider, [_make_reader_item()], sources="rss")
+            mock_list, _, _candidates, scored, _ = _run(provider, [_make_reader_item()], sources="rss")
         mock_list.assert_not_called()
         assert scored == 0
 

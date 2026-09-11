@@ -11,8 +11,8 @@ decided at the time -- without touching the stored score or status.
 """
 from dataclasses import dataclass, field
 
-from .scorer import ContentDiscoveryScorer, score_item
 from . import store
+from .scorer import ContentDiscoveryScorer, score_item
 
 
 @dataclass

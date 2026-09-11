@@ -65,17 +65,15 @@ class TestMakeProvider:
         with patch(
             "discovery.options.resolve_provider",
             side_effect=RuntimeError("bad provider"),
-        ):
-            with pytest.raises(ProviderSetupError, match="bad provider"):
-                make_provider_or_raise("ollama", None)
+        ), pytest.raises(ProviderSetupError, match="bad provider"):
+            make_provider_or_raise("ollama", None)
 
     def test_make_provider_exits_for_cli_compat(self, capsys):
         with patch(
             "discovery.options.resolve_provider",
             side_effect=RuntimeError("bad provider"),
-        ):
-            with pytest.raises(typer.Exit):
-                make_provider("ollama", None)
+        ), pytest.raises(typer.Exit):
+            make_provider("ollama", None)
 
         captured = capsys.readouterr()
         assert "Error: bad provider" in captured.err

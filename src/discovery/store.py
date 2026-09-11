@@ -25,7 +25,8 @@ items
 import json
 import logging
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
@@ -194,7 +195,7 @@ def mark_item(url: str, status: str, path: str) -> None:
         raise ValueError(
             f"Invalid status: {status!r}. Must be 'new', 'kept', or 'dismissed'."
         )
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     with _connect(path) as conn:
         conn.execute(
             "UPDATE items SET status = ?, reviewed_at = ? WHERE url = ?",
@@ -210,7 +211,7 @@ def dismiss_items_by_urls(urls: list[str], path: str) -> int:
     """
     if not urls:
         return 0
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     placeholders = ",".join("?" * len(urls))
     with _connect(path) as conn:
         # placeholders contains only '?' characters; URL values are parameterized — not an injection risk
@@ -480,9 +481,8 @@ def search_kept_items(
         item["tags"] = item_tags
 
         # If tags specified, check for any intersection
-        if target_tags:
-            if not any(t in item_tags for t in target_tags):
-                continue
+        if target_tags and not any(t in item_tags for t in target_tags):
+            continue
 
         # If query specified, check against title, summary, description, source, tags
         if target_query:

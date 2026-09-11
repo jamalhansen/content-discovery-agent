@@ -1,6 +1,7 @@
 import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 import requests as req
 
 from discovery.feed_reader import (
@@ -64,21 +65,18 @@ class TestFetchFeed:
         with patch(
             "discovery.feed_reader.requests.get",
             side_effect=req.RequestException("connection error"),
-        ):
-            with pytest.raises(FeedFetchError, match="Error fetching feed"):
-                fetch_feed_or_raise("http://localhost:9999/nonexistent-feed")
+        ), pytest.raises(FeedFetchError, match="Error fetching feed"):
+            fetch_feed_or_raise("http://localhost:9999/nonexistent-feed")
 
     def test_fetch_feed_or_raise_on_parse_error(self):
         with patch(
             "discovery.feed_reader.requests.get",
             return_value=mock_response(SAMPLE_FEED_PATH),
-        ):
-            with patch(
-                "discovery.feed_reader.feedparser.parse",
-                side_effect=ValueError("parse broke"),
-            ):
-                with pytest.raises(FeedParseError, match="Error parsing feed"):
-                    fetch_feed_or_raise(SAMPLE_FEED_URL)
+        ), patch(
+            "discovery.feed_reader.feedparser.parse",
+            side_effect=ValueError("parse broke"),
+        ), pytest.raises(FeedParseError, match="Error parsing feed"):
+            fetch_feed_or_raise(SAMPLE_FEED_URL)
 
     def test_description_populated(self, sample_feed_mock):
         items = fetch_feed(SAMPLE_FEED_URL)

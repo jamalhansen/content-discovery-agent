@@ -25,7 +25,7 @@ class TestSaveToVaultInbox:
 
     def test_frontmatter_contains_source_url(self, tmp_path):
         save_to_vault_inbox(str(tmp_path), "https://example.com/article", title="Title")
-        content = list(tmp_path.glob("*.md"))[0].read_text()
+        content = next(iter(tmp_path.glob("*.md"))).read_text()
         assert "source_url: https://example.com/article" in content
         assert "source_type: content-discovery-agent" in content
 
@@ -34,7 +34,7 @@ class TestSaveToVaultInbox:
             str(tmp_path), "https://example.com/article", title="My Title",
             summary="A useful summary.",
         )
-        content = list(tmp_path.glob("*.md"))[0].read_text()
+        content = next(iter(tmp_path.glob("*.md"))).read_text()
         assert "# My Title" in content
         assert "A useful summary." in content
         assert "Source: https://example.com/article" in content
@@ -44,17 +44,17 @@ class TestSaveToVaultInbox:
             str(tmp_path), "https://example.com/article", title="Title",
             tags=["python", "ai"],
         )
-        content = list(tmp_path.glob("*.md"))[0].read_text()
+        content = next(iter(tmp_path.glob("*.md"))).read_text()
         assert 'tags: "python, ai"' in content
 
     def test_tags_omitted_when_empty(self, tmp_path):
         save_to_vault_inbox(str(tmp_path), "https://example.com/article", title="Title")
-        content = list(tmp_path.glob("*.md"))[0].read_text()
+        content = next(iter(tmp_path.glob("*.md"))).read_text()
         assert "tags:" not in content
 
     def test_optional_fields_omitted_when_absent(self, tmp_path):
         save_to_vault_inbox(str(tmp_path), "https://example.com/article", title="Title")
-        content = list(tmp_path.glob("*.md"))[0].read_text()
+        content = next(iter(tmp_path.glob("*.md"))).read_text()
         assert "published:" not in content
         assert "search_term:" not in content
         assert "platform:" not in content
@@ -64,7 +64,7 @@ class TestSaveToVaultInbox:
             str(tmp_path), "https://example.com/article", title="Title",
             published_date="2026-03-10", search_term="local AI", platform="bluesky",
         )
-        content = list(tmp_path.glob("*.md"))[0].read_text()
+        content = next(iter(tmp_path.glob("*.md"))).read_text()
         assert "published: 2026-03-10" in content
         assert "search_term: local AI" in content
         assert "platform: bluesky" in content
@@ -149,7 +149,7 @@ class TestBodyInInboxFile:
             body_fetcher=lambda _u: ("The full article text. " * 100, ""),
         )
         assert ok is True
-        text = list(tmp_path.glob("*.md"))[0].read_text()
+        text = next(iter(tmp_path.glob("*.md"))).read_text()
         assert "The full article text." in text
         assert "fetch_status: ok" in text
         assert "**Scoring summary:** One line." in text
@@ -161,7 +161,7 @@ class TestBodyInInboxFile:
             body_fetcher=lambda _u: ("", "HTTPError: 403 Forbidden"),
         )
         assert ok is True
-        text = list(tmp_path.glob("*.md"))[0].read_text()
+        text = next(iter(tmp_path.glob("*.md"))).read_text()
         assert "fetch_status: failed" in text
         assert "MANUAL EXTRACTION REQUIRED" in text
         assert "403 Forbidden" in text
@@ -175,7 +175,7 @@ class TestBodyInInboxFile:
             include_body=False, body_fetcher=should_not_run,
         )
         assert ok is True
-        text = list(tmp_path.glob("*.md"))[0].read_text()
+        text = next(iter(tmp_path.glob("*.md"))).read_text()
         assert "fetch_status" not in text
 
 
@@ -185,7 +185,7 @@ class TestThinExtraction:
             str(tmp_path), "https://example.com/a", "A Title",
             body_fetcher=lambda _u: ("Nav Home About Contact", ""),
         )
-        text = list(tmp_path.glob("*.md"))[0].read_text()
+        text = next(iter(tmp_path.glob("*.md"))).read_text()
         assert "fetch_status: thin" in text
         assert "THIN EXTRACTION" in text
         assert "body_chars: 22" in text
@@ -195,7 +195,7 @@ class TestThinExtraction:
             str(tmp_path), "https://example.com/a", "A Title",
             body_fetcher=lambda _u: ("word " * 500, ""),
         )
-        text = list(tmp_path.glob("*.md"))[0].read_text()
+        text = next(iter(tmp_path.glob("*.md"))).read_text()
         assert "fetch_status: ok" in text
         assert "THIN EXTRACTION" not in text
 
@@ -216,7 +216,7 @@ class TestRenderFallback:
 
     def test_does_not_render_when_attempt_render_is_false(self):
         calls = []
-        body, err = fetch_article_body(
+        body, _err = fetch_article_body(
             "https://example.com/a",
             fetcher=lambda _u: "<html><body>short</body></html>",
             extractor=lambda h: "short",

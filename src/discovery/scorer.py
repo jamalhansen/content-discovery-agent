@@ -1,4 +1,5 @@
 import logging
+
 from local_first_common.providers.base import BaseProvider
 from local_first_common.scoring import BaseScorer, ScoredItem
 

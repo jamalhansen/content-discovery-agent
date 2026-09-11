@@ -18,13 +18,15 @@ account credentials.
 """
 
 import logging
+from typing import Any
+
+from local_first_common.social import bluesky
+from local_first_common.tracking import Tool
+from local_first_common.url import normalize_url
 
 from ..feed_reader import FeedItem
 from .article_fetcher import fetch_article_metadata
 from .interfaces import SocialReader
-from local_first_common.social import bluesky
-from local_first_common.tracking import Tool
-from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +51,7 @@ class BlueskyReader(SocialReader):
             else:
                 logger.warning("Bluesky: authentication failed for %s — proceeding unauthenticated", handle)
 
-    def fetch_items(self, keywords: list[str], session: any = None) -> list[FeedItem]:
+    def fetch_items(self, keywords: list[str], session: Any | None = None) -> list[FeedItem]:
         """Search Bluesky for each keyword and return unique article FeedItems."""
         if not keywords:
             return []

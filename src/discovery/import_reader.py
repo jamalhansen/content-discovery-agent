@@ -78,7 +78,7 @@ def import_reader_backlog(
 
             try:
                 key = normalize_url(ref.source_url)
-            except Exception:
+            except Exception:  # noqa: BLE001 - a malformed URL should dedupe on its raw form rather than crash the import
                 key = ref.source_url
             if key in captured:
                 result.already_captured += 1

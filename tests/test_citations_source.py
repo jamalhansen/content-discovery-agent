@@ -34,7 +34,7 @@ class TestCitationsSource:
              patch("discovery.orchestrator.discover_citation_candidates") as mock_discover, \
              patch("discovery.orchestrator.store.init_db"), \
              patch("discovery.orchestrator.store.get_examples", return_value={}):
-            candidates, scored, _skipped, _dismissed = run_discovery(
+            _candidates, scored, _skipped, _dismissed = run_discovery(
                 MockProvider(), "citations", None, 0.5, True, False, False, None, str(tmp_path / "store.db"),
             )
         mock_discover.assert_not_called()

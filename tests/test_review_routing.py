@@ -32,27 +32,27 @@ def _run(items, inputs, contexta_routing):
 
 class TestReviewRouting:
     def test_y_routes_to_readwise_only_when_contexta_disabled(self):
-        (kept, dismissed), mock_rw, mock_inbox = _run([_make_item()], ["y"], contexta_routing=False)
+        (kept, _dismissed), mock_rw, mock_inbox = _run([_make_item()], ["y"], contexta_routing=False)
         assert kept == 1
         mock_rw.assert_called_once()
         mock_inbox.assert_not_called()
 
     def test_y_routes_to_both_when_contexta_enabled(self):
-        (kept, dismissed), mock_rw, mock_inbox = _run([_make_item()], ["y"], contexta_routing=True)
+        (kept, _dismissed), mock_rw, mock_inbox = _run([_make_item()], ["y"], contexta_routing=True)
         assert kept == 1
         mock_rw.assert_called_once()
         mock_inbox.assert_called_once()
 
     def test_r_routes_to_readwise_only_even_when_contexta_enabled(self):
         """'r' is a per-item override: skip Contexta for this item regardless of global config."""
-        (kept, dismissed), mock_rw, mock_inbox = _run([_make_item()], ["r"], contexta_routing=True)
+        (kept, _dismissed), mock_rw, mock_inbox = _run([_make_item()], ["r"], contexta_routing=True)
         assert kept == 1
         mock_rw.assert_called_once()
         mock_inbox.assert_not_called()
 
     def test_c_routes_to_contexta_only_even_when_contexta_disabled(self):
         """'c' is a per-item override: redirect this item to Contexta even if the global toggle is off."""
-        (kept, dismissed), mock_rw, mock_inbox = _run([_make_item()], ["c"], contexta_routing=False)
+        (kept, _dismissed), mock_rw, mock_inbox = _run([_make_item()], ["c"], contexta_routing=False)
         assert kept == 1
         mock_rw.assert_not_called()
         mock_inbox.assert_called_once()
@@ -73,7 +73,7 @@ class TestReviewRouting:
         assert mock_inbox.call_count == 1
 
     def test_invalid_choice_reprompts(self):
-        (kept, dismissed), mock_rw, mock_inbox = _run([_make_item()], ["x", "y"], contexta_routing=False)
+        (kept, _dismissed), mock_rw, _mock_inbox = _run([_make_item()], ["x", "y"], contexta_routing=False)
         assert kept == 1
         mock_rw.assert_called_once()
 

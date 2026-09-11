@@ -1,16 +1,19 @@
-import typer
 import webbrowser
-from datetime import date
-from typing import Optional, List
-from local_first_common.tracking import register_tool, timed_run
+from datetime import datetime
 from urllib.parse import urlparse
+
+import typer
 from local_first_common.article_fetcher import (
     _DEFAULT_BLOCKED_DOMAINS,
     _is_blocked,
     fetch_article_metadata,
 )
 from local_first_common.readwise import list_reader_documents
+from local_first_common.tracking import register_tool, timed_run
 from local_first_common.url import normalize_url
+
+from . import store
+from .citations import discover_citation_candidates
 from .config import (
     BLOCKED_TITLE_PATTERNS,
     BLUESKY_APP_PASSWORD,
@@ -30,20 +33,21 @@ from .config import (
     SOCIAL_KEYWORDS,
     SOCIAL_MASTODON_INSTANCES,
 )
-from .citations import discover_citation_candidates
-from .social.bluesky import BlueskyReader
-from .social.mastodon import MastodonReader
 from .feed_cache import (
-    load_cached_feed, save_cached_feed,
-    load_cached_social, save_cached_social,
-    load_cached_reader, save_cached_reader,
+    load_cached_feed,
+    load_cached_reader,
+    load_cached_social,
+    save_cached_feed,
+    save_cached_reader,
+    save_cached_social,
 )
 from .feed_reader import FeedItem, fetch_feed
-from .scorer import ContentDiscoveryScorer, score_item, ScoredItem
 from .readwise import save_to_readwise
-from .vault_inbox import save_to_vault_inbox
-from . import store
+from .scorer import ContentDiscoveryScorer, ScoredItem, score_item
 from .session import DiscoverySession
+from .social.bluesky import BlueskyReader
+from .social.mastodon import MastodonReader
+from .vault_inbox import save_to_vault_inbox
 
 _TOOL = register_tool("content-discovery-agent")
 
@@ -51,12 +55,12 @@ _TOOL = register_tool("content-discovery-agent")
 def run_discovery(
     llm_provider,
     sources: str,
-    feed: Optional[str],
+    feed: str | None,
     threshold: float,
     no_dedup: bool,
     verbose: bool,
     cached: bool,
-    limit: Optional[int],
+    limit: int | None,
     store_path: str,
     dry_run: bool = False,
 ):
@@ -66,7 +70,7 @@ def run_discovery(
 
     source_list = [s.strip() for s in sources.split(",")]
     session = DiscoverySession(store_path, no_dedup=no_dedup)
-    all_new_items: List[FeedItem] = []
+    all_new_items: list[FeedItem] = []
 
     # --- RSS source ---
     if "rss" in source_list:
@@ -94,51 +98,49 @@ def run_discovery(
             all_new_items.extend(new_items)
 
     # --- Bluesky source ---
-    if "bluesky" in source_list:
-        if SOCIAL_KEYWORDS:
-            cached_bluesky = load_cached_social("bluesky", SOCIAL_KEYWORDS) if cached else None
-            if cached_bluesky is not None:
-                bluesky_items = cached_bluesky
-                cache_label = " (cached)"
-            else:
-                typer.echo(f"Searching Bluesky ({len(SOCIAL_KEYWORDS)} keywords)...")
-                bluesky_items = BlueskyReader(
-                    handle=BLUESKY_HANDLE,
-                    app_password=BLUESKY_APP_PASSWORD,
-                    blocked_domains=SOCIAL_BLOCKED_DOMAINS,
-                    tool=_TOOL,
-                ).fetch_items(SOCIAL_KEYWORDS, session=session)
-                if cached and bluesky_items:
-                    save_cached_social("bluesky", SOCIAL_KEYWORDS, bluesky_items)
-                cache_label = ""
-            bluesky_new = [i for i in bluesky_items if not session.should_skip_url(i.url)]
-            for i in bluesky_new:
-                session.mark_seen(i.url)
-            typer.echo(f"  Bluesky: {len(bluesky_items)} items fetched ({len(bluesky_new)} new){cache_label}")
-            all_new_items.extend(bluesky_new)
+    if "bluesky" in source_list and SOCIAL_KEYWORDS:
+        cached_bluesky = load_cached_social("bluesky", SOCIAL_KEYWORDS) if cached else None
+        if cached_bluesky is not None:
+            bluesky_items = cached_bluesky
+            cache_label = " (cached)"
+        else:
+            typer.echo(f"Searching Bluesky ({len(SOCIAL_KEYWORDS)} keywords)...")
+            bluesky_items = BlueskyReader(
+                handle=BLUESKY_HANDLE,
+                app_password=BLUESKY_APP_PASSWORD,
+                blocked_domains=SOCIAL_BLOCKED_DOMAINS,
+                tool=_TOOL,
+            ).fetch_items(SOCIAL_KEYWORDS, session=session)
+            if cached and bluesky_items:
+                save_cached_social("bluesky", SOCIAL_KEYWORDS, bluesky_items)
+            cache_label = ""
+        bluesky_new = [i for i in bluesky_items if not session.should_skip_url(i.url)]
+        for i in bluesky_new:
+            session.mark_seen(i.url)
+        typer.echo(f"  Bluesky: {len(bluesky_items)} items fetched ({len(bluesky_new)} new){cache_label}")
+        all_new_items.extend(bluesky_new)
 
     # --- Mastodon source ---
-    if "mastodon" in source_list:
-        if SOCIAL_KEYWORDS:
-            cached_mastodon = load_cached_social("mastodon", SOCIAL_KEYWORDS) if cached else None
-            if cached_mastodon is not None:
-                mastodon_items = cached_mastodon
-                cache_label = " (cached)"
-            else:
-                typer.echo(f"Searching Mastodon ({', '.join(SOCIAL_MASTODON_INSTANCES)})...")
-                mastodon_items = MastodonReader(
-                    instances=SOCIAL_MASTODON_INSTANCES,
-                    blocked_domains=SOCIAL_BLOCKED_DOMAINS,
-                    tool=_TOOL,
-                ).fetch_items(SOCIAL_KEYWORDS, session=session)
-                if cached and mastodon_items:
-                    save_cached_social("mastodon", SOCIAL_KEYWORDS, mastodon_items)
-                cache_label = ""
-            mastodon_new = [i for i in mastodon_items if not session.should_skip_url(i.url)]
-            for i in mastodon_new:
-                session.mark_seen(i.url)
-            typer.echo(f"  Mastodon: {len(mastodon_items)} items fetched ({len(mastodon_new)} new){cache_label}")
-            all_new_items.extend(mastodon_new)
+    if "mastodon" in source_list and SOCIAL_KEYWORDS:
+        cached_mastodon = load_cached_social("mastodon", SOCIAL_KEYWORDS) if cached else None
+        if cached_mastodon is not None:
+            mastodon_items = cached_mastodon
+            cache_label = " (cached)"
+        else:
+            typer.echo(f"Searching Mastodon ({', '.join(SOCIAL_MASTODON_INSTANCES)})...")
+            mastodon_items = MastodonReader(
+                instances=SOCIAL_MASTODON_INSTANCES,
+                blocked_domains=SOCIAL_BLOCKED_DOMAINS,
+                tool=_TOOL,
+            ).fetch_items(SOCIAL_KEYWORDS, session=session)
+            if cached and mastodon_items:
+                save_cached_social("mastodon", SOCIAL_KEYWORDS, mastodon_items)
+            cache_label = ""
+        mastodon_new = [i for i in mastodon_items if not session.should_skip_url(i.url)]
+        for i in mastodon_new:
+            session.mark_seen(i.url)
+        typer.echo(f"  Mastodon: {len(mastodon_items)} items fetched ({len(mastodon_new)} new){cache_label}")
+        all_new_items.extend(mastodon_new)
 
     # --- Reader source ---
     if "reader" in source_list:
@@ -227,7 +229,7 @@ def run_discovery(
     dismissed_this_run = []
     scored_count = 0
     skipped_count = 0
-    today = date.today().isoformat()
+    today = datetime.now().astimezone().date().isoformat()
     scorer = ContentDiscoveryScorer()
 
     for item in all_new_items:
@@ -461,7 +463,7 @@ def run_save(
         url=item.url, title=item.title, source=item.source,
         description=item.description, score=scored.score,
         tags=scored.tags, summary=scored.summary,
-        fetched_at=date.today().isoformat(),
+        fetched_at=datetime.now().astimezone().date().isoformat(),
         published_at=item.published,
         platform="manual",
         path=store_path,

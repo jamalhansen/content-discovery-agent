@@ -4,9 +4,12 @@ import os
 import shutil
 import sqlite3
 from datetime import datetime
+
 import typer
-from .config import SOCIAL_BLOCKED_DOMAINS
+
 from . import store
+from .config import SOCIAL_BLOCKED_DOMAINS
+
 
 def run_report(store_path: str, days: int, json_output: bool = False):
     """Print a summary report of feed trends and scoring history."""
@@ -113,7 +116,7 @@ def run_backup(store_path: str, backup_dir: str):
     dest_dir = os.path.expanduser(backup_dir)
     os.makedirs(dest_dir, exist_ok=True)
     
-    timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    timestamp = datetime.now().astimezone().strftime("%Y-%m-%d-%H%M%S")
     backup_path = os.path.join(dest_dir, f"content-discovery-{timestamp}.db")
     
     shutil.copy2(db_path, backup_path)

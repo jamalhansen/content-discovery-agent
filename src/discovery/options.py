@@ -1,17 +1,18 @@
+
 import typer
-from typing import Optional
-from local_first_common.providers import PROVIDERS
 from local_first_common.cli import resolve_provider
 from local_first_common.config import get_setting
+from local_first_common.providers import PROVIDERS
+
 from .config import (
-    DEFAULT_PROVIDER,
     DEFAULT_MODEL,
-    DEFAULT_SCORING_PROVIDER,
-    DEFAULT_SCORING_MODEL,
-    DEFAULT_REVIEW_PROVIDER,
+    DEFAULT_PROVIDER,
     DEFAULT_REVIEW_MODEL,
-    DEFAULT_THRESHOLD,
+    DEFAULT_REVIEW_PROVIDER,
+    DEFAULT_SCORING_MODEL,
+    DEFAULT_SCORING_PROVIDER,
     DEFAULT_SOURCES,
+    DEFAULT_THRESHOLD,
     STORE_PATH,
     TOOL_NAME,
 )
@@ -126,7 +127,7 @@ def validate_threshold_or_raise(threshold: float) -> None:
         raise ThresholdValidationError("--threshold must be between 0.0 and 1.0")
 
 
-def make_provider(provider_name: str, model: Optional[str], no_llm: bool = False):
+def make_provider(provider_name: str, model: str | None, no_llm: bool = False):
     """Compatibility wrapper that exits with Typer for CLI callers."""
     try:
         return make_provider_or_raise(provider_name, model, no_llm=no_llm)
@@ -137,13 +138,13 @@ def make_provider(provider_name: str, model: Optional[str], no_llm: bool = False
 
 def make_provider_or_raise(
     provider_name: str,
-    model: Optional[str],
+    model: str | None,
     no_llm: bool = False,
 ):
     """Create provider or raise a typed error for command-boundary handling."""
     try:
         return resolve_provider(PROVIDERS, provider_name, model, no_llm=no_llm)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise ProviderSetupError(str(e)) from e
 
 

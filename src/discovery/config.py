@@ -1,4 +1,5 @@
 import os
+
 from local_first_common.config import get_setting, load_config
 
 TOOL_NAME = "content-discovery-agent"

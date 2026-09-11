@@ -1,9 +1,9 @@
 """Tests for the pre-scoring title and domain filters in run_discovery()."""
 from unittest.mock import MagicMock, patch
 
+from local_first_common.testing import MockProvider
 
 from discovery.orchestrator import run_discovery
-from local_first_common.testing import MockProvider
 
 
 def _make_feed_item(url="https://example.com/article", title="Test Article"):

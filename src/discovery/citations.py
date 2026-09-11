@@ -37,7 +37,11 @@ description prefix below and scorer.py's matching prompt instruction.
 import logging
 from urllib.parse import urlparse
 
-from local_first_common.article_fetcher import FeedItem, _is_blocked, fetch_article_metadata
+from local_first_common.article_fetcher import (
+    FeedItem,
+    _is_blocked,
+    fetch_article_metadata,
+)
 from local_first_common.html import extract_link_contexts
 from local_first_common.http import fetch_url
 from local_first_common.url import normalize_url

@@ -1,5 +1,12 @@
 from unittest.mock import MagicMock
-from discovery.scorer import SYSTEM_PROMPT, build_user_message, parse_response, score_item, ScoredItem
+
+from discovery.scorer import (
+    SYSTEM_PROMPT,
+    ScoredItem,
+    build_user_message,
+    parse_response,
+    score_item,
+)
 
 PROFILE = "I write and teach SQL and Python for developers. I'm interested in local AI and LLMs."
 

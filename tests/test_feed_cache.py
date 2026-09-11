@@ -1,10 +1,17 @@
 import os
+
 import pytest
-from discovery.feed_reader import FeedItem
+
 from discovery.feed_cache import (
-    load_cached_feed, save_cached_feed, clear_cache, load_cached_social, save_cached_social,
-    load_cached_reader, save_cached_reader,
+    clear_cache,
+    load_cached_feed,
+    load_cached_reader,
+    load_cached_social,
+    save_cached_feed,
+    save_cached_reader,
+    save_cached_social,
 )
+from discovery.feed_reader import FeedItem
 
 
 def make_items() -> list[FeedItem]:

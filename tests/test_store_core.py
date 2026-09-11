@@ -1,14 +1,16 @@
 import sqlite3
+
 import pytest
+
 from discovery.store import (
+    dismiss_items_by_urls,
+    get_new_items,
     init_db,
     is_seen,
-    upsert_item,
-    get_new_items,
     mark_item,
-    dismiss_items_by_urls,
-    update_item_score,
     search_kept_items,
+    update_item_score,
+    upsert_item,
 )
 
 
@@ -17,16 +19,16 @@ def db(tmp_path) -> str:
 
 
 def make_item(**kwargs) -> dict:
-    defaults = dict(
-        url="https://example.com/article",
-        title="Test Article",
-        source="Test Blog",
-        description="A test article about Python.",
-        score=0.85,
-        tags=["python", "llm"],
-        summary="A test article.",
-        fetched_at="2026-03-07",
-    )
+    defaults = {
+        "url": "https://example.com/article",
+        "title": "Test Article",
+        "source": "Test Blog",
+        "description": "A test article about Python.",
+        "score": 0.85,
+        "tags": ["python", "llm"],
+        "summary": "A test article.",
+        "fetched_at": "2026-03-07",
+    }
     defaults.update(kwargs)
     return defaults
 

@@ -1,52 +1,52 @@
 import json
 import logging
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
+from local_first_common.cli import init_config_option, json_option, resolve_dry_run
+from local_first_common.logging import setup_logging
 
+from . import store
 from .config import (
     CONTEXTA_INBOX_PATH,
     CONTEXTA_NOTES_PATH,
     DEFAULT_BACKUP_DIR,
     READWISE_TOKEN,
 )
-from local_first_common.cli import resolve_dry_run, init_config_option, json_option
-from local_first_common.logging import setup_logging
+from .db_commands import (
+    run_backup,
+    run_dismiss_source,
+    run_fix_urls,
+    run_purge_blocked,
+    run_report,
+    run_restore,
+)
+from .eval import run_eval
+from .import_reader import import_reader_backlog
 from .options import (
-    provider_opt,
-    model_opt,
-    scoring_provider_opt,
-    scoring_model_opt,
-    dry_run_opt,
-    no_llm_opt,
-    threshold_opt,
-    store_opt,
-    verbose_opt,
-    limit_opt,
-    no_dedup_opt,
-    cached_opt,
-    sources_opt,
     ProviderSetupError,
     ReadwiseTokenError,
     ThresholdValidationError,
+    cached_opt,
+    dry_run_opt,
+    limit_opt,
     make_provider_or_raise,
+    model_opt,
+    no_dedup_opt,
+    no_llm_opt,
+    provider_opt,
+    scoring_model_opt,
+    scoring_provider_opt,
+    sources_opt,
+    store_opt,
+    threshold_opt,
     validate_readwise_token_or_raise,
     validate_threshold_or_raise,
+    verbose_opt,
 )
 from .orchestrator import run_discovery, run_review, run_save
 from .reconcile import reconcile
-from .import_reader import import_reader_backlog
-from .eval import run_eval
-from .db_commands import (
-    run_report,
-    run_purge_blocked,
-    run_dismiss_source,
-    run_backup,
-    run_restore,
-    run_fix_urls,
-)
 from .scorer import score_item
-from . import store
 
 app = typer.Typer(
     name="content-discovery",
@@ -74,10 +74,10 @@ def _setup_tool_logging(verbose: bool) -> None:
 )
 def cmd_run(
     provider: str = scoring_provider_opt(),
-    model: Optional[str] = scoring_model_opt(),
+    model: str | None = scoring_model_opt(),
     dry_run: bool = dry_run_opt(),
     no_llm: bool = no_llm_opt(),
-    feed: Optional[str] = typer.Option(
+    feed: str | None = typer.Option(
         None,
         "--feed",
         "-f",
@@ -88,7 +88,7 @@ def cmd_run(
     no_dedup: bool = no_dedup_opt(),
     verbose: bool = verbose_opt(),
     cached: bool = cached_opt(),
-    limit: Optional[int] = limit_opt(),
+    limit: int | None = limit_opt(),
     store_path: str = store_opt(),
     sources: str = sources_opt(),
     json_output: Annotated[bool, json_option()] = False,
@@ -239,12 +239,12 @@ def cmd_list_candidates(
 
 @app.command("search-kept", help="Search kept items by topic, tag, or keyword.")
 def cmd_search_kept(
-    query: Optional[str] = typer.Option(
+    query: str | None = typer.Option(
         None, "--query", "-q", help="Search text in title, summary, or description"
     ),
-    tag: Optional[list[str]] = typer.Option(
-        None, "--tag", "-t", help="Tag to match (repeatable)"
-    ),
+    tag: Annotated[
+        list[str] | None, typer.Option("--tag", "-t", help="Tag to match (repeatable)")
+    ] = None,
     limit: int = typer.Option(10, "--limit", "-l", help="Max results to return"),
     store_path: str = store_opt(),
     json_output: Annotated[bool, json_option()] = False,
@@ -414,8 +414,8 @@ def cmd_fix_urls(store_path: str = store_opt()):
 )
 def cmd_check_feeds():
     """Validate all configured RSS feeds."""
-    from .feed_reader import FeedReaderError, fetch_feed_or_raise
     from .config import FEEDS
+    from .feed_reader import FeedReaderError, fetch_feed_or_raise
 
     typer.echo(f"Checking {len(FEEDS)} feeds...\n")
     for url in FEEDS:
@@ -437,14 +437,14 @@ def cmd_check_feeds():
 )
 def cmd_rescore(
     provider: str = provider_opt(),
-    model: Optional[str] = model_opt(),
+    model: str | None = model_opt(),
     no_llm: bool = no_llm_opt(),
     store_path: str = store_opt(),
-    limit: Optional[int] = typer.Option(None, "--limit", "-l", help="Cap items"),
+    limit: int | None = typer.Option(None, "--limit", "-l", help="Cap items"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose."),
 ):
     """Re-score all pending items."""
-    from .config import INTEREST_PROFILE, INTEREST_EXCLUSIONS
+    from .config import INTEREST_EXCLUSIONS, INTEREST_PROFILE
 
     try:
         llm_provider = make_provider_or_raise(provider, model, no_llm=no_llm)
@@ -499,7 +499,7 @@ def cmd_rescore(
 )
 def cmd_eval(
     provider: str = scoring_provider_opt(),
-    model: Optional[str] = scoring_model_opt(),
+    model: str | None = scoring_model_opt(),
     no_llm: bool = no_llm_opt(),
     threshold: float = threshold_opt(),
     store_path: str = store_opt(),
@@ -514,7 +514,7 @@ def cmd_eval(
     this after editing the interest profile, exclusions, or scorer prompt, to
     get a number instead of a feeling for whether the change helped.
     """
-    from .config import INTEREST_PROFILE, INTEREST_EXCLUSIONS
+    from .config import INTEREST_EXCLUSIONS, INTEREST_PROFILE
 
     try:
         validate_threshold_or_raise(threshold)
@@ -559,7 +559,7 @@ def cmd_eval(
 def cmd_save(
     url: str = typer.Argument(..., help="URL to fetch, score, and save"),
     provider: str = provider_opt(),
-    model: Optional[str] = model_opt(),
+    model: str | None = model_opt(),
     no_llm: bool = no_llm_opt(),
     no_score: bool = typer.Option(
         False, "--no-score", help="Skip LLM scoring; store with score 1.0"
@@ -598,7 +598,7 @@ def cmd_backup(
     "restore", help="Restore the database from a backup (requires confirmation)."
 )
 def cmd_restore(
-    file: Optional[str] = typer.Option(
+    file: str | None = typer.Option(
         None, "--file", "-f", help="Specific backup file to restore"
     ),
     latest: bool = typer.Option(

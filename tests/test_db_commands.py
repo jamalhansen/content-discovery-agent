@@ -1,12 +1,13 @@
 """Tests for db_commands.py — report, purge, backup/restore logic."""
 
 import os
-import sqlite3
 import shutil
+import sqlite3
 from unittest.mock import patch
 
 import pytest
 import typer
+
 from discovery import db_commands, store
 
 

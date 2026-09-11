@@ -1,8 +1,11 @@
 import logging
 import time as _time
+
 import feedparser
 import requests
-from local_first_common.article_fetcher import FeedItem  # noqa: F401 — re-exported for consumers
+from local_first_common.article_fetcher import (
+    FeedItem,
+)
 from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
@@ -33,7 +36,7 @@ def _fetch_and_parse_or_raise(feed_url: str):
 
     try:
         parsed = feedparser.parse(resp.content)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         raise FeedParseError(f"Error parsing feed {feed_url}: {e}") from e
 
     if parsed.bozo and not parsed.entries:

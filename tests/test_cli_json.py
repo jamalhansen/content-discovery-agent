@@ -1,6 +1,8 @@
 import json
 from unittest.mock import patch
+
 from typer.testing import CliRunner
+
 from discovery import store
 from discovery.cli import app
 

@@ -76,7 +76,7 @@ def collect_note_source_urls(notes_path: str) -> dict[str, list[str]]:
             continue
         try:
             key = normalize_url(raw)
-        except Exception:
+        except Exception:  # noqa: BLE001 - a malformed URL should dedupe on its raw form rather than crash the scan
             key = raw
         urls.setdefault(key, []).append(name)
     return urls
@@ -97,7 +97,10 @@ def reconcile(
     shared Readwise helpers.
     """
     if list_refs is None or archive is None:
-        from local_first_common.readwise import archive_reader_document, list_reader_refs
+        from local_first_common.readwise import (
+            archive_reader_document,
+            list_reader_refs,
+        )
 
         list_refs = list_refs or list_reader_refs
         archive = archive or archive_reader_document
@@ -121,7 +124,7 @@ def reconcile(
             result.documents_checked += 1
             try:
                 key = normalize_url(ref.source_url)
-            except Exception:
+            except Exception:  # noqa: BLE001 - a malformed URL should dedupe on its raw form rather than crash the reconcile pass
                 key = ref.source_url
             if key not in note_urls:
                 continue

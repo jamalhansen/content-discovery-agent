@@ -10,12 +10,13 @@ Patch targets:
   - discovery.social.bluesky.fetch_article_metadata  — article metadata fetch
 """
 
-import requests as req
 from unittest.mock import MagicMock, patch
 
-from discovery.social.bluesky import BlueskyReader
-from discovery.feed_reader import FeedItem
+import requests as req
 from local_first_common.social.bluesky import extract_urls_from_post, get_auth_token
+
+from discovery.feed_reader import FeedItem
+from discovery.social.bluesky import BlueskyReader
 
 
 def _make_item(url: str = "https://example.com/article") -> FeedItem:

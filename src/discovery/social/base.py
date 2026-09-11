@@ -6,4 +6,4 @@ SOCIAL_READERS = {
     "mastodon": MastodonReader,
 }
 
-__all__ = ["BlueskyReader", "MastodonReader", "SOCIAL_READERS"]
+__all__ = ["SOCIAL_READERS", "BlueskyReader", "MastodonReader"]
