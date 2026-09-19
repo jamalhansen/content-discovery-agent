@@ -29,6 +29,52 @@ MAX_BODY_CHARS = 40_000
 # quality it cannot vouch for.
 THIN_BODY_CHARS = 1_200
 
+# Opt-in delegation to http-retriever-service for the fetch+extract+render
+# pipeline below, instead of this module's own local_first_common.http/html/
+# js_render calls. Unset by default. This is the higher-value of the two
+# content-discovery-agent integration points (see fetch_article_metadata's
+# equivalent in local_first_common.article_fetcher): unlike that one, this
+# function runs in discovery-loop's actual daily production path and is what
+# currently forces content-discovery-agent to bundle its own separate
+# Playwright install and use a hand-rolled extractor instead of the
+# retriever's real Mozilla Readability.
+HTTP_RETRIEVER_URL = os.environ.get("HTTP_RETRIEVER_URL") or None
+
+
+def _fetch_body_via_retriever(url: str) -> tuple[str, str]:
+    """POST to http-retriever-service and return (body, error).
+
+    The service already does fetch -> extract -> render-fallback-if-thin in
+    one call, so this replaces the whole local pipeline below rather than
+    just one piece of it.
+    """
+    import httpx
+
+    headers = {}
+    api_key = os.environ.get("HTTP_RETRIEVER_API_KEY")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        response = httpx.post(
+            f"{HTTP_RETRIEVER_URL.rstrip('/')}/fetch",
+            json={"url": url, "toolName": "content-discovery-agent"},
+            headers=headers,
+            timeout=30.0,
+        )
+    except httpx.HTTPError as e:
+        return "", f"http-retriever-service request failed: {type(e).__name__}: {e}"
+
+    if response.status_code == 403:
+        return "", "blocked domain (via http-retriever-service)"
+    if response.status_code != 200:
+        return "", f"http-retriever-service returned {response.status_code}"
+
+    content = (response.json().get("content") or "").strip()
+    if not content:
+        return "", "fetched but no article text could be extracted"
+    return content, ""
+
 
 def _slugify(title: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
@@ -105,6 +151,23 @@ def fetch_article_body(
     """
     if not url:
         return "", "no URL"
+
+    if HTTP_RETRIEVER_URL and fetcher is None and extractor is None:
+        # Delegating replaces the whole local pipeline below, not one piece
+        # of it -- an explicit fetcher/extractor override (tests, or a
+        # caller that wants the local path specifically) still wins.
+        try:
+            from local_first_common.url import normalize_url as _normalize
+
+            url = _normalize(url)
+        except Exception as e:  # noqa: BLE001 - normalization is an optimization, not a requirement
+            logger.debug("URL normalization failed for %s, using as-is: %s", url, e)
+        body, error = _fetch_body_via_retriever(url)
+        if error:
+            return "", error
+        if len(body) > MAX_BODY_CHARS:
+            body = body[:MAX_BODY_CHARS].rstrip() + f"\n\n[truncated at {MAX_BODY_CHARS} characters]"
+        return body, ""
 
     if fetcher is None or extractor is None:
         from local_first_common.html import extract_main_content

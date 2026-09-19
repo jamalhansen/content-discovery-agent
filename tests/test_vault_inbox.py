@@ -1,9 +1,20 @@
 """Tests for the vault inbox capture module."""
+from unittest.mock import patch
+
 from discovery.vault_inbox import (
     MAX_BODY_CHARS,
     fetch_article_body,
     save_to_vault_inbox,
 )
+
+
+class _FakeResponse:
+    def __init__(self, status_code: int, json_body: dict | None = None):
+        self.status_code = status_code
+        self._json_body = json_body or {}
+
+    def json(self):
+        return self._json_body
 
 
 class TestSaveToVaultInbox:
@@ -353,3 +364,98 @@ class TestUrlNormalizationBeforeFetch:
             extractor=lambda h: "content",
         )
         assert seen_urls == ["https://example.com/a"]
+
+
+class TestRetrieverDelegation:
+    """fetch_article_body delegates to http-retriever-service when
+    HTTP_RETRIEVER_URL is set and no explicit fetcher/extractor override is
+    given. Patches the module attribute directly since it's read from the
+    env var once at import time, not re-read per call.
+    """
+
+    def test_local_path_untouched_when_url_is_unset(self):
+        with patch("discovery.vault_inbox.HTTP_RETRIEVER_URL", None):
+            body, error = fetch_article_body(
+                "https://example.com/a",
+                fetcher=lambda u: "<html></html>",
+                extractor=lambda h: "local content",
+            )
+        assert body == "local content"
+        assert error == ""
+
+    def test_delegates_and_returns_the_content_field(self):
+        response = _FakeResponse(200, {"content": "the real article body"})
+        with (
+            patch("discovery.vault_inbox.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response) as mock_post,
+        ):
+            body, error = fetch_article_body("https://example.com/a")
+        assert body == "the real article body"
+        assert error == ""
+        sent_json = mock_post.call_args.kwargs["json"]
+        assert sent_json["toolName"] == "content-discovery-agent"
+
+    def test_explicit_fetcher_override_bypasses_delegation(self):
+        with (
+            patch("discovery.vault_inbox.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post") as mock_post,
+        ):
+            body, _error = fetch_article_body(
+                "https://example.com/a",
+                fetcher=lambda u: "<html></html>",
+                extractor=lambda h: "local override content",
+            )
+        mock_post.assert_not_called()
+        assert body == "local override content"
+
+    def test_empty_content_returns_extraction_error(self):
+        response = _FakeResponse(200, {"content": ""})
+        with (
+            patch("discovery.vault_inbox.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response),
+        ):
+            body, error = fetch_article_body("https://example.com/a")
+        assert body == ""
+        assert "no article text" in error
+
+    def test_blocked_status_returns_error(self):
+        response = _FakeResponse(403, {"error": "blocked"})
+        with (
+            patch("discovery.vault_inbox.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response),
+        ):
+            body, error = fetch_article_body("https://example.com/a")
+        assert body == ""
+        assert "blocked" in error
+
+    def test_request_failure_returns_error_without_raising(self):
+        import httpx
+
+        with (
+            patch("discovery.vault_inbox.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", side_effect=httpx.ConnectError("connection refused")),
+        ):
+            body, error = fetch_article_body("https://example.com/a")
+        assert body == ""
+        assert "request failed" in error
+
+    def test_truncates_overlong_delegated_body(self):
+        response = _FakeResponse(200, {"content": "x" * (MAX_BODY_CHARS + 500)})
+        with (
+            patch("discovery.vault_inbox.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response),
+        ):
+            body, error = fetch_article_body("https://example.com/a")
+        assert error == ""
+        assert "[truncated" in body
+        assert len(body) < MAX_BODY_CHARS + 100
+
+    def test_sends_bearer_token_when_api_key_set(self, monkeypatch):
+        monkeypatch.setenv("HTTP_RETRIEVER_API_KEY", "the-secret")
+        response = _FakeResponse(200, {"content": "body"})
+        with (
+            patch("discovery.vault_inbox.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response) as mock_post,
+        ):
+            fetch_article_body("https://example.com/a")
+        assert mock_post.call_args.kwargs["headers"]["Authorization"] == "Bearer the-secret"
