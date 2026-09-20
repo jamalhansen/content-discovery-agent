@@ -70,7 +70,18 @@ def _fetch_body_via_retriever(url: str) -> tuple[str, str]:
     if response.status_code != 200:
         return "", f"http-retriever-service returned {response.status_code}"
 
-    content = (response.json().get("content") or "").strip()
+    data = response.json()
+    content = (data.get("content") or "").strip()
+    quality = data.get("quality")
+    if quality == "empty":
+        # The service judged the best attempt (plain fetch, or a real
+        # browser render if the plain fetch was thin) unusable -- distinct
+        # from a hard fetch failure. Marked LOW_QUALITY so the caller can
+        # skip the inbox write entirely rather than writing a stub that
+        # invites a manual-extraction pass on something not worth it. The
+        # judgment itself is already logged server-side (fetch_log's
+        # quality column), so nothing is lost by not writing a file too.
+        return "", f"LOW_QUALITY: extraction quality too low to use ({len(content)} chars)"
     if not content:
         return "", "fetched but no article text could be extracted"
     return content, ""
@@ -228,9 +239,13 @@ def save_to_vault_inbox(
 
     Fetches the article body by default so the file is reduction-ready. A fetch
     failure is written into the file as an explicit marker rather than leaving a
-    stub that reads like a thin source.
+    stub that reads like a thin source. A LOW_QUALITY verdict from the body
+    fetcher (real extraction, but judged unusable even after a render retry)
+    skips the write entirely instead -- the judgment is already logged
+    server-side, so a stub file here wouldn't add anything worth reducing.
 
-    Returns True on success, False if the file could not be written.
+    Returns True on success, False if the file could not be written or the
+    extraction quality was too low to write at all.
     """
     body, fetch_error = "", ""
     if include_body:
@@ -238,6 +253,10 @@ def save_to_vault_inbox(
             body, fetch_error = body_fetcher(url)
         else:
             body, fetch_error = fetch_article_body(url, attempt_render=JS_RENDER_ENABLED)
+
+    if fetch_error.startswith("LOW_QUALITY:"):
+        logger.info("Skipping inbox write for %s: %s", url, fetch_error)
+        return False
 
     try:
         target_dir = os.path.expanduser(inbox_path)

@@ -177,6 +177,20 @@ class TestBodyInInboxFile:
         assert "MANUAL EXTRACTION REQUIRED" in text
         assert "403 Forbidden" in text
 
+    def test_low_quality_extraction_skips_the_write_entirely(self, tmp_path):
+        """Regression: a LOW_QUALITY verdict (real extraction, judged
+        unusable even after a render retry) should not write a stub file at
+        all -- the judgment is already logged server-side (fetch_log's
+        quality column), so a stub here wouldn't add anything worth
+        reducing, unlike a genuine fetch failure."""
+        ok = save_to_vault_inbox(
+            str(tmp_path), "https://example.com/a", "A Title",
+            summary="One line.",
+            body_fetcher=lambda _u: ("", "LOW_QUALITY: extraction quality too low to use (22 chars)"),
+        )
+        assert ok is False
+        assert list(tmp_path.glob("*.md")) == []
+
     def test_include_body_false_skips_fetching_entirely(self, tmp_path):
         def should_not_run(_u):
             raise AssertionError("fetcher must not be called when include_body is False")
@@ -417,6 +431,33 @@ class TestRetrieverDelegation:
             body, error = fetch_article_body("https://example.com/a")
         assert body == ""
         assert "no article text" in error
+
+    def test_low_quality_response_returns_low_quality_marked_error(self):
+        """The retriever judged the extraction unusable (e.g. nav chrome
+        even after a render retry) -- distinct from truly-empty content,
+        marked so save_to_vault_inbox can skip the write entirely instead
+        of writing a manual-extraction stub for something not worth it."""
+        response = _FakeResponse(200, {"content": "short nav chrome text", "quality": "empty"})
+        with (
+            patch("discovery.vault_inbox.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response),
+        ):
+            body, error = fetch_article_body("https://example.com/a")
+        assert body == ""
+        assert error.startswith("LOW_QUALITY:")
+
+    def test_thin_quality_still_returns_the_body(self):
+        """quality="thin" (real but short content) is not the same as
+        "empty" -- still written, same as the existing thin-extraction
+        policy for the local path."""
+        response = _FakeResponse(200, {"content": "a short but real paragraph", "quality": "thin"})
+        with (
+            patch("discovery.vault_inbox.HTTP_RETRIEVER_URL", "http://127.0.0.1:8787"),
+            patch("httpx.post", return_value=response),
+        ):
+            body, error = fetch_article_body("https://example.com/a")
+        assert body == "a short but real paragraph"
+        assert error == ""
 
     def test_blocked_status_returns_error(self):
         response = _FakeResponse(403, {"error": "blocked"})
