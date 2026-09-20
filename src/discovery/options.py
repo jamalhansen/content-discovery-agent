@@ -143,7 +143,7 @@ def make_provider_or_raise(
 ):
     """Create provider or raise a typed error for command-boundary handling."""
     try:
-        return resolve_provider(PROVIDERS, provider_name, model, no_llm=no_llm)
+        return resolve_provider(PROVIDERS, provider_name, model, no_llm=no_llm, tool_name="content-discovery-agent")
     except Exception as e:
         raise ProviderSetupError(str(e)) from e
 
