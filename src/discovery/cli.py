@@ -44,7 +44,7 @@ from .options import (
     validate_threshold_or_raise,
     verbose_opt,
 )
-from .orchestrator import run_discovery, run_review, run_save
+from .orchestrator import _TOOL, run_discovery, run_review, run_save
 from .reconcile import reconcile
 from .scorer import score_item
 
@@ -319,7 +319,7 @@ def cmd_reconcile(
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1)
 
-    result = reconcile(notes_path, readwise_token, dry_run=dry_run)
+    result = reconcile(notes_path, readwise_token, dry_run=dry_run, tool=_TOOL)
 
     typer.echo(
         f"Scanned {result.notes_scanned} notes; "
@@ -378,7 +378,7 @@ def cmd_import_reader(
         raise typer.Exit(1)
 
     result = import_reader_backlog(
-        notes_path, inbox_path, readwise_token, limit=limit, dry_run=dry_run
+        notes_path, inbox_path, readwise_token, limit=limit, dry_run=dry_run, tool=_TOOL
     )
 
     typer.echo(f"Checked {result.documents_checked} unread Reader documents.")

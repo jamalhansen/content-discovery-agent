@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from local_first_common.testing import MockProvider
 
-from discovery.orchestrator import run_discovery
+from discovery.orchestrator import _TOOL, run_discovery
 
 
 def _make_feed_item(url="https://example.com/article", title="Test Article"):
@@ -56,6 +56,7 @@ class TestReadwiseRouting:
             published_date=item.published,
             search_term=item.search_term,
             platform=item.platform,
+            tool=_TOOL,
         )
 
     def test_routing_enabled_dry_run_does_not_call_save(self, tmp_path):

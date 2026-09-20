@@ -45,7 +45,7 @@ class BlueskyReader(SocialReader):
         self._tool = tool
         self._token: str | None = None
         if handle and app_password:
-            self._token = bluesky.get_auth_token(handle, app_password)
+            self._token = bluesky.get_auth_token(handle, app_password, tool=self._tool)
             if self._token:
                 logger.debug("Bluesky: authenticated as %s", handle)
             else:
@@ -60,7 +60,7 @@ class BlueskyReader(SocialReader):
         _local_seen: set[str] = set()
 
         for keyword in keywords:
-            raw_posts = bluesky.fetch_posts([keyword], token=self._token, limit=25)
+            raw_posts = bluesky.fetch_posts([keyword], token=self._token, limit=25, tool=self._tool)
             for post in raw_posts:
                 post_url = bluesky.get_post_url(post)
                 for url in bluesky.extract_urls_from_post(post):

@@ -152,7 +152,7 @@ def run_discovery(
             else:
                 typer.echo(f"Fetching Reader ({READER_LOCATION})...")
                 reader_items = list_reader_documents(
-                    READWISE_TOKEN, location=READER_LOCATION, category=READER_CATEGORY,
+                    READWISE_TOKEN, location=READER_LOCATION, category=READER_CATEGORY, tool=_TOOL,
                 )
                 if cached and reader_items:
                     save_cached_reader(READER_LOCATION, READER_CATEGORY, reader_items)
@@ -285,6 +285,7 @@ def run_discovery(
                             published_date=item.published or "",
                             search_term=item.search_term,
                             platform=item.platform,
+                            tool=_TOOL,
                         )
                         routed = True
 
@@ -331,6 +332,7 @@ def _keep_and_route(item: dict, store_path: str, readwise_token: str, destinatio
             summary=item["summary"],
             tags=item["tags"],
             published_date=item.get("published_at", ""),
+            tool=_TOOL,
         )
         typer.echo("  Sent to Readwise Reader." if ok else "  Readwise save failed \u2014 check token.")
 
@@ -477,6 +479,7 @@ def run_save(
         tags=scored.tags,
         published_date=item.published,
         platform="manual",
+        tool=_TOOL,
     )
     typer.echo(f"Saved:  {item.title}")
     typer.echo("  Sent to Readwise Reader." if ok else "  Kept in DB (Readwise save failed \u2014 check token).")

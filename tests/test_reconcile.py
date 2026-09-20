@@ -83,8 +83,8 @@ class TestReconcile:
 
         result = reconcile(
             str(tmp_path), "tok",
-            list_refs=lambda _t, location: refs[location],
-            archive=lambda _t, doc_id: archived.append(doc_id) or True,
+            list_refs=lambda _t, location, **_: refs[location],
+            archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )
         assert archived == ["doc1"]
         assert result.archived == 1
@@ -97,8 +97,8 @@ class TestReconcile:
 
         result = reconcile(
             str(tmp_path), "tok",
-            list_refs=lambda _t, location: refs[location],
-            archive=lambda _t, doc_id: archived.append(doc_id) or True,
+            list_refs=lambda _t, location, **_: refs[location],
+            archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )
         assert archived == []
         assert result.archived == 0
@@ -111,8 +111,8 @@ class TestReconcile:
 
         reconcile(
             str(tmp_path), "tok",
-            list_refs=lambda _t, location: refs[location],
-            archive=lambda _t, doc_id: archived.append(doc_id) or True,
+            list_refs=lambda _t, location, **_: refs[location],
+            archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )
         assert archived == ["doc1"]
 
@@ -123,8 +123,8 @@ class TestReconcile:
 
         result = reconcile(
             str(tmp_path), "tok", dry_run=True,
-            list_refs=lambda _t, location: refs[location],
-            archive=lambda _t, doc_id: archived.append(doc_id) or True,
+            list_refs=lambda _t, location, **_: refs[location],
+            archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )
         assert archived == []
         assert len(result.matched) == 1
@@ -136,8 +136,8 @@ class TestReconcile:
 
         result = reconcile(
             str(tmp_path), "tok",
-            list_refs=lambda _t, location: refs[location],
-            archive=lambda _t, _d: False,
+            list_refs=lambda _t, location, **_: refs[location],
+            archive=lambda _t, _d, **_: False,
         )
         assert result.archived == 0
         assert result.failed == ["doc1"]
@@ -150,8 +150,8 @@ class TestReconcile:
 
         result = reconcile(
             str(tmp_path), "tok",
-            list_refs=lambda _t, location: refs[location],
-            archive=lambda _t, doc_id: archived.append(doc_id) or True,
+            list_refs=lambda _t, location, **_: refs[location],
+            archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )
         assert archived == ["doc1"]
         assert result.documents_checked == 1
@@ -166,8 +166,8 @@ class TestSourceUrlCounting:
 
         result = reconcile(
             str(tmp_path), "tok", dry_run=True,
-            list_refs=lambda _t, location: [],
-            archive=lambda _t, _d: True,
+            list_refs=lambda _t, location, **_: [],
+            archive=lambda _t, _d, **_: True,
         )
         assert result.notes_scanned == 4
         assert result.notes_with_source_url == 3
@@ -181,8 +181,8 @@ class TestSourceUrlCounting:
 
         result = reconcile(
             str(tmp_path), "tok",
-            list_refs=lambda _t, location: refs[location],
-            archive=lambda _t, doc_id: archived.append(doc_id) or True,
+            list_refs=lambda _t, location, **_: refs[location],
+            archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )
         assert archived == ["doc1"]
         assert len(result.matched) == 1

@@ -41,7 +41,9 @@ class MastodonReader(SocialReader):
         _local_seen: set[str] = set()
 
         for keyword in keywords:
-            raw_statuses = mastodon.fetch_posts([keyword], instances=self.instances, limit=40)
+            raw_statuses = mastodon.fetch_posts(
+                [keyword], instances=self.instances, limit=40, tool=self._tool
+            )
             for status in raw_statuses:
                 card = status.get("card")
                 if not card:

@@ -35,7 +35,7 @@ class TestImportReaderBacklog:
 
         result = import_reader_backlog(
             str(notes), str(inbox), "tok",
-            list_refs=lambda _t, location: refs[location],
+            list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
         assert result.imported == ["New One"]
@@ -52,7 +52,7 @@ class TestImportReaderBacklog:
 
         result = import_reader_backlog(
             str(notes), str(inbox), "tok",
-            list_refs=lambda _t, location: refs[location],
+            list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
         assert result.imported == []
@@ -70,7 +70,7 @@ class TestImportReaderBacklog:
 
         result = import_reader_backlog(
             str(notes), str(inbox), "tok",
-            list_refs=lambda _t, location: refs[location],
+            list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
         assert result.already_captured == 1
@@ -89,7 +89,7 @@ class TestImportReaderBacklog:
 
         result = import_reader_backlog(
             str(notes), str(inbox), "tok",
-            list_refs=lambda _t, location: refs[location],
+            list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
         assert result.already_captured == 1
@@ -106,7 +106,7 @@ class TestImportReaderBacklog:
 
         result = import_reader_backlog(
             str(notes), str(inbox), "tok", limit=2,
-            list_refs=lambda _t, location: refs[location],
+            list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
         assert len(result.imported) == 2
@@ -122,7 +122,7 @@ class TestImportReaderBacklog:
 
         result = import_reader_backlog(
             str(notes), str(inbox), "tok", dry_run=True,
-            list_refs=lambda _t, location: refs[location],
+            list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
         assert result.imported == ["New One"]
@@ -137,7 +137,7 @@ class TestImportReaderBacklog:
 
         result = import_reader_backlog(
             str(notes), str(inbox), "tok",
-            list_refs=lambda _t, location: refs[location],
+            list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: False,
         )
         assert result.imported == []
@@ -154,7 +154,7 @@ class TestImportReaderBacklog:
 
         result = import_reader_backlog(
             str(notes), str(inbox), "tok",
-            list_refs=lambda _t, location: refs[location],
+            list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
         assert result.documents_checked == 1

@@ -16,6 +16,7 @@ import os
 import re
 from dataclasses import dataclass, field
 
+from local_first_common.tracking import Tool
 from local_first_common.url import normalize_url
 
 # Frontmatter lives between the first two `---` fences. Only the first block is
@@ -90,11 +91,12 @@ def reconcile(
     dry_run: bool = False,
     list_refs=None,
     archive=None,
+    tool: Tool | None = None,
 ) -> ReconcileResult:
     """Archive Reader documents whose article already became a vault note.
 
     ``list_refs`` and ``archive`` are injectable for testing; they default to the
-    shared Readwise helpers.
+    shared Readwise helpers. ``tool`` is forwarded to both for api_call_log logging.
     """
     if list_refs is None or archive is None:
         from local_first_common.readwise import (
@@ -117,7 +119,7 @@ def reconcile(
 
     seen: set[str] = set()
     for location in locations:
-        for ref in list_refs(token, location=location):
+        for ref in list_refs(token, location=location, tool=tool):
             if ref.doc_id in seen:
                 continue
             seen.add(ref.doc_id)
@@ -131,7 +133,7 @@ def reconcile(
             result.matched.append((ref.title, ref.source_url))
             if dry_run:
                 continue
-            if archive(token, ref.doc_id):
+            if archive(token, ref.doc_id, tool=tool):
                 result.archived += 1
             else:
                 result.failed.append(ref.doc_id)

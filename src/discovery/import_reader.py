@@ -16,6 +16,7 @@ been through /reduce yet does not get fetched a second time.
 import os
 from dataclasses import dataclass, field
 
+from local_first_common.tracking import Tool
 from local_first_common.url import normalize_url
 
 from .reconcile import collect_note_source_urls
@@ -50,13 +51,15 @@ def import_reader_backlog(
     dry_run: bool = False,
     list_refs=None,
     save=None,
+    tool: Tool | None = None,
 ) -> ImportResult:
     """Write unread Reader items not yet captured anywhere into the inbox.
 
     ``limit`` bounds how many articles get fetched in one call, since each is a
     live HTTP request against a page of unknown size. ``list_refs`` and
     ``save`` are injectable for testing; they default to the shared Readwise
-    helper and ``save_to_vault_inbox``.
+    helper and ``save_to_vault_inbox``. ``tool`` is forwarded to ``list_refs``
+    for api_call_log logging.
     """
     if list_refs is None:
         from local_first_common.readwise import list_reader_refs
@@ -70,7 +73,7 @@ def import_reader_backlog(
 
     seen_docs: set[str] = set()
     for location in locations:
-        for ref in list_refs(token, location=location):
+        for ref in list_refs(token, location=location, tool=tool):
             if ref.doc_id in seen_docs:
                 continue
             seen_docs.add(ref.doc_id)
