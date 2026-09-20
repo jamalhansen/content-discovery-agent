@@ -235,6 +235,11 @@ def run_discovery(
     for item in all_new_items:
         with timed_run("content-discovery-agent", llm_provider.model) as run:
             result = score_item(llm_provider, item.title, item.description, INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS, scorer=scorer)
+            # llm_provider.model was captured above before this call resolved
+            # it (empty for a GatewayProvider with no explicit --model) --
+            # re-read both now, before any early `continue` below.
+            run.model = llm_provider.model
+            run.provider = getattr(llm_provider, "provider_name", None)
             if result is None:
                 skipped_count += 1
                 continue
