@@ -9,7 +9,7 @@ from local_first_common.article_fetcher import (
     fetch_article_metadata,
 )
 from local_first_common.readwise import list_reader_documents
-from local_first_common.tracking import register_tool, timed_run
+from local_first_common.tracking import register_tool
 from local_first_common.url import normalize_url
 
 from . import store
@@ -233,95 +233,94 @@ def run_discovery(
     scorer = ContentDiscoveryScorer()
 
     for item in all_new_items:
-        with timed_run("content-discovery-agent", llm_provider.model) as run:
-            result = score_item(llm_provider, item.title, item.description, INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS, scorer=scorer)
-            # llm_provider.model was captured above before this call resolved
-            # it (empty for a GatewayProvider with no explicit --model) --
-            # re-read both now, before any early `continue` below.
-            run.model = llm_provider.model
-            run.provider = getattr(llm_provider, "provider_name", None)
-            if result is None:
-                skipped_count += 1
-                continue
+        llm_provider.source_location = item.title
+        llm_provider.item_count = 1
+        result = score_item(llm_provider, item.title, item.description, INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS, scorer=scorer)
+        if result is None:
+            skipped_count += 1
+            continue
 
-            scored_count += 1
-            is_english = result.language == "en"
+        scored_count += 1
+        is_english = result.language == "en"
 
-            if verbose:
-                lang_flag = f" [{result.language}]" if not is_english else ""
-                typer.echo(f"  [{result.score:.2f}]{lang_flag} {item.title[:70]}")
+        if verbose:
+            lang_flag = f" [{result.language}]" if not is_english else ""
+            typer.echo(f"  [{result.score:.2f}]{lang_flag} {item.title[:70]}")
 
-            # --dry-run means "write nothing" (documented in this repo's
-            # CLAUDE.md and in local-first-common's shared dry_run_option)
-            # -- the store write is not exempt from that.
+        # --dry-run means "write nothing" (documented in this repo's
+        # CLAUDE.md and in local-first-common's shared dry_run_option)
+        # -- the store write is not exempt from that.
+        if not dry_run:
+            store.upsert_item(
+                url=item.url, title=item.title, source=item.source,
+                description=item.description or "", score=result.score,
+                tags=result.tags, summary=result.summary,
+                fetched_at=today, published_at=item.published,
+                found_at=item.found_at,
+                search_term=item.search_term,
+                platform=item.platform,
+                path=store_path,
+            )
+        if not is_english or result.score < threshold:
             if not dry_run:
-                store.upsert_item(
-                    url=item.url, title=item.title, source=item.source,
-                    description=item.description or "", score=result.score,
-                    tags=result.tags, summary=result.summary,
-                    fetched_at=today, published_at=item.published,
-                    found_at=item.found_at,
-                    search_term=item.search_term,
-                    platform=item.platform,
-                    path=store_path,
-                )
-            if not is_english or result.score < threshold:
-                if not dry_run:
-                    store.mark_item(item.url, "dismissed", store_path)
-                if is_english:
-                    dismissed_this_run.append({"title": item.title, "score": result.score})
+                store.mark_item(item.url, "dismissed", store_path)
+            if is_english:
+                dismissed_this_run.append({"title": item.title, "score": result.score})
 
-            if is_english and result.score >= threshold:
-                candidates.append({
-                    "title": item.title, "url": item.url, "score": result.score,
-                    "tags": result.tags, "summary": result.summary,
-                })
-                routed = False
-                if READWISE_ROUTING and READWISE_TOKEN and item.source != "readwise-reader":
-                    if dry_run:
-                        typer.echo(f"  [dry-run] Would route to Readwise: {item.title[:60]}")
-                    else:
-                        save_to_readwise(
-                            READWISE_TOKEN,
-                            item.url,
-                            title=item.title,
-                            summary=result.summary,
-                            tags=result.tags,
-                            published_date=item.published or "",
-                            search_term=item.search_term,
-                            platform=item.platform,
-                            tool=_TOOL,
-                        )
-                        routed = True
+        if is_english and result.score >= threshold:
+            candidates.append({
+                "title": item.title, "url": item.url, "score": result.score,
+                "tags": result.tags, "summary": result.summary,
+            })
+            routed = False
+            if READWISE_ROUTING and READWISE_TOKEN and item.source != "readwise-reader":
+                if dry_run:
+                    typer.echo(f"  [dry-run] Would route to Readwise: {item.title[:60]}")
+                else:
+                    save_to_readwise(
+                        READWISE_TOKEN,
+                        item.url,
+                        title=item.title,
+                        summary=result.summary,
+                        tags=result.tags,
+                        published_date=item.published or "",
+                        search_term=item.search_term,
+                        platform=item.platform,
+                        tool=_TOOL,
+                    )
+                    routed = True
 
-                if CONTEXTA_INBOX_ROUTING:
-                    if dry_run:
-                        typer.echo(f"  [dry-run] Would route to Contexta inbox: {item.title[:60]}")
-                    else:
-                        save_to_vault_inbox(
-                            CONTEXTA_INBOX_PATH,
-                            item.url,
-                            title=item.title,
-                            summary=result.summary,
-                            tags=result.tags,
-                            published_date=item.published or "",
-                            search_term=item.search_term,
-                            platform=item.platform,
-                        )
-                        routed = True
+            if CONTEXTA_INBOX_ROUTING:
+                if dry_run:
+                    typer.echo(f"  [dry-run] Would route to Contexta inbox: {item.title[:60]}")
+                else:
+                    save_to_vault_inbox(
+                        CONTEXTA_INBOX_PATH,
+                        item.url,
+                        title=item.title,
+                        summary=result.summary,
+                        tags=result.tags,
+                        published_date=item.published or "",
+                        search_term=item.search_term,
+                        platform=item.platform,
+                    )
+                    routed = True
 
-                # Auto-routing bypasses interactive `review` by design, but the
-                # item still needs status='kept' -- otherwise it sits at 'new'
-                # forever and the local DB's kept/dismissed split stops
-                # reflecting what actually happened to items scored this way.
-                if routed:
-                    store.mark_item(item.url, "kept", store_path)
+            # Auto-routing bypasses interactive `review` by design, but the
+            # item still needs status='kept' -- otherwise it sits at 'new'
+            # forever and the local DB's kept/dismissed split stops
+            # reflecting what actually happened to items scored this way.
+            if routed:
+                store.mark_item(item.url, "kept", store_path)
 
-            run.item_count = 1
-            run.input_tokens = getattr(llm_provider, "input_tokens", None) or None
-            run.output_tokens = getattr(llm_provider, "output_tokens", None) or None
-            run.xml_fallbacks = scorer.xml_fallback_count or None
-            run.parse_errors = scorer.parse_error_count or None
+    if scorer.xml_fallback_count or scorer.parse_error_count:
+        # Diagnostic only -- not persisted (the LLM call itself is logged
+        # once, inside the gateway; this counts a scoring-loop-wide repair
+        # rate, not any single call).
+        typer.echo(
+            f"  ({scorer.xml_fallback_count} XML fallbacks, "
+            f"{scorer.parse_error_count} parse errors this run)"
+        )
 
     return candidates, scored_count, skipped_count, dismissed_this_run
 
