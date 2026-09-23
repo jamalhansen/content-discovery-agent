@@ -30,6 +30,7 @@ def _make_feed_item(url="https://example.com/article", title="Test Article"):
 def _run(score, threshold, dry_run, tmp_path):
     with patch("discovery.orchestrator.fetch_feed", return_value=[_make_feed_item()]), \
          patch("discovery.orchestrator.store.init_db"), \
+         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
          patch("discovery.orchestrator.store.get_examples", return_value={}), \
          patch("discovery.orchestrator.store.is_seen", return_value=False), \
          patch("discovery.orchestrator.store.upsert_item") as mock_upsert, \

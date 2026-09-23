@@ -22,6 +22,7 @@ class TestCitationsSource:
         with patch("discovery.orchestrator.fetch_feed", return_value=[]), \
              patch("discovery.orchestrator.store.get_recent_kept") as mock_recent, \
              patch("discovery.orchestrator.store.init_db"), \
+             patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
              patch("discovery.orchestrator.store.get_examples", return_value={}):
             run_discovery(
                 MockProvider(response='{"score": 0.1, "tags": [], "summary": "s", "language": "en"}'),
@@ -33,6 +34,7 @@ class TestCitationsSource:
         with patch("discovery.orchestrator.store.get_recent_kept", return_value=[]), \
              patch("discovery.orchestrator.discover_citation_candidates") as mock_discover, \
              patch("discovery.orchestrator.store.init_db"), \
+             patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
              patch("discovery.orchestrator.store.get_examples", return_value={}):
             _candidates, scored, _skipped, _dismissed = run_discovery(
                 MockProvider(), "citations", None, 0.5, True, False, False, None, str(tmp_path / "store.db"),
@@ -45,6 +47,7 @@ class TestCitationsSource:
         with patch("discovery.orchestrator.store.get_recent_kept", return_value=[{"url": "https://origin.example.com/kept-article", "title": "Origin"}]), \
              patch("discovery.orchestrator.discover_citation_candidates", return_value=[item]), \
              patch("discovery.orchestrator.store.init_db"), \
+             patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
              patch("discovery.orchestrator.store.get_examples", return_value={}), \
              patch("discovery.orchestrator.store.is_seen", return_value=False), \
              patch("discovery.orchestrator.store.upsert_item"), \
@@ -68,6 +71,7 @@ class TestCitationsSource:
         with patch("discovery.orchestrator.store.get_recent_kept", return_value=[{"url": "https://origin.example.com/kept-article", "title": "Origin"}]), \
              patch("discovery.orchestrator.discover_citation_candidates", return_value=[item]), \
              patch("discovery.orchestrator.store.init_db"), \
+             patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
              patch("discovery.orchestrator.store.get_examples", return_value={}), \
              patch("discovery.orchestrator.store.is_seen", return_value=False), \
              patch("discovery.orchestrator.store.upsert_item"), \
@@ -89,6 +93,7 @@ class TestCitationsSource:
         with patch("discovery.orchestrator.store.get_recent_kept", return_value=[]) as mock_recent, \
              patch("discovery.orchestrator.CITATION_KEPT_LIMIT", 7), \
              patch("discovery.orchestrator.store.init_db"), \
+             patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
              patch("discovery.orchestrator.store.get_examples", return_value={}):
             run_discovery(
                 MockProvider(), "citations", None, 0.5, True, False, False, None, str(tmp_path / "store.db"),

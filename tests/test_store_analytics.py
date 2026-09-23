@@ -4,6 +4,7 @@ from discovery.store import (
     get_daily_counts,
     get_eval_sample,
     get_examples,
+    get_kept_tag_counts_for_date,
     get_recent_kept,
     get_score_distribution,
     get_source_stats,
@@ -341,6 +342,41 @@ class TestGetTagCounts:
 
         result = get_tag_counts(path, status="kept", limit=5)
         assert len(result) == 5
+
+
+class TestGetKeptTagCountsForDate:
+    def test_empty_db_returns_empty_dict(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        assert get_kept_tag_counts_for_date(path, "2026-09-22") == {}
+
+    def test_counts_only_kept_items_on_the_given_date(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        upsert_item(**make_item(url="https://a.com/1", tags=["ai-safety"], fetched_at="2026-09-22"), path=path)
+        mark_item("https://a.com/1", "kept", path)
+        # different date -- must not count
+        upsert_item(**make_item(url="https://a.com/2", tags=["ai-safety"], fetched_at="2026-09-21"), path=path)
+        mark_item("https://a.com/2", "kept", path)
+        # same date, but dismissed -- must not count
+        upsert_item(**make_item(url="https://a.com/3", tags=["ai-safety"], fetched_at="2026-09-22"), path=path)
+        mark_item("https://a.com/3", "dismissed", path)
+
+        result = get_kept_tag_counts_for_date(path, "2026-09-22")
+        assert result == {"ai-safety": 1}
+
+    def test_multiple_tags_and_items_accumulate(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        for i in range(3):
+            upsert_item(
+                **make_item(url=f"https://a.com/{i}", tags=["ai-safety", "cybersecurity"], fetched_at="2026-09-17"),
+                path=path,
+            )
+            mark_item(f"https://a.com/{i}", "kept", path)
+
+        result = get_kept_tag_counts_for_date(path, "2026-09-17")
+        assert result == {"ai-safety": 3, "cybersecurity": 3}
 
 
 class TestGetScoreDistribution:

@@ -20,6 +20,8 @@ from .config import (
     BLUESKY_HANDLE,
     CITATION_KEPT_LIMIT,
     CITATION_MAX_LINKS_PER_ITEM,
+    CLUSTER_CAP,
+    CLUSTER_SCORE_BONUS,
     CONTEXTA_INBOX_PATH,
     CONTEXTA_INBOX_ROUTING,
     FEEDS,
@@ -229,8 +231,14 @@ def run_discovery(
     dismissed_this_run = []
     scored_count = 0
     skipped_count = 0
+    clustered_count = 0
     today = datetime.now().astimezone().date().isoformat()
     scorer = ContentDiscoveryScorer()
+    # Same-day topic-cluster cap (Jamal 2026-09-22): seeded from items already
+    # kept today (across earlier runs), then updated as this run keeps more --
+    # a burst of items about one event within a single run needs to cap
+    # itself too, not just across separate runs.
+    cluster_counts = store.get_kept_tag_counts_for_date(store_path, today)
 
     for item in all_new_items:
         llm_provider.source_location = item.title
@@ -243,9 +251,20 @@ def run_discovery(
         scored_count += 1
         is_english = result.language == "en"
 
+        # A tag already at CLUSTER_CAP kept items today means this item is
+        # the Nth+1 on what's likely the same story -- raise the bar rather
+        # than hard-block it, so a genuinely stronger piece on a big event
+        # still gets through.
+        item_tags = [t.strip().lower() for t in result.tags if t.strip()]
+        clustered = any(cluster_counts.get(t, 0) >= CLUSTER_CAP for t in item_tags)
+        effective_threshold = min(threshold + CLUSTER_SCORE_BONUS, 1.0) if clustered else threshold
+        if clustered and result.score >= threshold:
+            clustered_count += 1
+
         if verbose:
             lang_flag = f" [{result.language}]" if not is_english else ""
-            typer.echo(f"  [{result.score:.2f}]{lang_flag} {item.title[:70]}")
+            cluster_flag = " [clustered]" if clustered else ""
+            typer.echo(f"  [{result.score:.2f}]{lang_flag}{cluster_flag} {item.title[:70]}")
 
         # --dry-run means "write nothing" (documented in this repo's
         # CLAUDE.md and in local-first-common's shared dry_run_option)
@@ -261,13 +280,15 @@ def run_discovery(
                 platform=item.platform,
                 path=store_path,
             )
-        if not is_english or result.score < threshold:
+        if not is_english or result.score < effective_threshold:
             if not dry_run:
                 store.mark_item(item.url, "dismissed", store_path)
             if is_english:
                 dismissed_this_run.append({"title": item.title, "score": result.score})
 
-        if is_english and result.score >= threshold:
+        if is_english and result.score >= effective_threshold:
+            for t in item_tags:
+                cluster_counts[t] = cluster_counts.get(t, 0) + 1
             candidates.append({
                 "title": item.title, "url": item.url, "score": result.score,
                 "tags": result.tags, "summary": result.summary,
@@ -312,6 +333,12 @@ def run_discovery(
             # reflecting what actually happened to items scored this way.
             if routed:
                 store.mark_item(item.url, "kept", store_path)
+
+    if clustered_count:
+        typer.echo(
+            f"  ({clustered_count} item{'s' if clustered_count != 1 else ''} needed a higher "
+            f"bar for already-clustered topics; threshold +{CLUSTER_SCORE_BONUS:.2f})"
+        )
 
     if scorer.xml_fallback_count or scorer.parse_error_count:
         # Diagnostic only -- not persisted (the LLM call itself is logged

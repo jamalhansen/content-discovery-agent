@@ -305,6 +305,28 @@ def get_tag_counts(path: str, status: str = "kept", limit: int = 15) -> list[dic
     return [{"tag": tag, "count": count} for tag, count in sorted_tags[:limit]]
 
 
+def get_kept_tag_counts_for_date(path: str, date: str) -> dict[str, int]:
+    """Tag -> count of items already kept on the given date (fetched_at).
+
+    Feeds the same-day topic-cluster cap: when a single news event produces
+    many individually-unique-URL articles, this is how the orchestrator
+    knows "N items sharing this tag are already kept today" before deciding
+    whether the Nth+1 needs a higher bar.
+    """
+    with _connect(path) as conn:
+        rows = conn.execute(
+            "SELECT tags FROM items WHERE status = 'kept' AND fetched_at = ?", (date,)
+        ).fetchall()
+
+    counts: dict[str, int] = {}
+    for row in rows:
+        for tag in json.loads(row["tags"]):
+            tag = tag.strip().lower()
+            if tag:
+                counts[tag] = counts.get(tag, 0) + 1
+    return counts
+
+
 def get_examples(
     n: int,
     path: str,

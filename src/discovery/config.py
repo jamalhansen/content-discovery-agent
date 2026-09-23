@@ -35,6 +35,20 @@ BLOCKED_TITLE_PATTERNS: tuple[str, ...] = tuple(
 DEFAULT_THRESHOLD: float = get_setting(
     TOOL_NAME, "threshold", default=_settings.get("threshold", 0.81)
 )
+
+# Same-day topic-cluster cap (Jamal 2026-09-22: "it can't all be relevant and
+# unique" -- a single viral news event (e.g. the 2026-09-17 Meta/OpenAI agent
+# incident) produces many individually on-topic, individually-unique-URL
+# articles that are still redundant as a group. Once CLUSTER_CAP items
+# sharing a tag are already kept today, an additional item needs
+# CLUSTER_SCORE_BONUS above the normal threshold to also get kept -- raises
+# the bar for the Nth article on today's story instead of hard-blocking it.
+CLUSTER_CAP: int = int(get_setting(
+    TOOL_NAME, "cluster_cap", default=_settings.get("cluster_cap", 3)
+))
+CLUSTER_SCORE_BONUS: float = float(get_setting(
+    TOOL_NAME, "cluster_score_bonus", default=_settings.get("cluster_score_bonus", 0.10)
+))
 DEFAULT_PROVIDER: str = get_setting(
     TOOL_NAME, "provider", env_var="MODEL_PROVIDER",
     default=_settings.get("provider", "local"),

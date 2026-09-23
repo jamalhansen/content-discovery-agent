@@ -20,6 +20,7 @@ def _run(provider, items, sources="reader", token="tok_abc", routing=False, no_d
     """Run run_discovery with reader fetch patched, all other I/O patched out."""
     with patch("discovery.orchestrator.list_reader_documents", return_value=items) as mock_list, \
          patch("discovery.store.init_db"), \
+         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
          patch("discovery.store.get_examples", return_value={}), \
          patch("discovery.store.is_seen", return_value=False), \
          patch("discovery.store.upsert_item"), \
@@ -71,6 +72,7 @@ class TestReaderSource:
         item = _make_reader_item(source="Some Blog")
         with patch("discovery.orchestrator.fetch_feed", return_value=[item]), \
              patch("discovery.store.init_db"), \
+         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
              patch("discovery.store.get_examples", return_value={}), \
              patch("discovery.store.is_seen", return_value=False), \
              patch("discovery.store.upsert_item"), \

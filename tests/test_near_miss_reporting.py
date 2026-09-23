@@ -42,6 +42,7 @@ class TestDismissedThisRun:
         ]
         with patch("discovery.orchestrator.fetch_feed", return_value=items), \
              patch("discovery.store.init_db"), \
+             patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
              patch("discovery.store.get_examples", return_value={}), \
              patch("discovery.store.is_seen", return_value=False), \
              patch("discovery.store.upsert_item"), \
@@ -67,6 +68,7 @@ class TestDismissedThisRun:
         items = [_make_feed_item()]
         with patch("discovery.orchestrator.fetch_feed", return_value=items), \
              patch("discovery.store.init_db"), \
+             patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
              patch("discovery.store.get_examples", return_value={}), \
              patch("discovery.store.is_seen", return_value=False), \
              patch("discovery.store.upsert_item"), \

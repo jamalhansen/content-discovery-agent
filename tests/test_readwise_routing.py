@@ -20,6 +20,7 @@ def _run(provider, items, threshold, dry_run, routing, token, store_path):
     """Run run_discovery with all heavy I/O patched out."""
     with patch("discovery.orchestrator.fetch_feed", return_value=items), \
          patch("discovery.store.init_db"), \
+         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
          patch("discovery.store.get_examples", return_value={}), \
          patch("discovery.store.is_seen", return_value=False), \
          patch("discovery.store.upsert_item"), \
