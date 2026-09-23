@@ -33,6 +33,15 @@ I follow technical writing craft and practical developer tooling.
 # Minimum relevance score to include an item (0.0–1.0)
 threshold = 0.7
 
+# Same-day topic-cluster cap: once this many items sharing a tag are already
+# kept today, an additional item on that same topic needs cluster_score_bonus
+# above threshold to also get kept. Raises the bar for the Nth article on
+# today's big story instead of hard-blocking it -- a single news event
+# otherwise produces many individually on-topic, individually-unique-URL
+# items that are redundant as a group.
+# cluster_cap = 3
+# cluster_score_bonus = 0.10
+
 # Which sources to fetch: rss, bluesky, mastodon, reader, citations.
 # "citations" mines outbound links from your own recently-kept articles as a
 # source of new candidates a fixed RSS list can't reach on its own -- see
@@ -42,9 +51,15 @@ threshold = 0.7
 # sources = ["rss", "citations"]
 
 # How many recently-kept items to crawl for outbound links per run, and how
-# many candidate links to take from each one (both live HTTP requests).
+# many candidate links to take from each one (both live HTTP requests). Watch
+# for cascades: research papers and incident reports overwhelmingly cite
+# other pieces in the same narrow subfield, so a topic streak in your recent
+# kept items can dominate the citation-seed pool and keep reinforcing itself
+# run over run. citation_max_per_tag caps how many of the kept_limit seeds
+# any single tag can contribute, so one streak can't monopolize the pool.
 # citation_kept_limit = 10
 # citation_max_links_per_item = 8
+# citation_max_per_tag = 2
 
 # Default LLM provider: local, anthropic, groq, deepseek
 provider = "local"

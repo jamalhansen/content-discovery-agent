@@ -20,7 +20,7 @@ def _citation_item(url="https://cited.example.com/post"):
 class TestCitationsSource:
     def test_not_fetched_when_citations_not_in_sources(self, tmp_path):
         with patch("discovery.orchestrator.fetch_feed", return_value=[]), \
-             patch("discovery.orchestrator.store.get_recent_kept") as mock_recent, \
+             patch("discovery.orchestrator.store.get_recent_kept_diverse") as mock_recent, \
              patch("discovery.orchestrator.store.init_db"), \
              patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
              patch("discovery.orchestrator.store.get_examples", return_value={}):
@@ -31,7 +31,7 @@ class TestCitationsSource:
         mock_recent.assert_not_called()
 
     def test_skipped_when_no_kept_items_yet(self, tmp_path):
-        with patch("discovery.orchestrator.store.get_recent_kept", return_value=[]), \
+        with patch("discovery.orchestrator.store.get_recent_kept_diverse", return_value=[]), \
              patch("discovery.orchestrator.discover_citation_candidates") as mock_discover, \
              patch("discovery.orchestrator.store.init_db"), \
              patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
@@ -44,7 +44,7 @@ class TestCitationsSource:
 
     def test_citation_candidates_flow_through_scoring_and_routing(self, tmp_path):
         item = _citation_item()
-        with patch("discovery.orchestrator.store.get_recent_kept", return_value=[{"url": "https://origin.example.com/kept-article", "title": "Origin"}]), \
+        with patch("discovery.orchestrator.store.get_recent_kept_diverse", return_value=[{"url": "https://origin.example.com/kept-article", "title": "Origin"}]), \
              patch("discovery.orchestrator.discover_citation_candidates", return_value=[item]), \
              patch("discovery.orchestrator.store.init_db"), \
              patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
@@ -68,7 +68,7 @@ class TestCitationsSource:
 
     def test_below_threshold_citation_item_is_dismissed_not_routed(self, tmp_path):
         item = _citation_item()
-        with patch("discovery.orchestrator.store.get_recent_kept", return_value=[{"url": "https://origin.example.com/kept-article", "title": "Origin"}]), \
+        with patch("discovery.orchestrator.store.get_recent_kept_diverse", return_value=[{"url": "https://origin.example.com/kept-article", "title": "Origin"}]), \
              patch("discovery.orchestrator.discover_citation_candidates", return_value=[item]), \
              patch("discovery.orchestrator.store.init_db"), \
              patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
@@ -89,13 +89,14 @@ class TestCitationsSource:
         mock_save.assert_not_called()
         mock_mark.assert_called_once_with(item.url, "dismissed", str(tmp_path / "store.db"))
 
-    def test_passes_configured_limit_to_get_recent_kept(self, tmp_path):
-        with patch("discovery.orchestrator.store.get_recent_kept", return_value=[]) as mock_recent, \
+    def test_passes_configured_limit_and_max_per_tag_to_get_recent_kept_diverse(self, tmp_path):
+        with patch("discovery.orchestrator.store.get_recent_kept_diverse", return_value=[]) as mock_recent, \
              patch("discovery.orchestrator.CITATION_KEPT_LIMIT", 7), \
+             patch("discovery.orchestrator.CITATION_MAX_PER_TAG", 3), \
              patch("discovery.orchestrator.store.init_db"), \
              patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
              patch("discovery.orchestrator.store.get_examples", return_value={}):
             run_discovery(
                 MockProvider(), "citations", None, 0.5, True, False, False, None, str(tmp_path / "store.db"),
             )
-        mock_recent.assert_called_once_with(str(tmp_path / "store.db"), limit=7)
+        mock_recent.assert_called_once_with(str(tmp_path / "store.db"), limit=7, max_per_tag=3)

@@ -20,6 +20,7 @@ from .config import (
     BLUESKY_HANDLE,
     CITATION_KEPT_LIMIT,
     CITATION_MAX_LINKS_PER_ITEM,
+    CITATION_MAX_PER_TAG,
     CLUSTER_CAP,
     CLUSTER_SCORE_BONUS,
     CONTEXTA_INBOX_PATH,
@@ -169,7 +170,7 @@ def run_discovery(
 
     # --- Citations source: mine outbound links from recently-kept articles ---
     if "citations" in source_list:
-        recent_kept = store.get_recent_kept(store_path, limit=CITATION_KEPT_LIMIT)
+        recent_kept = store.get_recent_kept_diverse(store_path, limit=CITATION_KEPT_LIMIT, max_per_tag=CITATION_MAX_PER_TAG)
         if recent_kept:
             typer.echo(f"Crawling citations from {len(recent_kept)} recently kept item(s)...")
             citation_items = discover_citation_candidates(

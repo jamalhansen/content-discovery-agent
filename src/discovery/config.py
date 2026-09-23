@@ -117,6 +117,10 @@ DEFAULT_BACKUP_DIR: str = os.path.expanduser(
 # on its own. See discovery/citations.py for the rationale.
 CITATION_KEPT_LIMIT: int = int(_settings.get("citation_kept_limit", 10))
 CITATION_MAX_LINKS_PER_ITEM: int = int(_settings.get("citation_max_links_per_item", 8))
+# Caps how many citation seeds any single tag can contribute (Jamal
+# 2026-09-22: one topic streak cascaded into 83% of a week's inbox via
+# citations -- see store.get_recent_kept_diverse).
+CITATION_MAX_PER_TAG: int = int(_settings.get("citation_max_per_tag", 2))
 
 SOCIAL_KEYWORDS: list[str] = _social.get("keywords", [])
 SOCIAL_MASTODON_INSTANCES: list[str] = _social.get(

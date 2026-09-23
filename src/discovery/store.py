@@ -460,6 +460,36 @@ def get_recent_kept(path: str, limit: int = 10) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def get_recent_kept_diverse(path: str, limit: int = 10, max_per_tag: int = 2) -> list[dict]:
+    """Like get_recent_kept, but caps how many seeds any single tag can
+    contribute (Jamal 2026-09-22: 83% of a week's inbox turned out to be
+    platform="citations" cascading off one topic streak -- research papers
+    and incident reports overwhelmingly cite *other pieces in the same
+    narrow subfield*, so once a streak of same-tagged items fills the
+    recent-kept window, their citations reinforce the same streak next run.
+    Capping per-tag contribution keeps one hot topic from monopolizing the
+    citation-seed pool. Each dict has keys: url, title.
+    """
+    with _connect(path) as conn:
+        rows = conn.execute(
+            "SELECT url, title, tags FROM items WHERE status = 'kept' "
+            "ORDER BY reviewed_at DESC"
+        ).fetchall()
+
+    tag_counts: dict[str, int] = {}
+    selected: list[dict] = []
+    for row in rows:
+        if len(selected) >= limit:
+            break
+        item_tags = [t.strip().lower() for t in json.loads(row["tags"]) if t.strip()]
+        if any(tag_counts.get(t, 0) >= max_per_tag for t in item_tags):
+            continue
+        for t in item_tags:
+            tag_counts[t] = tag_counts.get(t, 0) + 1
+        selected.append({"url": row["url"], "title": row["title"]})
+    return selected
+
+
 def search_kept_items(
     path: str,
     tags: list[str] | None = None,

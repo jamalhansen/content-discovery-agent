@@ -6,6 +6,7 @@ from discovery.store import (
     get_examples,
     get_kept_tag_counts_for_date,
     get_recent_kept,
+    get_recent_kept_diverse,
     get_score_distribution,
     get_source_stats,
     get_status_summary,
@@ -475,6 +476,69 @@ class TestGetRecentKept:
 
         result = get_recent_kept(path, limit=2)
         assert len(result) == 2
+
+
+class TestGetRecentKeptDiverse:
+    """Jamal 2026-09-22: 83% of a week's inbox turned out to be platform
+    'citations' cascading off one topic streak -- these lock in the fix:
+    capping how many citation seeds any single tag can contribute."""
+
+    def test_empty_db_returns_empty_list(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        assert get_recent_kept_diverse(path) == []
+
+    def test_below_cap_all_pass_through(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        for i in range(2):
+            upsert_item(**make_item(url=f"https://a.com/{i}", tags=["ai-safety"]), path=path)
+            mark_item(f"https://a.com/{i}", "kept", path)
+
+        result = get_recent_kept_diverse(path, limit=10, max_per_tag=2)
+        assert len(result) == 2
+
+    def test_one_tag_cannot_monopolize_the_seed_pool(self, tmp_path):
+        """5 items all tagged 'ai-safety', max_per_tag=2: only 2 of them
+        should be selected, even though limit=10 would allow more."""
+        path = db(tmp_path)
+        init_db(path)
+        for i in range(5):
+            upsert_item(**make_item(url=f"https://a.com/{i}", tags=["ai-safety"]), path=path)
+            mark_item(f"https://a.com/{i}", "kept", path)
+
+        result = get_recent_kept_diverse(path, limit=10, max_per_tag=2)
+        assert len(result) == 2
+
+    def test_diverse_tags_still_fill_the_limit(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        for i in range(5):
+            upsert_item(**make_item(url=f"https://a.com/{i}", tags=[f"topic-{i}"]), path=path)
+            mark_item(f"https://a.com/{i}", "kept", path)
+
+        result = get_recent_kept_diverse(path, limit=10, max_per_tag=2)
+        assert len(result) == 5
+
+    def test_most_recent_first_within_the_cap(self, tmp_path):
+        path = db(tmp_path)
+        init_db(path)
+        upsert_item(**make_item(url="https://a.com/1", title="Older", tags=["ai-safety"]), path=path)
+        upsert_item(**make_item(url="https://a.com/2", title="Newer", tags=["ai-safety"]), path=path)
+        conn = sqlite3.connect(path)
+        conn.execute(
+            "UPDATE items SET status='kept', reviewed_at=? WHERE url=?",
+            ("2026-03-07T10:00:00+00:00", "https://a.com/1"),
+        )
+        conn.execute(
+            "UPDATE items SET status='kept', reviewed_at=? WHERE url=?",
+            ("2026-03-07T11:00:00+00:00", "https://a.com/2"),
+        )
+        conn.commit()
+        conn.close()
+
+        result = get_recent_kept_diverse(path, limit=1, max_per_tag=5)
+        assert result[0]["title"] == "Newer"
 
 
 class TestGetEvalSample:
