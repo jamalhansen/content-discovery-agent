@@ -234,6 +234,9 @@ def save_to_vault_inbox(
     platform: str = "",
     include_body: bool = True,
     body_fetcher=None,
+    source_type: str = "content-discovery-agent",
+    highlights: list[str] | None = None,
+    reader_note: str = "",
 ) -> bool:
     """Write a kept item as a new markdown file in the vault inbox.
 
@@ -274,7 +277,7 @@ def save_to_vault_inbox(
 
         lines = [
             "---",
-            "source_type: content-discovery-agent",
+            f"source_type: {source_type}",
             f"source_url: {url}",
         ]
         if published_date:
@@ -305,6 +308,17 @@ def save_to_vault_inbox(
             lines.append("")
         lines.append(f"Source: {url}")
         lines.append("")
+        if reader_note:
+            lines.append("## Jamal's note")
+            lines.append("")
+            lines.append(reader_note)
+            lines.append("")
+        if highlights:
+            lines.append("## Jamal's highlights")
+            lines.append("")
+            for h in highlights:
+                lines.append("> " + h.replace("\n", "\n> "))
+                lines.append("")
 
         if include_body:
             if fetch_error:

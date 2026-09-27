@@ -45,6 +45,7 @@ from .options import (
     verbose_opt,
 )
 from .orchestrator import _TOOL, run_discovery, run_review, run_save
+from .pull_tagged import DEFAULT_TAG, pull_tagged_items
 from .reconcile import reconcile
 from .scorer import score_item
 
@@ -338,6 +339,44 @@ def cmd_reconcile(
         typer.echo(f"\nArchived {result.archived} of {len(result.matched)} matched items.")
         if result.failed:
             typer.echo(f"Failed to archive {len(result.failed)}: {', '.join(result.failed)}")
+
+
+@app.command(
+    "pull-tagged",
+    help="Pull Reader items tagged for the vault (default tag: contexta) into the Contexta inbox, with highlights.",
+)
+def cmd_pull_tagged(
+    notes_path: str = typer.Option(
+        CONTEXTA_NOTES_PATH, "--notes-path", envvar="CONTEXTA_NOTES_PATH",
+        help="Vault notes/ directory, checked so an already-noted article is skipped",
+    ),
+    inbox_path: str = typer.Option(
+        CONTEXTA_INBOX_PATH, "--inbox-path", envvar="CONTEXTA_INBOX_PATH",
+        help="Vault inbox/ directory to write into",
+    ),
+    readwise_token: str = typer.Option(
+        READWISE_TOKEN, "--readwise-token", envvar="READWISE_TOKEN", show_default=False,
+        help="Readwise access token (or set READWISE_TOKEN env var)",
+    ),
+    tag: str = typer.Option(DEFAULT_TAG, "--tag", help="Reader tag that marks an item for the vault"),
+    limit: int = typer.Option(20, "--limit", "-l", help="Maximum items to write in this run"),
+    dry_run: bool = dry_run_opt(),
+):
+    """Tagging an item in Reader is the signal; this is the scheduled half of that loop."""
+    try:
+        validate_readwise_token_or_raise(readwise_token)
+    except ReadwiseTokenError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+    result = pull_tagged_items(notes_path, inbox_path, readwise_token, tag=tag, limit=limit, dry_run=dry_run)
+    typer.echo(f"Tagged '{tag}' in Reader: {result.tagged}. Already captured: {result.already_captured}.")
+    for title in result.imported:
+        typer.echo(f"  {'[dry-run] ' if dry_run else ''}pulled: {title[:65]}")
+    for title in result.failed:
+        typer.echo(f"  FAILED: {title[:65]}")
+    if not result.imported and not result.failed:
+        typer.echo("Nothing new to pull.")
 
 
 @app.command(
