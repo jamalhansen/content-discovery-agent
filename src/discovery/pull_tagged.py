@@ -6,8 +6,11 @@ worth keeping. This writes each tagged item to inbox/ with his highlights and
 Reader note, marked ``source_type: readwise-tagged`` so /reduce treats it as a
 source he chose rather than an auto-discovered one.
 
-Idempotent by ``source_url``: an item already captured in notes/ or inbox/
-(including inbox/archive/) is skipped, so the tag never needs removing.
+After a successful pull (or when the item turns out to be captured already)
+the tag is swapped to ``contexta-pulled`` on whichever Reader item carried it,
+so Reader shows what has reached the vault. The ``source_url`` check against
+notes/ and inbox/ (including inbox/archive/) stays as the backstop if a swap
+fails.
 """
 import os
 import time
@@ -20,7 +23,9 @@ from .import_reader import _already_captured_urls
 from .vault_inbox import save_to_vault_inbox
 
 _LIST_URL = "https://readwise.io/api/v3/list/"
+_UPDATE_URL = "https://readwise.io/api/v3/update/{doc_id}/"
 DEFAULT_TAG = "contexta"
+PULLED_SUFFIX = "-pulled"
 SOURCE_TYPE = "readwise-tagged"
 
 
@@ -31,6 +36,9 @@ class TaggedDoc:
     title: str
     note: str = ""
     highlights: list[str] = field(default_factory=list)
+    # (reader id, its current tag names) for each item that carries the tag:
+    # the document itself, or a highlight on it.
+    tag_holders: list[tuple[str, list[str]]] = field(default_factory=list)
 
 
 @dataclass
@@ -39,6 +47,8 @@ class PullResult:
     already_captured: int = 0
     imported: list[str] = field(default_factory=list)
     failed: list[str] = field(default_factory=list)
+    retagged: int = 0
+    retag_failed: list[str] = field(default_factory=list)
 
 
 def list_reader_docs(token: str, **params) -> list[dict]:
@@ -60,6 +70,23 @@ def list_reader_docs(token: str, **params) -> list[dict]:
         cursor = data.get("nextPageCursor")
         if not cursor:
             return docs
+
+
+def update_tags(token: str, doc_id: str, tags: list[str]) -> bool:
+    """Replace a Reader item's tag list (the API takes the full list, not a delta)."""
+    headers = {"Authorization": f"Token {token}"}
+    for _ in range(3):
+        resp = requests.patch(_UPDATE_URL.format(doc_id=doc_id), headers=headers, json={"tags": tags}, timeout=30)
+        if resp.status_code == 429:
+            time.sleep(int(resp.headers.get("Retry-After", "5")))
+            continue
+        return resp.ok
+    return False
+
+
+def _tag_names(doc: dict) -> list[str]:
+    tags = doc.get("tags") or {}
+    return list(tags.keys()) if isinstance(tags, dict) else list(tags)
 
 
 def collect_tagged(token: str, tag: str = DEFAULT_TAG, list_docs=list_reader_docs) -> list[TaggedDoc]:
@@ -84,6 +111,12 @@ def collect_tagged(token: str, tag: str = DEFAULT_TAG, list_docs=list_reader_doc
         if pid in by_id and (h.get("content") or "").strip():
             highlights.setdefault(pid, []).append((h.get("highlight_location") or 0, h["content"].strip()))
 
+    holders: dict[str, list[tuple[str, list[str]]]] = {}
+    for d in tagged:
+        owner = d.get("parent_id") if d.get("category") == "highlight" else d["id"]
+        if owner in by_id:
+            holders.setdefault(owner, []).append((d["id"], _tag_names(d)))
+
     return [
         TaggedDoc(
             doc_id=doc_id,
@@ -91,9 +124,22 @@ def collect_tagged(token: str, tag: str = DEFAULT_TAG, list_docs=list_reader_doc
             title=d.get("title") or "(untitled)",
             note=(d.get("notes") or "").strip(),
             highlights=[text for _, text in sorted(highlights.get(doc_id, []))],
+            tag_holders=holders.get(doc_id, []),
         )
         for doc_id, d in by_id.items()
     ]
+
+
+def _mark_pulled(token: str, doc: TaggedDoc, tag: str, update, result: PullResult) -> None:
+    done = tag + PULLED_SUFFIX
+    for item_id, names in doc.tag_holders:
+        new = [n for n in names if n != tag]
+        if done not in new:
+            new.append(done)
+        if update(token, item_id, new):
+            result.retagged += 1
+        else:
+            result.retag_failed.append(doc.title)
 
 
 def pull_tagged_items(
@@ -106,6 +152,7 @@ def pull_tagged_items(
     dry_run: bool = False,
     list_docs=list_reader_docs,
     save=save_to_vault_inbox,
+    update=update_tags,
 ) -> PullResult:
     result = PullResult()
     captured = _already_captured_urls(notes_path, inbox_path)
@@ -120,6 +167,8 @@ def pull_tagged_items(
             key = doc.source_url
         if key in captured:
             result.already_captured += 1
+            if not dry_run:
+                _mark_pulled(token, doc, tag, update, result)
             continue
         if len(result.imported) + len(result.failed) >= limit:
             continue
@@ -138,6 +187,7 @@ def pull_tagged_items(
         if ok:
             result.imported.append(doc.title)
             captured.add(key)
+            _mark_pulled(token, doc, tag, update, result)
         else:
             result.failed.append(doc.title)
     return result

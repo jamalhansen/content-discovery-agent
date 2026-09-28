@@ -375,6 +375,10 @@ def cmd_pull_tagged(
         typer.echo(f"  {'[dry-run] ' if dry_run else ''}pulled: {title[:65]}")
     for title in result.failed:
         typer.echo(f"  FAILED: {title[:65]}")
+    if result.retagged:
+        typer.echo(f"Retagged {result.retagged} Reader item(s) '{tag}' -> '{tag}-pulled'.")
+    for title in result.retag_failed:
+        typer.echo(f"  retag failed (still deduped by URL): {title[:65]}")
     if not result.imported and not result.failed:
         typer.echo("Nothing new to pull.")
 
