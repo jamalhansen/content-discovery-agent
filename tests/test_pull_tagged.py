@@ -79,3 +79,18 @@ def test_already_captured_url_is_skipped(tmp_path: Path):
 def test_default_source_type_unchanged_for_discovered_items(tmp_path: Path):
     save_to_vault_inbox(str(tmp_path), "https://example.com/x", "X", body_fetcher=lambda u: ("b " * 800, ""))
     assert "source_type: content-discovery-agent" in next(tmp_path.glob("*.md")).read_text()
+
+
+def test_source_archived_in_a_subfolder_counts_as_captured(tmp_path: Path):
+    """/reduce moves a source to inbox/archive/<name>/<name>.md; it must not be pulled again."""
+    notes, inbox = tmp_path / "notes", tmp_path / "inbox"
+    notes.mkdir()
+    nested = inbox / "archive" / "2026-09-27-a-post"
+    nested.mkdir(parents=True)
+    (nested / "2026-09-27-a-post.md").write_text("---\nsource_url: https://example.com/post\n---\n")
+    saved = []
+    result = pull_tagged_items(
+        str(notes), str(inbox), "t", list_docs=fake_list([ARTICLE]), save=lambda *a, **k: saved.append(a) or True
+    )
+    assert result.already_captured == 1
+    assert saved == []

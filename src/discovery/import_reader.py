@@ -35,9 +35,11 @@ def _already_captured_urls(*dirs: str) -> set[str]:
     seen: set[str] = set()
     for d in dirs:
         seen |= set(collect_note_source_urls(d).keys())
+        # /reduce archives each source into its own subfolder (archive/<name>/<name>.md),
+        # and collect_note_source_urls only reads one directory level, so walk the tree.
         archive = os.path.join(os.path.expanduser(d), "archive")
-        if os.path.isdir(archive):
-            seen |= set(collect_note_source_urls(archive).keys())
+        for root, _dirs, _files in os.walk(archive):
+            seen |= set(collect_note_source_urls(root).keys())
     return seen
 
 
