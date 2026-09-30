@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for the "near misses" report shown when a run yields zero candidates.
 
 Regression coverage for a bug found 2026-09-06: the report was built from
@@ -15,6 +17,13 @@ from typer.testing import CliRunner
 from discovery import store
 from discovery.cli import app
 from discovery.orchestrator import run_discovery
+
+
+@pytest.fixture(autouse=True)
+def _single_score(monkeypatch):
+    """These tests pin near-miss reporting with canned per-item scores; the borderline
+    retest (tested in test_scorer.py) would consume a second canned score per item."""
+    monkeypatch.setattr("discovery.orchestrator.BORDERLINE_MARGIN", 0)
 
 runner = CliRunner()
 

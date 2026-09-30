@@ -36,6 +36,12 @@ DEFAULT_THRESHOLD: float = get_setting(
     TOOL_NAME, "threshold", default=_settings.get("threshold", 0.81)
 )
 
+# Items scoring within this distance of the threshold get a second score and the two
+# are averaged -- see scorer.score_item_with_retest. 0 disables.
+BORDERLINE_MARGIN: float = float(get_setting(
+    TOOL_NAME, "borderline_margin", default=_settings.get("borderline_margin", 0.10)
+))
+
 # Same-day topic-cluster cap (Jamal 2026-09-22: "it can't all be relevant and
 # unique" -- a single viral news event (e.g. the 2026-09-17 Meta/OpenAI agent
 # incident) produces many individually on-topic, individually-unique-URL

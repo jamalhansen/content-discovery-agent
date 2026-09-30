@@ -204,3 +204,47 @@ class TestSystemPromptPenalizesAIGeneratedContent:
 
     def test_states_relevance_does_not_override_the_penalty(self):
         assert "regardless of topic relevance" in SYSTEM_PROMPT
+
+
+class TestScoreItemWithRetest:
+    """Second score + average only near the threshold (2026-09-29 test-retest finding)."""
+
+    @staticmethod
+    def _scorer(*scores):
+        from local_first_common.scoring import ScoredItem
+
+        scorer = MagicMock()
+        scorer.score.side_effect = [
+            None if s is None else ScoredItem(score=s, tags=["t"], summary="s") for s in scores
+        ]
+        return scorer
+
+    def _run(self, scorer, margin=0.10):
+        from discovery.scorer import score_item_with_retest
+
+        return score_item_with_retest(MagicMock(), "T", "D", "profile", 0.75, margin, scorer=scorer)
+
+    def test_far_from_threshold_scores_once(self):
+        scorer = self._scorer(0.30)
+        assert self._run(scorer).score == 0.30
+        assert scorer.score.call_count == 1
+
+    def test_borderline_is_rescored_and_averaged(self):
+        scorer = self._scorer(0.80, 0.60)
+        result = self._run(scorer)
+        assert scorer.score.call_count == 2
+        assert result.score == 0.70
+        assert result.tags == ["t"]
+
+    def test_failed_second_score_keeps_the_first(self):
+        assert self._run(self._scorer(0.72, None)).score == 0.72
+
+    def test_failed_first_score_is_not_retried(self):
+        scorer = self._scorer(None)
+        assert self._run(scorer) is None
+        assert scorer.score.call_count == 1
+
+    def test_zero_margin_disables(self):
+        scorer = self._scorer(0.75)
+        self._run(scorer, margin=0)
+        assert scorer.score.call_count == 1

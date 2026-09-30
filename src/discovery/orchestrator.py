@@ -19,6 +19,7 @@ from .config import (
     BLOCKED_TITLE_PATTERNS,
     BLUESKY_APP_PASSWORD,
     BLUESKY_HANDLE,
+    BORDERLINE_MARGIN,
     CITATION_KEPT_LIMIT,
     CITATION_MAX_LINKS_PER_ITEM,
     CITATION_MAX_PER_TAG,
@@ -48,7 +49,12 @@ from .feed_cache import (
 )
 from .feed_reader import FeedItem, fetch_feed
 from .readwise import save_to_readwise
-from .scorer import ContentDiscoveryScorer, ScoredItem, score_item
+from .scorer import (
+    ContentDiscoveryScorer,
+    ScoredItem,
+    score_item,
+    score_item_with_retest,
+)
 from .session import DiscoverySession
 from .social.bluesky import BlueskyReader
 from .social.mastodon import MastodonReader
@@ -247,7 +253,10 @@ def run_discovery(
     for item in all_new_items:
         llm_provider.source_location = item.title
         llm_provider.item_count = 1
-        result = score_item(llm_provider, item.title, item.description, INTEREST_PROFILE, examples, INTEREST_EXCLUSIONS, scorer=scorer)
+        result = score_item_with_retest(
+            llm_provider, item.title, item.description, INTEREST_PROFILE, threshold, BORDERLINE_MARGIN,
+            examples, INTEREST_EXCLUSIONS, scorer=scorer, score_fn=score_item,
+        )
         if result is None:
             skipped_count += 1
             continue

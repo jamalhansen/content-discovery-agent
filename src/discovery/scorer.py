@@ -96,3 +96,33 @@ def score_item(
         scorer = ContentDiscoveryScorer()
     user_message = build_user_message(title, description, interest_profile, exclusions, examples)
     return scorer.score(provider, user_message)
+
+
+def score_item_with_retest(
+    provider: BaseProvider,
+    title: str,
+    description: str,
+    interest_profile: str,
+    threshold: float,
+    margin: float,
+    examples: dict | None = None,
+    exclusions: str = "",
+    scorer: ContentDiscoveryScorer | None = None,
+    score_fn=score_item,
+) -> ScoredItem | None:
+    """Score once; if the score lands within `margin` of `threshold`, score again and average.
+
+    A 2026-09-29 test-retest on items scored under the current profile showed the scorer
+    is noisy right where it matters: re-scored by the same model, 40% of items Jamal kept
+    fell below the threshold. Averaging two draws of the same model narrows that noise
+    only for the ~20% of items near the line. Deliberately the same model, not a stronger
+    one: a second model's 0.75 isn't calibrated to the threshold tuned on this one.
+    """
+    first = score_fn(provider, title, description, interest_profile, examples, exclusions, scorer=scorer)
+    if first is None or margin <= 0 or abs(first.score - threshold) >= margin:
+        return first
+    second = score_fn(provider, title, description, interest_profile, examples, exclusions, scorer=scorer)
+    if second is None:
+        return first
+    first.score = round((first.score + second.score) / 2, 3)
+    return first
