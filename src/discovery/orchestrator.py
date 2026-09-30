@@ -1,5 +1,6 @@
+import random
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 import typer
@@ -28,6 +29,7 @@ from .config import (
     FEEDS,
     INTEREST_EXCLUSIONS,
     INTEREST_PROFILE,
+    PROBE_WEEKLY_CAP,
     READER_CATEGORY,
     READER_LOCATION,
     READWISE_ROUTING,
@@ -240,6 +242,7 @@ def run_discovery(
     # a burst of items about one event within a single run needs to cap
     # itself too, not just across separate runs.
     cluster_counts = store.get_kept_tag_counts_for_date(store_path, today)
+    probe_pool: list[tuple[FeedItem, ScoredItem]] = []
 
     for item in all_new_items:
         llm_provider.source_location = item.title
@@ -286,6 +289,8 @@ def run_discovery(
                 store.mark_item(item.url, "dismissed", store_path)
             if is_english:
                 dismissed_this_run.append({"title": item.title, "score": result.score})
+                if item.source != "readwise-reader":
+                    probe_pool.append((item, result))
 
         if is_english and result.score >= effective_threshold:
             for t in item_tags:
@@ -335,6 +340,8 @@ def run_discovery(
             if routed:
                 store.mark_item(item.url, "kept", store_path)
 
+    _maybe_route_probe(probe_pool, store_path, dry_run)
+
     if clustered_count:
         typer.echo(
             f"  ({clustered_count} item{'s' if clustered_count != 1 else ''} needed a higher "
@@ -351,6 +358,47 @@ def run_discovery(
         )
 
     return candidates, scored_count, skipped_count, dismissed_this_run
+
+def _maybe_route_probe(
+    pool: list[tuple[FeedItem, ScoredItem]],
+    store_path: str,
+    dry_run: bool,
+    rng: random.Random | None = None,
+) -> FeedItem | None:
+    """Send at most one rejected item this run to Reader as a blind exploration probe.
+
+    Only items the model rejected ever reach here, so without probes the
+    calibration study could never see a false negative. Each run has a
+    cap/7 chance, bounded by PROBE_WEEKLY_CAP over a rolling week; the pick is
+    uniform over the run's rejects so probes mirror the rejected population.
+    """
+    rng = rng or random.Random()
+    if PROBE_WEEKLY_CAP <= 0 or not pool or not (READWISE_ROUTING and READWISE_TOKEN):
+        return None
+    week_ago = (datetime.now().astimezone() - timedelta(days=7)).isoformat()
+    if store.count_probes_since(week_ago, store_path) >= PROBE_WEEKLY_CAP:
+        return None
+    if rng.random() >= PROBE_WEEKLY_CAP / 7:
+        return None
+    item, result = rng.choice(pool)
+    if dry_run:
+        typer.echo(f"  [dry-run] Would send probe to Readwise: [{result.score:.2f}] {item.title[:60]}")
+        return item
+    ok = save_to_readwise(
+        READWISE_TOKEN,
+        item.url,
+        title=item.title,
+        summary=result.summary,
+        tags=result.tags,
+        published_date=item.published or "",
+        search_term=item.search_term,
+        platform=item.platform,
+        tool=_TOOL,
+    )
+    if ok:
+        store.mark_probed(item.url, store_path)
+    return item if ok else None
+
 
 def _keep_and_route(item: dict, store_path: str, readwise_token: str, destinations: set[str]) -> None:
     """Mark an item kept and route it to the requested destinations."""

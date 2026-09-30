@@ -133,5 +133,13 @@ BLUESKY_APP_PASSWORD: str = os.environ.get("BLUESKY_APP_PASSWORD", "")
 READWISE_TOKEN: str = os.environ.get("READWISE_TOKEN", "")
 READWISE_ROUTING: bool = bool(_settings.get("readwise_routing", False))
 
+# Exploration sample for the calibration study: a few below-threshold items a
+# week go to Reader like any routed item, so the model's false negatives become
+# measurable. Recorded only in the store (probed_at), never tagged, so Reader
+# shows nothing that marks them as probes. 0 disables.
+PROBE_WEEKLY_CAP: int = int(get_setting(
+    TOOL_NAME, "probe_weekly_cap", default=_settings.get("probe_weekly_cap", 4)
+))
+
 READER_LOCATION: str = _settings.get("reader_location", "new")
 READER_CATEGORY: str | None = _settings.get("reader_category")

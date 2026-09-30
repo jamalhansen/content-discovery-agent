@@ -88,6 +88,7 @@ def init_db(path: str) -> None:
         _ensure_column(conn, "items", "search_term", "TEXT DEFAULT NULL")
         # Migration: add platform for existing DBs that predate this column.
         _ensure_column(conn, "items", "platform", "TEXT DEFAULT NULL")
+        _ensure_column(conn, "items", "probed_at", "TEXT DEFAULT NULL")
 
 
 def is_seen(url: str, path: str) -> bool:
@@ -201,6 +202,29 @@ def mark_item(url: str, status: str, path: str) -> None:
             "UPDATE items SET status = ?, reviewed_at = ? WHERE url = ?",
             (status, now, url),
         )
+
+
+def mark_probed(url: str, path: str) -> None:
+    """Record that a below-threshold item was sent to Reader as an exploration probe.
+
+    Status stays 'dismissed': the model did reject it, and get_examples() keeps
+    treating it that way, so the probe doesn't feed back into scoring.
+    """
+    with _connect(path) as conn:
+        conn.execute(
+            "UPDATE items SET probed_at = ? WHERE url = ?",
+            (datetime.now(UTC).isoformat(), url),
+        )
+
+
+def count_probes_since(since_iso: str, path: str) -> int:
+    """Number of probes sent at or after the given ISO timestamp."""
+    with _connect(path) as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) FROM items WHERE probed_at IS NOT NULL AND probed_at >= ?",
+            (since_iso,),
+        ).fetchone()
+    return int(row[0])
 
 
 def dismiss_items_by_urls(urls: list[str], path: str) -> int:

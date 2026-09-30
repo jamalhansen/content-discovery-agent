@@ -21,6 +21,8 @@ def no_live_side_effects(monkeypatch):
 
     monkeypatch.setattr(orch, "READWISE_ROUTING", False, raising=False)
     monkeypatch.setattr(orch, "CONTEXTA_INBOX_ROUTING", False, raising=False)
+    # Probes are random by design; routing tests assert exact calls, so they stay off.
+    monkeypatch.setattr(orch, "PROBE_WEEKLY_CAP", 0, raising=False)
 
 
 @pytest.fixture(autouse=True)
