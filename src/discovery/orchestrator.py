@@ -9,6 +9,7 @@ from local_first_common.article_fetcher import (
     _is_blocked,
     fetch_article_metadata,
 )
+from local_first_common.heartbeat import heartbeat
 from local_first_common.readwise import list_reader_documents
 from local_first_common.tracking import register_tool
 from local_first_common.url import normalize_url
@@ -250,6 +251,10 @@ def run_discovery(
     cluster_counts = store.get_kept_tag_counts_for_date(store_path, today)
     probe_pool: list[tuple[FeedItem, ScoredItem]] = []
 
+    # Tell process-doctor we're alive before the slow part starts, then after every
+    # item: each score is a ~16s gateway wait with almost no CPU, which its flat-CPU
+    # rule read as a hang and killed mid-run most mornings 2026-09-30..10-03.
+    heartbeat()
     for item in all_new_items:
         llm_provider.source_location = item.title
         llm_provider.item_count = 1
@@ -257,6 +262,7 @@ def run_discovery(
             llm_provider, item.title, item.description, INTEREST_PROFILE, threshold, BORDERLINE_MARGIN,
             examples, INTEREST_EXCLUSIONS, scorer=scorer, score_fn=score_item,
         )
+        heartbeat()
         if result is None:
             skipped_count += 1
             continue
