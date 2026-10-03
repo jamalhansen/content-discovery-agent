@@ -214,6 +214,85 @@ def cmd_report(
     run_report(store_path, days, json_output=json_output)
 
 
+verdict_app = typer.Typer(
+    help="Jamal's own call on items the model decided, so the scorer learns from him again "
+    "(2026-10-02). Verdicts sit beside status and override it in the few-shot examples."
+)
+app.add_typer(verdict_app, name="verdict")
+
+
+@verdict_app.command("pending")
+def cmd_verdict_pending(
+    store_path: str = store_opt(),
+    threshold: float = threshold_opt(),
+    routed: int = typer.Option(4, "--routed", help="How many of the model's latest keeps"),
+    rejected: int = typer.Option(2, "--rejected", help="How many of its nearest recent misses"),
+    json_output: Annotated[bool, json_option()] = False,
+):
+    """Unrated items to judge blind: latest routed plus nearest misses, in an order that
+    doesn't reveal what the model did. Show title, summary and source only."""
+    store.init_db(store_path)
+    items = store.verdict_candidates(store_path, threshold, n_routed=routed, n_rejected=rejected)
+    if json_output:
+        typer.echo(json.dumps(items, indent=2, default=str))
+        return
+    if not items:
+        typer.echo("Nothing to rate.")
+        return
+    for n, item in enumerate(items, 1):
+        typer.echo(f"\n{n}. [#{item['id']}] {item['title']}")
+        if item.get("summary"):
+            typer.echo(f"   {item['summary']}")
+        typer.echo(f"   {item['source']}  {item['url']}")
+
+
+@verdict_app.command("set")
+def cmd_verdict_set(
+    ref: Annotated[str, typer.Argument(help="Item id, URL, or a unique fragment of URL/title")],
+    verdict: Annotated[str, typer.Argument(help="keep or dismiss")],
+    note: Annotated[str | None, typer.Option("--note", help="One line on why")] = None,
+    store_path: str = store_opt(),
+    json_output: Annotated[bool, json_option()] = False,
+):
+    """Record a verdict. The model's status is left as its own record."""
+    store.init_db(store_path)
+    try:
+        item = store.set_verdict(ref, verdict, store_path, note=note)
+    except (LookupError, ValueError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+    if json_output:
+        typer.echo(json.dumps(item, indent=2, default=str))
+        return
+    agree = "agreed" if store._STATUS_FOR_VERDICT[verdict] == item["status"] else "DISAGREED"
+    typer.echo(f"#{item['id']} {item['title'][:70]}: {verdict} (model {item['status']} at {item['score']:.2f}, {agree})")
+
+
+@verdict_app.command("stats")
+def cmd_verdict_stats(
+    store_path: str = store_opt(),
+    json_output: Annotated[bool, json_option()] = False,
+):
+    """Model-vs-Jamal agreement by score bucket, and whose decisions fill the example window."""
+    store.init_db(store_path)
+    s = store.get_verdict_stats(store_path)
+    if json_output:
+        typer.echo(json.dumps(s, indent=2))
+        return
+    if not s["rated"]:
+        typer.echo("No verdicts yet.")
+        return
+    typer.echo(f"rated: {s['rated']}  agreed: {s['agreed']}  agreement: {s['agreement_rate']:.0%}")
+    for b, v in s["by_bucket"].items():
+        typer.echo(f"  score {b}: {v['rated']} rated, {v['keep']} keep, {v['agreed']} agreed")
+    slots = s["example_slots"]
+    typer.echo(
+        "example slots (human/machine): "
+        f"kept {slots['kept']['human']}/{slots['kept']['machine']}, "
+        f"dismissed {slots['dismissed']['human']}/{slots['dismissed']['machine']}"
+    )
+
+
 @app.command("list-candidates", help="List pending candidate items awaiting review.")
 def cmd_list_candidates(
     store_path: str = store_opt(),

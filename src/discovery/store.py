@@ -20,12 +20,24 @@ items
   fetched_at  TEXT     — ISO date string e.g. '2026-03-07'
   found_at    TEXT     — URL of the page/post where this link was first found (NULL for older rows)
   reviewed_at TEXT     — ISO datetime string, NULL until reviewed
+  human_verdict TEXT   — 'keep' | 'dismiss' | NULL: Jamal's own call, independent of status
+  human_note  TEXT     — optional one line on why
+  verdict_at  TEXT     — ISO datetime of the verdict
+
+status vs human_verdict
+-----------------------
+Since readwise_routing (2026-08-23) `status` is set by the score threshold, so it
+records what the *model* decided. `human_verdict` records what Jamal decided when
+he rated the item, and overrides status wherever the two are read together
+(get_examples, get_verdict_stats). Until 2026-10-02 the few-shot examples came
+from status alone, which meant the model was learning from its own past calls.
 """
 
+import hashlib
 import json
 import logging
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from local_first_common.url import normalize_url
 
@@ -89,6 +101,12 @@ def init_db(path: str) -> None:
         # Migration: add platform for existing DBs that predate this column.
         _ensure_column(conn, "items", "platform", "TEXT DEFAULT NULL")
         _ensure_column(conn, "items", "probed_at", "TEXT DEFAULT NULL")
+        # 2026-10-02: Jamal's own call on an item, beside the model's `status`, so
+        # the two are never confused again (see get_examples). Written only by
+        # set_verdict, i.e. by `discover verdict set` / the /rate-reads skill.
+        _ensure_column(conn, "items", "human_verdict", "TEXT DEFAULT NULL")
+        _ensure_column(conn, "items", "human_note", "TEXT DEFAULT NULL")
+        _ensure_column(conn, "items", "verdict_at", "TEXT DEFAULT NULL")
 
 
 def is_seen(url: str, path: str) -> bool:
@@ -363,43 +381,163 @@ def get_examples(
     dismissed side more heavily — useful when dismissed items far outnumber
     kept ones and you want the model to see more negative signal.
 
-    At most 3 titles from local_first_commonany single source are included per category, so a
+    Jamal's verdicts come first and override status: an item he rated `keep`
+    is a kept example whatever the model did with it, and vice versa. Items
+    he hasn't rated fall back to status, so the window is only as machine-
+    decided as it has to be.
+
+    At most 3 titles from any single source are included per category, so a
     prolific blog reviewed in a single session cannot dominate the few-shot
     window. A candidate pool of 5× n is fetched to give the diversity filter
     enough to work with.
 
     Returns empty lists when no data exists — never raises.
     """
+    rows = _example_rows(n, path, n_dismissed)
+    return {side: [r["title"] for r in rows[side]] for side in ("kept", "dismissed")}
+
+
+def _example_rows(n: int, path: str, n_dismissed: int | None = None) -> dict[str, list[dict]]:
+    """get_examples with provenance: each row has title, source and `human` (bool)."""
     n_kept = n
     n_dis = n_dismissed if n_dismissed is not None else n
     _PER_SOURCE = 3
 
-    def _diverse(rows: list, limit: int) -> list[str]:
+    def _diverse(rows: list, limit: int) -> list[dict]:
         source_counts: dict[str, int] = {}
         result = []
         for row in rows:
             src = row["source"]
             if source_counts.get(src, 0) < _PER_SOURCE:
-                result.append(row["title"])
+                result.append({"title": row["title"], "source": src, "human": bool(row["human"])})
                 source_counts[src] = source_counts.get(src, 0) + 1
                 if len(result) >= limit:
                     break
         return result
 
+    sql = (
+        "SELECT title, source, human_verdict IS NOT NULL AS human FROM items "
+        "WHERE human_verdict = ? OR (human_verdict IS NULL AND status = ?) "
+        "ORDER BY human DESC, COALESCE(verdict_at, reviewed_at) DESC LIMIT ?"
+    )
     with _connect(path) as conn:
-        kept = conn.execute(
-            "SELECT title, source FROM items WHERE status = 'kept' "
-            "ORDER BY reviewed_at DESC LIMIT ?",
-            (n_kept * 5,),
+        kept = conn.execute(sql, ("keep", "kept", n_kept * 5)).fetchall()
+        dismissed = conn.execute(sql, ("dismiss", "dismissed", n_dis * 5)).fetchall()
+    return {"kept": _diverse(kept, n_kept), "dismissed": _diverse(dismissed, n_dis)}
+
+
+# --- Human verdicts (2026-10-02) ---------------------------------------------
+
+VERDICTS = ("keep", "dismiss")
+_STATUS_FOR_VERDICT = {"keep": "kept", "dismiss": "dismissed"}
+
+
+def resolve_item(ref: str | int, path: str) -> dict:
+    """Find one item by id, exact URL, or a fragment of its URL or title.
+
+    Raises LookupError unless exactly one item matches.
+    """
+    with _connect(path) as conn:
+        if isinstance(ref, int) or str(ref).isdigit():
+            rows = conn.execute("SELECT * FROM items WHERE id = ?", (int(ref),)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM items WHERE url = ?", (ref,)).fetchall()
+            if not rows:
+                like = f"%{ref}%"
+                rows = conn.execute(
+                    "SELECT * FROM items WHERE url LIKE ? OR title LIKE ?", (like, like)
+                ).fetchall()
+    if len(rows) != 1:
+        raise LookupError(f"{len(rows)} items match {ref!r}; be more specific")
+    d = dict(rows[0])
+    d["tags"] = json.loads(d["tags"])
+    return d
+
+
+def set_verdict(ref: str | int, verdict: str, path: str, note: str | None = None) -> dict:
+    """Record Jamal's call on an item. Status is left alone: it stays the model's record."""
+    if verdict not in VERDICTS:
+        raise ValueError(f"Invalid verdict: {verdict!r}. Must be 'keep' or 'dismiss'.")
+    item = resolve_item(ref, path)
+    with _connect(path) as conn:
+        conn.execute(
+            "UPDATE items SET human_verdict = ?, human_note = ?, verdict_at = ? WHERE id = ?",
+            (verdict, note or None, datetime.now(UTC).isoformat(), item["id"]),
+        )
+    return resolve_item(item["id"], path)
+
+
+def verdict_candidates(
+    path: str,
+    threshold: float,
+    n_routed: int = 4,
+    n_rejected: int = 2,
+    recent_days: int = 14,
+) -> list[dict]:
+    """Items for Jamal to rate, blind: the model's latest keeps plus its nearest misses.
+
+    Routed: the most recently decided `kept` items. Rejected: `dismissed` items
+    from the last `recent_days`, highest score first, so he judges the calls the
+    model was least sure about. Both exclude anything he has already rated and
+    anything he saved to Reader himself (source 'readwise-reader'), which was
+    his decision to begin with.
+
+    The order within the batch comes from a hash of the URL, not the score or
+    the status, so a position never says what the model did with the item.
+    """
+    since = (datetime.now(UTC) - timedelta(days=recent_days)).date().isoformat()
+    base = (
+        "SELECT * FROM items WHERE human_verdict IS NULL "
+        "AND source != 'readwise-reader' AND status = ? "
+    )
+    with _connect(path) as conn:
+        routed = conn.execute(
+            base + "ORDER BY reviewed_at DESC LIMIT ?", ("kept", n_routed)
         ).fetchall()
-        dismissed = conn.execute(
-            "SELECT title, source FROM items WHERE status = 'dismissed' "
-            "ORDER BY reviewed_at DESC LIMIT ?",
-            (n_dis * 5,),
+        rejected = conn.execute(
+            base + "AND score < ? AND fetched_at >= ? ORDER BY score DESC, reviewed_at DESC LIMIT ?",
+            ("dismissed", threshold, since, n_rejected),
         ).fetchall()
+    out = []
+    for row in list(routed) + list(rejected):
+        d = dict(row)
+        d["tags"] = json.loads(d["tags"])
+        out.append(d)
+    out.sort(key=lambda d: hashlib.sha256(d["url"].encode()).hexdigest())
+    return out
+
+
+def get_verdict_stats(path: str, n_examples: int = 20, n_dismissed_examples: int = 40) -> dict:
+    """How often the model's call matched Jamal's, and whose decisions fill the example window.
+
+    `agreement` counts verdicts where status matched (keep↔kept, dismiss↔dismissed).
+    `by_bucket` breaks that down by 0.1-wide score bucket. `example_slots` says how
+    many of the few-shot examples the scorer currently sees are his vs the model's.
+    """
+    with _connect(path) as conn:
+        rows = conn.execute(
+            "SELECT score, status, human_verdict FROM items WHERE human_verdict IS NOT NULL"
+        ).fetchall()
+    total = len(rows)
+    agreed = sum(1 for r in rows if _STATUS_FOR_VERDICT[r["human_verdict"]] == r["status"])
+    buckets: dict[str, dict[str, int]] = {}
+    for r in rows:
+        b = f"{min(int(r['score'] * 10), 9) / 10:.1f}"
+        bucket = buckets.setdefault(b, {"rated": 0, "agreed": 0, "keep": 0})
+        bucket["rated"] += 1
+        bucket["keep"] += r["human_verdict"] == "keep"
+        bucket["agreed"] += _STATUS_FOR_VERDICT[r["human_verdict"]] == r["status"]
+    examples = _example_rows(n_examples, path, n_dismissed_examples)
+    slots = {
+        side: {"human": sum(r["human"] for r in rows_), "machine": sum(not r["human"] for r in rows_)}
+        for side, rows_ in examples.items()
+    }
     return {
-        "kept": _diverse(kept, n_kept),
-        "dismissed": _diverse(dismissed, n_dis),
+        "rated": total,
+        "agreed": agreed,
+        "agreement_rate": round(agreed / total, 3) if total else None,
+        "by_bucket": dict(sorted(buckets.items())),
+        "example_slots": slots,
     }
 
 

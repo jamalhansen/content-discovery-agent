@@ -13,7 +13,7 @@ CLI tool that monitors RSS feeds, social media, and your Readwise Reader unread 
 7. Lets you review candidates interactively: keep or dismiss each one
 8. Sends kept items to your Readwise Reader inbox via the API, and to the vault inbox if enabled
 
-The scorer improves over time: after you review items, your kept/dismissed history is used as few-shot examples in subsequent scoring runs.
+The scorer improves over time: your kept/dismissed decisions are used as few-shot examples in subsequent scoring runs. With `readwise_routing` on, `status` is set by the threshold, so it records the model's decision, not yours; `discover verdict` is how you put your own call on an item (see below). Verdicts take priority over status in the examples, so the model learns from you rather than from its own past output.
 
 ## Installation
 
@@ -117,6 +117,17 @@ uv run discover review
 
 Shows each candidate one at a time. Commands: `y` keep (routes per your config) · `n` dismiss · `s` stop · `o` open URL in browser · `r` keep, Readwise only for this item · `c` keep, Contexta only for this item. `r` and `c` are per-item overrides: they work regardless of whether `contexta_inbox_routing` is on, so you can redirect a specific item to Contexta even on a run where the default is Readwise, or vice versa.
 
+### 4. Verdicts (when routing is automatic)
+
+```bash
+uv run discover verdict pending          # 4 latest routed + 2 nearest misses, blind order
+uv run discover verdict set 8415 keep --note "exactly my lens"
+uv run discover verdict set "bank runs" dismiss
+uv run discover verdict stats            # model-vs-you agreement by score bucket
+```
+
+`pending` shows title, summary and source only, never the score or what the model did, so your call isn't anchored. `set` takes an id, URL, or unique fragment of either. A verdict never changes `status`; it sits beside it and overrides it in the few-shot examples. The `/rate-reads` Claude Code skill wraps this into a one-message rating pass. This replaced the exploration probes (`probe_weekly_cap`, now default 0) on 2026-10-02: near-misses are judged here instead of being slipped into Reader unmarked.
+
 ---
 
 ## CLI Reference
@@ -129,6 +140,7 @@ All tools in this series share a common set of CLI flags for model management (`
 |---|---|
 | `run` | Fetch feeds, score items, store candidates (default operation) |
 | `review` | Interactively triage pending items; send kept items to Readwise Reader (and the vault inbox, if enabled) |
+| `verdict pending` / `set` / `stats` | Your own keep/dismiss call on items the model already decided; feeds the few-shot examples |
 | `report` | Feed trend report: source quality, score distribution, top tags |
 | `rescore` | Re-score all pending items with current profile and examples |
 | `purge-blocked` | Dismiss pending items from blocked domains |

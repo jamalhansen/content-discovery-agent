@@ -14,8 +14,8 @@ The LLM's job is narrow: read a feed item's title and description, score its rel
 4. Sends each item to an LLM with a relevance-scoring prompt (interest profile + few-shot examples)
 5. Dismisses non-English items and items below the score threshold automatically
 6. Stores all scored items in a local SQLite database (deduplication — won't re-score on next run)
-7. User runs `review` to triage candidates interactively (y/n/s/o)
-8. Kept items are sent to Readwise Reader via the API; dismissed items become negative examples for future runs
+7. User runs `review` to triage candidates interactively (y/n/s/o), or, with `readwise_routing` on, the threshold decides and the user rates a sample afterwards with `verdict`
+8. Kept items are sent to Readwise Reader via the API; kept/dismissed items become examples for future runs, with the user's verdicts taking priority over the model's own decisions
 
 ## Architecture
 
@@ -233,7 +233,9 @@ The LLM returns a JSON object with four fields:
 - **summary**: one sentence, max 20 words
 - **language**: ISO 639-1 two-letter code — non-English items are auto-dismissed
 
-Few-shot examples from the review history (up to 10 kept + 10 dismissed titles) are included in the user message so the model learns from your actual behaviour over time.
+Few-shot examples from the review history (20 kept + 40 dismissed titles) are included in the user message so the model learns from your actual behaviour over time.
+
+**Who decided?** Since `readwise_routing` (2026-08-23), `status` is set by the score threshold, so it is the model's decision. For two months the examples were therefore the model's own past calls (345 of 574 kept items by 2026-10-02). `human_verdict` (added 2026-10-02) is the user's call, recorded by `discover verdict set` / the `/rate-reads` skill. `get_examples` puts verdict-bearing items first and lets a verdict override status, so the window is only as machine-decided as it has to be. Never write `human_verdict` from automated code.
 
 ## SQLite Store
 
@@ -243,8 +245,11 @@ Few-shot examples from the review history (up to 10 kept + 10 dismissed titles) 
 items table
   id, url (UNIQUE), title, source, description
   score, tags (JSON text), summary
-  status: 'new' | 'kept' | 'dismissed'
+  status: 'new' | 'kept' | 'dismissed'          -- the model's decision under auto-routing
   fetched_at (ISO date), reviewed_at (ISO datetime, nullable)
+  probed_at (ISO datetime, nullable)             -- exploration probes, retired 2026-10-02
+  human_verdict: 'keep' | 'dismiss' | NULL       -- the user's decision, beside status
+  human_note, verdict_at
 ```
 
 Key functions:
@@ -255,7 +260,10 @@ Key functions:
 - `mark_item(url, status, path)` — update status + reviewed_at
 - `dismiss_items_by_urls(urls, path)` — bulk dismiss by URL list
 - `update_item_score(url, score, tags, summary, path)` — update scoring fields (used by --rescore)
-- `get_examples(n, path)` — `{'kept': [...titles], 'dismissed': [...titles]}` for few-shot prompt
+- `get_examples(n, path)` — `{'kept': [...titles], 'dismissed': [...titles]}` for few-shot prompt; verdicts first, verdict overrides status
+- `set_verdict(ref, verdict, path, note)` / `resolve_item(ref, path)` — record the user's call by id, URL or unique fragment
+- `verdict_candidates(path, threshold, n_routed, n_rejected)` — unrated latest keeps + nearest recent misses, URL-hash order (blind)
+- `get_verdict_stats(path)` — model-vs-user agreement by score bucket, and human/machine share of the example window
 - `get_status_summary(path)` — per-status counts and avg scores
 - `get_daily_counts(path, days)` — per-day item counts for report
 - `get_source_stats(path, min_items)` — sources ranked by avg score

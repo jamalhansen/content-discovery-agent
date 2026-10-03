@@ -143,8 +143,11 @@ READWISE_ROUTING: bool = bool(_settings.get("readwise_routing", False))
 # week go to Reader like any routed item, so the model's false negatives become
 # measurable. Recorded only in the store (probed_at), never tagged, so Reader
 # shows nothing that marks them as probes. 0 disables.
+# Retired 2026-10-02 (default 0): `discover verdict pending` puts the model's
+# near-misses in front of Jamal directly, blind, so false negatives get judged
+# without unmarked rejects landing in Reader. Set probe_weekly_cap to re-enable.
 PROBE_WEEKLY_CAP: int = int(get_setting(
-    TOOL_NAME, "probe_weekly_cap", default=_settings.get("probe_weekly_cap", 4)
+    TOOL_NAME, "probe_weekly_cap", default=_settings.get("probe_weekly_cap", 0)
 ))
 
 READER_LOCATION: str = _settings.get("reader_location", "new")
