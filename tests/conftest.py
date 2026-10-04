@@ -23,6 +23,10 @@ def no_live_side_effects(monkeypatch):
     monkeypatch.setattr(orch, "CONTEXTA_INBOX_ROUTING", False, raising=False)
     # Probes are random by design; routing tests assert exact calls, so they stay off.
     monkeypatch.setattr(orch, "PROBE_WEEKLY_CAP", 0, raising=False)
+    # FEEDS is the real feed list from ~/.config, so run_discovery tests only fed
+    # their patched fetch_feed anything on a machine that has that file: 18 tests
+    # failed in CI (2026-10-04), where it doesn't exist. One fake feed, everywhere.
+    monkeypatch.setattr(orch, "FEEDS", ["https://example.com/test-feed.xml"], raising=False)
 
 
 @pytest.fixture(autouse=True)

@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for the pre-scoring title and domain filters in run_discovery()."""
 from unittest.mock import MagicMock, patch
 
@@ -71,6 +73,15 @@ class TestTitleFilter:
 
 
 class TestDomainFilter:
+
+    @pytest.fixture(autouse=True)
+    def known_blocklist(self, monkeypatch):
+        """These tests check that RSS applies the blocklist, not what's in it.
+        bsky.app and youtube.com come from the user's ~/.config blocklist, which
+        CI doesn't have (both tests failed there on 2026-10-04), so set it here."""
+        import discovery.orchestrator as orch
+
+        monkeypatch.setattr(orch, "SOCIAL_BLOCKED_DOMAINS", frozenset({"bsky.app", "youtube.com"}))
 
     def test_rss_items_on_blocked_domains_are_dropped(self, tmp_path):
         """RSS previously skipped the blocklist that social sources apply.
