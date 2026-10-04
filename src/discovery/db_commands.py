@@ -158,7 +158,7 @@ def run_restore(file: str | None, latest: bool, store_path: str, backup_dir: str
                 backup_path = backups[idx]
             except (ValueError, IndexError):
                 typer.echo("Invalid selection.", err=True)
-                raise typer.Exit(1)
+                raise typer.Exit(1) from None
 
     if not latest and not typer.confirm(f"Restore from {os.path.basename(backup_path)}? This will overwrite your current DB."):
         raise typer.Abort()

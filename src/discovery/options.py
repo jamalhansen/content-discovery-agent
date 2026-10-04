@@ -118,7 +118,7 @@ def validate_threshold(threshold: float) -> None:
         validate_threshold_or_raise(threshold)
     except ThresholdValidationError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 def validate_threshold_or_raise(threshold: float) -> None:
@@ -133,7 +133,7 @@ def make_provider(provider_name: str, model: str | None, no_llm: bool = False):
         return make_provider_or_raise(provider_name, model, no_llm=no_llm)
     except ProviderSetupError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 def make_provider_or_raise(
@@ -154,7 +154,7 @@ def validate_readwise_token(token: str) -> None:
         validate_readwise_token_or_raise(token)
     except ReadwiseTokenError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 def validate_readwise_token_or_raise(token: str) -> None:

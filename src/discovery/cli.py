@@ -107,7 +107,7 @@ def cmd_run(
         llm_provider = make_provider_or_raise(provider, model, no_llm=no_llm)
     except (ThresholdValidationError, ProviderSetupError) as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     _setup_tool_logging(verbose)
 
@@ -193,7 +193,7 @@ def cmd_review(
         validate_readwise_token_or_raise(readwise_token)
     except ReadwiseTokenError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     store.init_db(store_path)
     kept, dismissed = run_review(store_path, readwise_token)
     typer.echo(f"\nDone. Kept: {kept}, Dismissed: {dismissed}.")
@@ -260,7 +260,7 @@ def cmd_verdict_set(
         item = store.set_verdict(ref, verdict, store_path, note=note)
     except (LookupError, ValueError) as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     if json_output:
         typer.echo(json.dumps(item, indent=2, default=str))
         return
@@ -397,7 +397,7 @@ def cmd_reconcile(
         validate_readwise_token_or_raise(readwise_token)
     except ReadwiseTokenError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     result = reconcile(notes_path, readwise_token, dry_run=dry_run, tool=_TOOL)
 
@@ -446,7 +446,7 @@ def cmd_pull_tagged(
         validate_readwise_token_or_raise(readwise_token)
     except ReadwiseTokenError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     result = pull_tagged_items(notes_path, inbox_path, readwise_token, tag=tag, limit=limit, dry_run=dry_run)
     typer.echo(f"Tagged '{tag}' in Reader: {result.tagged}. Already captured: {result.already_captured}.")
@@ -497,7 +497,7 @@ def cmd_import_reader(
         validate_readwise_token_or_raise(readwise_token)
     except ReadwiseTokenError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     result = import_reader_backlog(
         notes_path, inbox_path, readwise_token, limit=limit, dry_run=dry_run, tool=_TOOL
@@ -572,7 +572,7 @@ def cmd_rescore(
         llm_provider = make_provider_or_raise(provider, model, no_llm=no_llm)
     except ProviderSetupError as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     store.init_db(store_path)
     pending = store.get_new_items(store_path)
     if limit:
@@ -643,7 +643,7 @@ def cmd_eval(
         llm_provider = make_provider_or_raise(provider, model, no_llm=no_llm)
     except (ThresholdValidationError, ProviderSetupError) as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     result = run_eval(
         llm_provider, threshold, INTEREST_PROFILE, INTEREST_EXCLUSIONS,
@@ -699,7 +699,7 @@ def cmd_save(
         llm_provider = make_provider_or_raise(provider, model, no_llm=no_llm)
     except (ReadwiseTokenError, ProviderSetupError) as e:
         typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     run_save(url, llm_provider, no_score, readwise_token, store_path, dry_run)
 
 
