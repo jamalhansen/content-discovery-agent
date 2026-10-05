@@ -12,6 +12,7 @@ documents.
 Matching is on normalized URL, so a note whose ``source_url`` differs only by
 tracking parameters or a trailing slash still counts.
 """
+
 import os
 import re
 from dataclasses import dataclass, field
@@ -112,10 +113,7 @@ def reconcile(
     result.distinct_source_urls = len(note_urls)
     result.notes_with_source_url = sum(len(v) for v in note_urls.values())
     target = os.path.expanduser(notes_path)
-    result.notes_scanned = (
-        sum(1 for n in os.listdir(target) if n.endswith(".md"))
-        if os.path.isdir(target) else 0
-    )
+    result.notes_scanned = sum(1 for n in os.listdir(target) if n.endswith(".md")) if os.path.isdir(target) else 0
 
     seen: set[str] = set()
     for location in locations:

@@ -67,6 +67,7 @@ def clear_cache() -> None:
 
 # --- Social cache ---
 
+
 def _social_cache_key(source: str, keywords: list[str]) -> str:
     """Stable cache key for a social source + keyword set."""
     key = f"{source}:{','.join(sorted(keywords))}"

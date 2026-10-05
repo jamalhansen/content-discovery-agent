@@ -158,8 +158,7 @@ def cmd_run(
     if not candidates and scored_count > 0:
         suggested_threshold = max(0.0, round(threshold - 0.1, 2))
         typer.echo(
-            f"No items met threshold {threshold:.2f}. "
-            f"Try --threshold {suggested_threshold:.2f} for a wider net."
+            f"No items met threshold {threshold:.2f}. Try --threshold {suggested_threshold:.2f} for a wider net."
         )
 
     # Shown on every run, not just zero-candidate ones -- otherwise a
@@ -205,9 +204,7 @@ def cmd_review(
 )
 def cmd_report(
     store_path: str = store_opt(),
-    days: int = typer.Option(
-        30, "--days", "-d", help="Number of days to include in the report"
-    ),
+    days: int = typer.Option(30, "--days", "-d", help="Number of days to include in the report"),
     json_output: Annotated[bool, json_option()] = False,
 ):
     """Print a summary report of feed trends and scoring history."""
@@ -265,7 +262,9 @@ def cmd_verdict_set(
         typer.echo(json.dumps(item, indent=2, default=str))
         return
     agree = "agreed" if store._STATUS_FOR_VERDICT[verdict] == item["status"] else "DISAGREED"
-    typer.echo(f"#{item['id']} {item['title'][:70]}: {verdict} (model {item['status']} at {item['score']:.2f}, {agree})")
+    typer.echo(
+        f"#{item['id']} {item['title'][:70]}: {verdict} (model {item['status']} at {item['score']:.2f}, {agree})"
+    )
 
 
 @verdict_app.command("stats")
@@ -319,21 +318,15 @@ def cmd_list_candidates(
 
 @app.command("search-kept", help="Search kept items by topic, tag, or keyword.")
 def cmd_search_kept(
-    query: str | None = typer.Option(
-        None, "--query", "-q", help="Search text in title, summary, or description"
-    ),
-    tag: Annotated[
-        list[str] | None, typer.Option("--tag", "-t", help="Tag to match (repeatable)")
-    ] = None,
+    query: str | None = typer.Option(None, "--query", "-q", help="Search text in title, summary, or description"),
+    tag: Annotated[list[str] | None, typer.Option("--tag", "-t", help="Tag to match (repeatable)")] = None,
     limit: int = typer.Option(10, "--limit", "-l", help="Max results to return"),
     store_path: str = store_opt(),
     json_output: Annotated[bool, json_option()] = False,
 ):
     """Search kept items by topic, tag, or keyword."""
     store.init_db(store_path)
-    items = store.search_kept_items(
-        store_path, tags=tag, query=query, limit=limit
-    )
+    items = store.search_kept_items(store_path, tags=tag, query=query, limit=limit)
     if json_output:
         typer.echo(json.dumps(items, indent=2, default=str))
         return
@@ -426,15 +419,22 @@ def cmd_reconcile(
 )
 def cmd_pull_tagged(
     notes_path: str = typer.Option(
-        CONTEXTA_NOTES_PATH, "--notes-path", envvar="CONTEXTA_NOTES_PATH",
+        CONTEXTA_NOTES_PATH,
+        "--notes-path",
+        envvar="CONTEXTA_NOTES_PATH",
         help="Vault notes/ directory, checked so an already-noted article is skipped",
     ),
     inbox_path: str = typer.Option(
-        CONTEXTA_INBOX_PATH, "--inbox-path", envvar="CONTEXTA_INBOX_PATH",
+        CONTEXTA_INBOX_PATH,
+        "--inbox-path",
+        envvar="CONTEXTA_INBOX_PATH",
         help="Vault inbox/ directory to write into",
     ),
     readwise_token: str = typer.Option(
-        READWISE_TOKEN, "--readwise-token", envvar="READWISE_TOKEN", show_default=False,
+        READWISE_TOKEN,
+        "--readwise-token",
+        envvar="READWISE_TOKEN",
+        show_default=False,
         help="Readwise access token (or set READWISE_TOKEN env var)",
     ),
     tag: str = typer.Option(DEFAULT_TAG, "--tag", help="Reader tag that marks an item for the vault"),
@@ -487,7 +487,9 @@ def cmd_import_reader(
         help="Readwise access token (or set READWISE_TOKEN env var)",
     ),
     limit: int = typer.Option(
-        10, "--limit", "-l",
+        10,
+        "--limit",
+        "-l",
         help="Maximum articles to fetch in this run (each is a live HTTP request)",
     ),
     dry_run: bool = dry_run_opt(),
@@ -499,9 +501,7 @@ def cmd_import_reader(
         typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1) from None
 
-    result = import_reader_backlog(
-        notes_path, inbox_path, readwise_token, limit=limit, dry_run=dry_run, tool=_TOOL
-    )
+    result = import_reader_backlog(notes_path, inbox_path, readwise_token, limit=limit, dry_run=dry_run, tool=_TOOL)
 
     typer.echo(f"Checked {result.documents_checked} unread Reader documents.")
     typer.echo(f"Already captured (note or inbox file exists): {result.already_captured}")
@@ -523,17 +523,13 @@ def cmd_import_reader(
             typer.echo(f"{remaining} more uncaptured items waiting; raise --limit or run again.")
 
 
-@app.command(
-    "fix-urls", help="Normalize all URLs in the database to prevent duplicates."
-)
+@app.command("fix-urls", help="Normalize all URLs in the database to prevent duplicates.")
 def cmd_fix_urls(store_path: str = store_opt()):
     """Normalize all URLs in the database to prevent duplicates."""
     run_fix_urls(store_path)
 
 
-@app.command(
-    "check-feeds", help="Validate all configured RSS feeds and report their status."
-)
+@app.command("check-feeds", help="Validate all configured RSS feeds and report their status.")
 def cmd_check_feeds():
     """Validate all configured RSS feeds."""
     from .config import FEEDS
@@ -544,9 +540,7 @@ def cmd_check_feeds():
         try:
             items = fetch_feed_or_raise(url)
             if items:
-                typer.echo(
-                    f"  [OK] {items[0].source[:40]:40} | {len(items):3} items | {url}"
-                )
+                typer.echo(f"  [OK] {items[0].source[:40]:40} | {len(items):3} items | {url}")
             else:
                 typer.echo(f"  [EMPTY] {url}")
         except FeedReaderError as e:
@@ -596,9 +590,7 @@ def cmd_rescore(
         )
         if result:
             if verbose:
-                typer.echo(
-                    f"  {item['score']:.2f} -> {result.score:.2f} | {item['title'][:70]}"
-                )
+                typer.echo(f"  {item['score']:.2f} -> {result.score:.2f} | {item['title'][:70]}")
             store.upsert_item(
                 url=item["url"],
                 title=item["title"],
@@ -626,9 +618,7 @@ def cmd_eval(
     threshold: float = threshold_opt(),
     store_path: str = store_opt(),
     n_kept: int = typer.Option(40, "--n-kept", help="How many past kept items to sample"),
-    n_dismissed: int = typer.Option(
-        80, "--n-dismissed", help="How many past dismissed items to sample"
-    ),
+    n_dismissed: int = typer.Option(80, "--n-dismissed", help="How many past dismissed items to sample"),
 ):
     """Measure whether a scoring/prompt/profile change agrees with past decisions.
 
@@ -646,8 +636,13 @@ def cmd_eval(
         raise typer.Exit(1) from None
 
     result = run_eval(
-        llm_provider, threshold, INTEREST_PROFILE, INTEREST_EXCLUSIONS,
-        store_path, n_kept=n_kept, n_dismissed=n_dismissed,
+        llm_provider,
+        threshold,
+        INTEREST_PROFILE,
+        INTEREST_EXCLUSIONS,
+        store_path,
+        n_kept=n_kept,
+        n_dismissed=n_dismissed,
     )
 
     typer.echo(
@@ -662,9 +657,7 @@ def cmd_eval(
     typer.echo(f"Agreement with past decisions: {rate:.0%} ({result.agreements}/{result.n_compared})")
 
     if result.regressions:
-        typer.echo(
-            f"\nRegressions -- previously kept, would now score below {threshold:.2f}:"
-        )
+        typer.echo(f"\nRegressions -- previously kept, would now score below {threshold:.2f}:")
         for i in result.regressions:
             typer.echo(f"  [{i.old_score:.2f} -> {i.new_score:.2f}] {i.title}  ({i.source})")
 
@@ -683,9 +676,7 @@ def cmd_save(
     provider: str = provider_opt(),
     model: str | None = model_opt(),
     no_llm: bool = no_llm_opt(),
-    no_score: bool = typer.Option(
-        False, "--no-score", help="Skip LLM scoring; store with score 1.0"
-    ),
+    no_score: bool = typer.Option(False, "--no-score", help="Skip LLM scoring; store with score 1.0"),
     readwise_token: str = typer.Option(READWISE_TOKEN, help="Readwise token"),
     store_path: str = store_opt(),
     dry_run: bool = dry_run_opt(),
@@ -703,33 +694,21 @@ def cmd_save(
     run_save(url, llm_provider, no_score, readwise_token, store_path, dry_run)
 
 
-@app.command(
-    "backup", help="Back up the SQLite database to iCloud (or a custom directory)."
-)
+@app.command("backup", help="Back up the SQLite database to iCloud (or a custom directory).")
 def cmd_backup(
     store_path: str = store_opt(),
-    backup_dir: str = typer.Option(
-        DEFAULT_BACKUP_DIR, help="Directory to store backups"
-    ),
+    backup_dir: str = typer.Option(DEFAULT_BACKUP_DIR, help="Directory to store backups"),
 ):
     """Back up the SQLite database."""
     run_backup(store_path, backup_dir)
 
 
-@app.command(
-    "restore", help="Restore the database from a backup (requires confirmation)."
-)
+@app.command("restore", help="Restore the database from a backup (requires confirmation).")
 def cmd_restore(
-    file: str | None = typer.Option(
-        None, "--file", "-f", help="Specific backup file to restore"
-    ),
-    latest: bool = typer.Option(
-        False, "--latest", help="Restore the most recent backup automatically"
-    ),
+    file: str | None = typer.Option(None, "--file", "-f", help="Specific backup file to restore"),
+    latest: bool = typer.Option(False, "--latest", help="Restore the most recent backup automatically"),
     store_path: str = store_opt(),
-    backup_dir: str = typer.Option(
-        DEFAULT_BACKUP_DIR, help="Directory containing backups"
-    ),
+    backup_dir: str = typer.Option(DEFAULT_BACKUP_DIR, help="Directory containing backups"),
 ):
     """Restore the database from a backup."""
     run_restore(file, latest, store_path, backup_dir)

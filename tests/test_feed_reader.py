@@ -62,20 +62,27 @@ class TestFetchFeed:
         assert items == []
 
     def test_fetch_feed_or_raise_on_bad_url(self):
-        with patch(
-            "discovery.feed_reader.requests.get",
-            side_effect=req.RequestException("connection error"),
-        ), pytest.raises(FeedFetchError, match="Error fetching feed"):
+        with (
+            patch(
+                "discovery.feed_reader.requests.get",
+                side_effect=req.RequestException("connection error"),
+            ),
+            pytest.raises(FeedFetchError, match="Error fetching feed"),
+        ):
             fetch_feed_or_raise("http://localhost:9999/nonexistent-feed")
 
     def test_fetch_feed_or_raise_on_parse_error(self):
-        with patch(
-            "discovery.feed_reader.requests.get",
-            return_value=mock_response(SAMPLE_FEED_PATH),
-        ), patch(
-            "discovery.feed_reader.feedparser.parse",
-            side_effect=ValueError("parse broke"),
-        ), pytest.raises(FeedParseError, match="Error parsing feed"):
+        with (
+            patch(
+                "discovery.feed_reader.requests.get",
+                return_value=mock_response(SAMPLE_FEED_PATH),
+            ),
+            patch(
+                "discovery.feed_reader.feedparser.parse",
+                side_effect=ValueError("parse broke"),
+            ),
+            pytest.raises(FeedParseError, match="Error parsing feed"),
+        ):
             fetch_feed_or_raise(SAMPLE_FEED_URL)
 
     def test_description_populated(self, sample_feed_mock):
@@ -90,9 +97,7 @@ class TestFetchFeed:
 
     def test_published_empty_when_absent(self, sample_feed_mock):
         items = fetch_feed(SAMPLE_FEED_URL)
-        rag_item = next(
-            i for i in items if i.title == "Building a Local RAG Pipeline with Ollama"
-        )
+        rag_item = next(i for i in items if i.title == "Building a Local RAG Pipeline with Ollama")
         assert rag_item.published == ""
 
 
@@ -117,8 +122,6 @@ class TestFilterNewItems:
         assert len(result) == 2
 
     def test_all_seen_returns_empty(self):
-        items = [
-            FeedItem(title="A", description="desc", url="https://a.com", source="src")
-        ]
+        items = [FeedItem(title="A", description="desc", url="https://a.com", source="src")]
         result = filter_new_items(items, {"https://a.com"})
         assert result == []

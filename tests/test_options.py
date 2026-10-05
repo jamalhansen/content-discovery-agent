@@ -30,9 +30,7 @@ class TestValidateThreshold:
             validate_threshold(1.1)
 
     def test_validate_threshold_or_raise_rejects_value_out_of_range(self):
-        with pytest.raises(
-            ThresholdValidationError, match="--threshold must be between 0.0 and 1.0"
-        ):
+        with pytest.raises(ThresholdValidationError, match="--threshold must be between 0.0 and 1.0"):
             validate_threshold_or_raise(-0.1)
 
 
@@ -62,17 +60,23 @@ class TestMakeProvider:
         assert result is provider
 
     def test_make_provider_or_raise_raises_typed_error(self):
-        with patch(
-            "discovery.options.resolve_provider",
-            side_effect=RuntimeError("bad provider"),
-        ), pytest.raises(ProviderSetupError, match="bad provider"):
+        with (
+            patch(
+                "discovery.options.resolve_provider",
+                side_effect=RuntimeError("bad provider"),
+            ),
+            pytest.raises(ProviderSetupError, match="bad provider"),
+        ):
             make_provider_or_raise("ollama", None)
 
     def test_make_provider_exits_for_cli_compat(self, capsys):
-        with patch(
-            "discovery.options.resolve_provider",
-            side_effect=RuntimeError("bad provider"),
-        ), pytest.raises(typer.Exit):
+        with (
+            patch(
+                "discovery.options.resolve_provider",
+                side_effect=RuntimeError("bad provider"),
+            ),
+            pytest.raises(typer.Exit),
+        ):
             make_provider("ollama", None)
 
         captured = capsys.readouterr()

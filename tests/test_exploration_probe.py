@@ -1,4 +1,5 @@
 """Exploration probes: a few rejected items a week go to Reader, blind, for the calibration study."""
+
 import random
 from unittest.mock import MagicMock, patch
 
@@ -53,9 +54,15 @@ def test_probe_sent_untagged_and_recorded():
     picked, save, mark = _run([(item, _result())], _AlwaysRng())
     assert picked is item
     save.assert_called_once_with(
-        "tok", item.url, title=item.title, summary="Low.", tags=["misc"],
-        published_date=item.published, search_term=item.search_term,
-        platform=item.platform, tool=_TOOL,
+        "tok",
+        item.url,
+        title=item.title,
+        summary="Low.",
+        tags=["misc"],
+        published_date=item.published,
+        search_term=item.search_term,
+        platform=item.platform,
+        tool=_TOOL,
     )
     assert "probe" not in save.call_args.kwargs["tags"]
     mark.assert_called_once_with(item.url, "/tmp/store.db")
@@ -97,8 +104,16 @@ def test_store_probe_round_trip(tmp_path):
     db = str(tmp_path / "store.db")
     store.init_db(db)
     store.upsert_item(
-        url="https://example.com/a", title="A", source="s", description="", score=0.2,
-        tags=[], summary="", fetched_at="2026-09-29", published_at="", path=db,
+        url="https://example.com/a",
+        title="A",
+        source="s",
+        description="",
+        score=0.2,
+        tags=[],
+        summary="",
+        fetched_at="2026-09-29",
+        published_at="",
+        path=db,
     )
     assert store.count_probes_since("2000-01-01", db) == 0
     store.mark_probed("https://example.com/a", db)

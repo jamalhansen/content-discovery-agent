@@ -1,4 +1,5 @@
 """Tests for the Readwise Reader integration module."""
+
 from unittest.mock import MagicMock, patch
 
 import requests

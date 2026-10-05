@@ -1,4 +1,5 @@
 """Human verdicts (2026-10-02): Jamal's call beside the model's status, feeding the examples."""
+
 import hashlib
 import json
 from datetime import UTC, datetime, timedelta
@@ -14,8 +15,14 @@ THRESHOLD = 0.75
 
 def _add(path, url, title, score, status, source="Blog", fetched_at=None, reviewed_at=None):
     store.upsert_item(
-        url=url, title=title, source=source, description="", score=score, tags=[],
-        summary=f"Summary of {title}", fetched_at=fetched_at or datetime.now(UTC).date().isoformat(),
+        url=url,
+        title=title,
+        source=source,
+        description="",
+        score=score,
+        tags=[],
+        summary=f"Summary of {title}",
+        fetched_at=fetched_at or datetime.now(UTC).date().isoformat(),
         path=path,
     )
     if status != "new":
@@ -83,13 +90,18 @@ def test_candidates_mix_latest_keeps_with_nearest_recent_misses(tmp_path):
     path = _db(tmp_path)
     now = datetime.now(UTC)
     for i in range(6):
-        _add(path, f"https://k.com/{i}", f"Kept {i}", 0.9, "kept",
-             reviewed_at=(now - timedelta(hours=i)).isoformat())
+        _add(path, f"https://k.com/{i}", f"Kept {i}", 0.9, "kept", reviewed_at=(now - timedelta(hours=i)).isoformat())
     _add(path, "https://d.com/near", "Near miss", 0.70, "dismissed")
     _add(path, "https://d.com/far", "Far miss", 0.20, "dismissed")
     _add(path, "https://d.com/mid", "Mid miss", 0.50, "dismissed")
-    _add(path, "https://d.com/old", "Old near miss", 0.74, "dismissed",
-         fetched_at=(now - timedelta(days=30)).date().isoformat())
+    _add(
+        path,
+        "https://d.com/old",
+        "Old near miss",
+        0.74,
+        "dismissed",
+        fetched_at=(now - timedelta(days=30)).date().isoformat(),
+    )
     # Non-English items can be dismissed with a score over the threshold: not a near miss.
     _add(path, "https://d.com/lang", "Hoher Score, falsche Sprache", 0.95, "dismissed")
     _add(path, "https://r.com/mine", "Saved by Jamal", 0.9, "kept", source="readwise-reader")
@@ -110,15 +122,43 @@ def test_examples_prefer_verdicts_and_verdict_overrides_status(tmp_path):
     now = datetime.now(UTC)
     # Machine decisions, newest first.
     for i in range(3):
-        _add(path, f"https://m.com/k{i}", f"Machine kept {i}", 0.9, "kept", source=f"s{i}",
-             reviewed_at=(now - timedelta(minutes=i)).isoformat())
-        _add(path, f"https://m.com/d{i}", f"Machine dismissed {i}", 0.2, "dismissed", source=f"t{i}",
-             reviewed_at=(now - timedelta(minutes=i)).isoformat())
+        _add(
+            path,
+            f"https://m.com/k{i}",
+            f"Machine kept {i}",
+            0.9,
+            "kept",
+            source=f"s{i}",
+            reviewed_at=(now - timedelta(minutes=i)).isoformat(),
+        )
+        _add(
+            path,
+            f"https://m.com/d{i}",
+            f"Machine dismissed {i}",
+            0.2,
+            "dismissed",
+            source=f"t{i}",
+            reviewed_at=(now - timedelta(minutes=i)).isoformat(),
+        )
     # An older item the model dismissed that Jamal says keep, and vice versa.
-    _add(path, "https://h.com/fn", "Human says keep", 0.3, "dismissed", source="u",
-         reviewed_at=(now - timedelta(days=5)).isoformat())
-    _add(path, "https://h.com/fp", "Human says dismiss", 0.95, "kept", source="v",
-         reviewed_at=(now - timedelta(days=5)).isoformat())
+    _add(
+        path,
+        "https://h.com/fn",
+        "Human says keep",
+        0.3,
+        "dismissed",
+        source="u",
+        reviewed_at=(now - timedelta(days=5)).isoformat(),
+    )
+    _add(
+        path,
+        "https://h.com/fp",
+        "Human says dismiss",
+        0.95,
+        "kept",
+        source="v",
+        reviewed_at=(now - timedelta(days=5)).isoformat(),
+    )
     store.set_verdict("Human says keep", "keep", path)
     store.set_verdict("Human says dismiss", "dismiss", path)
 

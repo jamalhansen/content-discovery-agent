@@ -25,6 +25,7 @@ def _single_score(monkeypatch):
     retest (tested in test_scorer.py) would consume a second canned score per item."""
     monkeypatch.setattr("discovery.orchestrator.BORDERLINE_MARGIN", 0)
 
+
 runner = CliRunner()
 
 
@@ -49,23 +50,32 @@ class TestDismissedThisRun:
             _make_feed_item(url="https://example.com/a", title="Near Miss"),
             _make_feed_item(url="https://example.com/b", title="Clears Threshold"),
         ]
-        with patch("discovery.orchestrator.fetch_feed", return_value=items), \
-             patch("discovery.store.init_db"), \
-             patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
-             patch("discovery.store.get_examples", return_value={}), \
-             patch("discovery.store.is_seen", return_value=False), \
-             patch("discovery.store.upsert_item"), \
-             patch("discovery.store.mark_item"), \
-             patch("discovery.orchestrator.READWISE_ROUTING", False), \
-             patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False), \
-             patch("discovery.orchestrator.score_item") as mock_score:
+        with (
+            patch("discovery.orchestrator.fetch_feed", return_value=items),
+            patch("discovery.store.init_db"),
+            patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}),
+            patch("discovery.store.get_examples", return_value={}),
+            patch("discovery.store.is_seen", return_value=False),
+            patch("discovery.store.upsert_item"),
+            patch("discovery.store.mark_item"),
+            patch("discovery.orchestrator.READWISE_ROUTING", False),
+            patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False),
+            patch("discovery.orchestrator.score_item") as mock_score,
+        ):
             mock_score.side_effect = [
                 ScoredItem(score=0.72, tags=[], summary="s", language="en"),
                 ScoredItem(score=0.90, tags=[], summary="s", language="en"),
             ]
             candidates, scored, _skipped, dismissed = run_discovery(
-                MockProvider(), "rss", None, 0.75,
-                True, False, False, None, str(tmp_path / "store.db"),
+                MockProvider(),
+                "rss",
+                None,
+                0.75,
+                True,
+                False,
+                False,
+                None,
+                str(tmp_path / "store.db"),
             )
 
         assert scored == 2
@@ -75,20 +85,29 @@ class TestDismissedThisRun:
     def test_non_english_items_are_excluded_from_near_misses(self, tmp_path):
         """A high-scoring but wrong-language item is a hard exclusion, not a near miss."""
         items = [_make_feed_item()]
-        with patch("discovery.orchestrator.fetch_feed", return_value=items), \
-             patch("discovery.store.init_db"), \
-             patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
-             patch("discovery.store.get_examples", return_value={}), \
-             patch("discovery.store.is_seen", return_value=False), \
-             patch("discovery.store.upsert_item"), \
-             patch("discovery.store.mark_item"), \
-             patch("discovery.orchestrator.READWISE_ROUTING", False), \
-             patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False), \
-             patch("discovery.orchestrator.score_item") as mock_score:
+        with (
+            patch("discovery.orchestrator.fetch_feed", return_value=items),
+            patch("discovery.store.init_db"),
+            patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}),
+            patch("discovery.store.get_examples", return_value={}),
+            patch("discovery.store.is_seen", return_value=False),
+            patch("discovery.store.upsert_item"),
+            patch("discovery.store.mark_item"),
+            patch("discovery.orchestrator.READWISE_ROUTING", False),
+            patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False),
+            patch("discovery.orchestrator.score_item") as mock_score,
+        ):
             mock_score.return_value = ScoredItem(score=0.95, tags=[], summary="s", language="fr")
             _, _, _, dismissed = run_discovery(
-                MockProvider(), "rss", None, 0.75,
-                True, False, False, None, str(tmp_path / "store.db"),
+                MockProvider(),
+                "rss",
+                None,
+                0.75,
+                True,
+                False,
+                False,
+                None,
+                str(tmp_path / "store.db"),
             )
 
         assert dismissed == []
@@ -107,18 +126,28 @@ class TestNearMissCliOutput:
         store.upsert_item(
             url="https://example.com/earlier-run-item",
             title="From An Earlier Run Today",
-            source="Example Blog", description="", score=0.85, tags=[], summary="s",
-            fetched_at="2026-09-06", published_at="2026-09-06",
-            found_at=None, search_term=None, platform=None, path=db,
+            source="Example Blog",
+            description="",
+            score=0.85,
+            tags=[],
+            summary="s",
+            fetched_at="2026-09-06",
+            published_at="2026-09-06",
+            found_at=None,
+            search_term=None,
+            platform=None,
+            path=db,
         )
         store.mark_item("https://example.com/earlier-run-item", "dismissed", db)
 
         items = [_make_feed_item(url="https://example.com/this-run-item", title="This Run's Near Miss")]
-        with patch("discovery.orchestrator.fetch_feed", return_value=items), \
-             patch("discovery.orchestrator.FEEDS", ["https://example.com/feed"]), \
-             patch("discovery.orchestrator.READWISE_ROUTING", False), \
-             patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False), \
-             patch("discovery.orchestrator.score_item") as mock_score:
+        with (
+            patch("discovery.orchestrator.fetch_feed", return_value=items),
+            patch("discovery.orchestrator.FEEDS", ["https://example.com/feed"]),
+            patch("discovery.orchestrator.READWISE_ROUTING", False),
+            patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False),
+            patch("discovery.orchestrator.score_item") as mock_score,
+        ):
             mock_score.return_value = ScoredItem(score=0.72, tags=[], summary="s", language="en")
             result = runner.invoke(app, ["run", "--store", db, "--threshold", "0.75", "--no-dedup"])
 
@@ -135,11 +164,13 @@ class TestNearMissCliOutput:
             _make_feed_item(url="https://example.com/near-miss", title="Near Miss Item"),
             _make_feed_item(url="https://example.com/clears", title="Clears Threshold Item"),
         ]
-        with patch("discovery.orchestrator.fetch_feed", return_value=items), \
-             patch("discovery.orchestrator.FEEDS", ["https://example.com/feed"]), \
-             patch("discovery.orchestrator.READWISE_ROUTING", False), \
-             patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False), \
-             patch("discovery.orchestrator.score_item") as mock_score:
+        with (
+            patch("discovery.orchestrator.fetch_feed", return_value=items),
+            patch("discovery.orchestrator.FEEDS", ["https://example.com/feed"]),
+            patch("discovery.orchestrator.READWISE_ROUTING", False),
+            patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False),
+            patch("discovery.orchestrator.score_item") as mock_score,
+        ):
             mock_score.side_effect = [
                 ScoredItem(score=0.72, tags=[], summary="s", language="en"),
                 ScoredItem(score=0.95, tags=[], summary="s", language="en"),

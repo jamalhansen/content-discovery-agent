@@ -131,7 +131,7 @@ class TestMastodonReader:
         good_response.json.return_value = []
         mock_get.side_effect = [
             req.ConnectionError("refused"),  # first instance fails
-            good_response,                   # second succeeds
+            good_response,  # second succeeds
         ]
 
         items = MastodonReader(instances=["bad.instance", "mastodon.social"]).fetch_items(["duckdb"])

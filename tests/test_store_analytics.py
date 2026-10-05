@@ -42,9 +42,7 @@ class TestGetExamples:
         path = db(tmp_path)
         init_db(path)
         upsert_item(**make_item(url="https://a.com", title="Kept Article"), path=path)
-        upsert_item(
-            **make_item(url="https://b.com", title="Dismissed Article"), path=path
-        )
+        upsert_item(**make_item(url="https://b.com", title="Dismissed Article"), path=path)
         mark_item("https://a.com", "kept", path)
         mark_item("https://b.com", "dismissed", path)
         result = get_examples(5, path)
@@ -63,9 +61,7 @@ class TestGetExamples:
         # Use distinct sources so the per-source cap does not interfere
         for i in range(8):
             upsert_item(
-                **make_item(
-                    url=f"https://x.com/{i}", title=f"Article {i}", source=f"Blog {i}"
-                ),
+                **make_item(url=f"https://x.com/{i}", title=f"Article {i}", source=f"Blog {i}"),
                 path=path,
             )
             mark_item(f"https://x.com/{i}", "kept", path)
@@ -78,9 +74,7 @@ class TestGetExamples:
         # 6 kept items across distinct sources
         for i in range(6):
             upsert_item(
-                **make_item(
-                    url=f"https://k.com/{i}", title=f"Kept {i}", source=f"KBlog {i}"
-                ),
+                **make_item(url=f"https://k.com/{i}", title=f"Kept {i}", source=f"KBlog {i}"),
                 path=path,
             )
             mark_item(f"https://k.com/{i}", "kept", path)
@@ -105,18 +99,14 @@ class TestGetExamples:
         # Flood the recent window with 7 items from the same blog
         for i in range(7):
             upsert_item(
-                **make_item(
-                    url=f"https://a.com/{i}", title=f"Blog A Post {i}", source="Blog A"
-                ),
+                **make_item(url=f"https://a.com/{i}", title=f"Blog A Post {i}", source="Blog A"),
                 path=path,
             )
             mark_item(f"https://a.com/{i}", "kept", path)
         # Add 3 items from a second blog
         for i in range(3):
             upsert_item(
-                **make_item(
-                    url=f"https://b.com/{i}", title=f"Blog B Post {i}", source="Blog B"
-                ),
+                **make_item(url=f"https://b.com/{i}", title=f"Blog B Post {i}", source="Blog B"),
                 path=path,
             )
             mark_item(f"https://b.com/{i}", "kept", path)
@@ -190,15 +180,9 @@ class TestGetDailyCounts:
     def test_groups_by_fetched_at(self, tmp_path):
         path = db(tmp_path)
         init_db(path)
-        upsert_item(
-            **make_item(url="https://a.com/1", fetched_at="2026-03-07"), path=path
-        )
-        upsert_item(
-            **make_item(url="https://a.com/2", fetched_at="2026-03-08"), path=path
-        )
-        upsert_item(
-            **make_item(url="https://a.com/3", fetched_at="2026-03-08"), path=path
-        )
+        upsert_item(**make_item(url="https://a.com/1", fetched_at="2026-03-07"), path=path)
+        upsert_item(**make_item(url="https://a.com/2", fetched_at="2026-03-08"), path=path)
+        upsert_item(**make_item(url="https://a.com/3", fetched_at="2026-03-08"), path=path)
 
         result = get_daily_counts(path)
         dates = [r["date"] for r in result]
@@ -210,17 +194,11 @@ class TestGetDailyCounts:
     def test_counts_new_kept_dismissed_separately(self, tmp_path):
         path = db(tmp_path)
         init_db(path)
-        upsert_item(
-            **make_item(url="https://a.com/1", fetched_at="2026-03-08"), path=path
-        )
-        upsert_item(
-            **make_item(url="https://a.com/2", fetched_at="2026-03-08"), path=path
-        )
+        upsert_item(**make_item(url="https://a.com/1", fetched_at="2026-03-08"), path=path)
+        upsert_item(**make_item(url="https://a.com/2", fetched_at="2026-03-08"), path=path)
         mark_item("https://a.com/1", "kept", path)
         mark_item("https://a.com/2", "dismissed", path)
-        upsert_item(
-            **make_item(url="https://a.com/3", fetched_at="2026-03-08"), path=path
-        )
+        upsert_item(**make_item(url="https://a.com/3", fetched_at="2026-03-08"), path=path)
 
         result = get_daily_counts(path)
         day = result[0]
@@ -233,9 +211,7 @@ class TestGetDailyCounts:
         init_db(path)
         for i in range(10):
             upsert_item(
-                **make_item(
-                    url=f"https://a.com/{i}", fetched_at=f"2026-03-{i + 1:02d}"
-                ),
+                **make_item(url=f"https://a.com/{i}", fetched_at=f"2026-03-{i + 1:02d}"),
                 path=path,
             )
 
@@ -254,9 +230,7 @@ class TestGetSourceStats:
         init_db(path)
         upsert_item(**make_item(url="https://a.com/1", source="Small Blog"), path=path)
         for i in range(5):
-            upsert_item(
-                **make_item(url=f"https://b.com/{i}", source="Big Blog"), path=path
-            )
+            upsert_item(**make_item(url=f"https://b.com/{i}", source="Big Blog"), path=path)
 
         result = get_source_stats(path, min_items=5)
         sources = [r["source"] for r in result]
@@ -290,12 +264,8 @@ class TestGetTagCounts:
     def test_counts_tags_from_kept_items(self, tmp_path):
         path = db(tmp_path)
         init_db(path)
-        upsert_item(
-            **make_item(url="https://a.com/1", tags=["python", "sql"]), path=path
-        )
-        upsert_item(
-            **make_item(url="https://a.com/2", tags=["python", "llm"]), path=path
-        )
+        upsert_item(**make_item(url="https://a.com/1", tags=["python", "sql"]), path=path)
+        upsert_item(**make_item(url="https://a.com/2", tags=["python", "llm"]), path=path)
         mark_item("https://a.com/1", "kept", path)
         mark_item("https://a.com/2", "kept", path)
 
@@ -323,9 +293,7 @@ class TestGetTagCounts:
         path = db(tmp_path)
         init_db(path)
         for i in range(3):
-            upsert_item(
-                **make_item(url=f"https://a.com/{i}", tags=["popular"]), path=path
-            )
+            upsert_item(**make_item(url=f"https://a.com/{i}", tags=["popular"]), path=path)
             mark_item(f"https://a.com/{i}", "kept", path)
         upsert_item(**make_item(url="https://a.com/99", tags=["rare"]), path=path)
         mark_item("https://a.com/99", "kept", path)
@@ -418,13 +386,8 @@ class TestGetScoreDistribution:
         upsert_item(**make_item(url="https://a.com/1", score=0.9), path=path)
         upsert_item(**make_item(url="https://a.com/2", score=0.5), path=path)
         mark_item("https://a.com/2", "dismissed", path)
-        new_dist = {
-            d["bucket"]: d["count"] for d in get_score_distribution(path, status="new")
-        }
-        dismissed_dist = {
-            d["bucket"]: d["count"]
-            for d in get_score_distribution(path, status="dismissed")
-        }
+        new_dist = {d["bucket"]: d["count"] for d in get_score_distribution(path, status="new")}
+        dismissed_dist = {d["bucket"]: d["count"] for d in get_score_distribution(path, status="dismissed")}
         assert new_dist["0.9"] == 1
         assert dismissed_dist["0.5"] == 1
 
@@ -594,51 +557,37 @@ class TestGetTopDismissedForDate:
         path = db(tmp_path)
         init_db(path)
         upsert_item(
-            **make_item(
-                url="https://a.com/1", title="A1", score=0.72, fetched_at="2026-04-19"
-            ),
+            **make_item(url="https://a.com/1", title="A1", score=0.72, fetched_at="2026-04-19"),
             path=path,
         )
         upsert_item(
-            **make_item(
-                url="https://a.com/2", title="A2", score=0.78, fetched_at="2026-04-19"
-            ),
+            **make_item(url="https://a.com/2", title="A2", score=0.78, fetched_at="2026-04-19"),
             path=path,
         )
         upsert_item(
-            **make_item(
-                url="https://a.com/3", title="A3", score=0.62, fetched_at="2026-04-19"
-            ),
+            **make_item(url="https://a.com/3", title="A3", score=0.62, fetched_at="2026-04-19"),
             path=path,
         )
         mark_item("https://a.com/1", "dismissed", path)
         mark_item("https://a.com/2", "dismissed", path)
         mark_item("https://a.com/3", "dismissed", path)
 
-        rows = get_top_dismissed_for_date(
-            path, fetched_at="2026-04-19", limit=2, min_score=0.70
-        )
+        rows = get_top_dismissed_for_date(path, fetched_at="2026-04-19", limit=2, min_score=0.70)
         assert [r["title"] for r in rows] == ["A2", "A1"]
 
     def test_excludes_other_dates_and_non_dismissed(self, tmp_path):
         path = db(tmp_path)
         init_db(path)
         upsert_item(
-            **make_item(
-                url="https://b.com/1", title="B1", score=0.8, fetched_at="2026-04-18"
-            ),
+            **make_item(url="https://b.com/1", title="B1", score=0.8, fetched_at="2026-04-18"),
             path=path,
         )
         upsert_item(
-            **make_item(
-                url="https://b.com/2", title="B2", score=0.8, fetched_at="2026-04-19"
-            ),
+            **make_item(url="https://b.com/2", title="B2", score=0.8, fetched_at="2026-04-19"),
             path=path,
         )
         mark_item("https://b.com/1", "dismissed", path)
         # b2 remains new, should not appear
 
-        rows = get_top_dismissed_for_date(
-            path, fetched_at="2026-04-19", limit=5, min_score=0.0
-        )
+        rows = get_top_dismissed_for_date(path, fetched_at="2026-04-19", limit=5, min_score=0.0)
         assert rows == []

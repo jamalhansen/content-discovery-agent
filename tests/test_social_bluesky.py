@@ -43,15 +43,7 @@ def _post_with_facet(url: str, uri_suffix: str = "def") -> dict:
     return {
         "uri": f"at://did:plc:test/app.bsky.feed.post/{uri_suffix}",
         "embed": {},
-        "record": {
-            "facets": [
-                {
-                    "features": [
-                        {"$type": "app.bsky.richtext.facet#link", "uri": url}
-                    ]
-                }
-            ]
-        },
+        "record": {"facets": [{"features": [{"$type": "app.bsky.richtext.facet#link", "uri": url}]}]},
     }
 
 
@@ -109,11 +101,7 @@ class TestExtractUrlsFromPost:
 
     def test_returns_empty_for_non_link_facet(self):
         post = {
-            "record": {
-                "facets": [
-                    {"features": [{"$type": "app.bsky.richtext.facet#mention", "did": "did:plc:abc"}]}
-                ]
-            }
+            "record": {"facets": [{"features": [{"$type": "app.bsky.richtext.facet#mention", "did": "did:plc:abc"}]}]}
         }
         assert extract_urls_from_post(post) == []
 

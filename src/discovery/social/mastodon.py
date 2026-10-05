@@ -41,9 +41,7 @@ class MastodonReader(SocialReader):
         _local_seen: set[str] = set()
 
         for keyword in keywords:
-            raw_statuses = mastodon.fetch_posts(
-                [keyword], instances=self.instances, limit=40, tool=self._tool
-            )
+            raw_statuses = mastodon.fetch_posts([keyword], instances=self.instances, limit=40, tool=self._tool)
             for status in raw_statuses:
                 card = status.get("card")
                 if not card:
@@ -51,13 +49,13 @@ class MastodonReader(SocialReader):
                 article_url = card.get("url", "").strip()
                 if not article_url:
                     continue
-                
+
                 if session:
                     if session.should_skip_url(article_url):
                         continue
                 elif normalize_url(article_url) in _local_seen:
                     continue
-                    
+
                 item = fetch_article_metadata(
                     article_url,
                     blocked_domains=self._blocked_domains,
@@ -67,7 +65,7 @@ class MastodonReader(SocialReader):
                     search_term=keyword,
                     session=session,
                 )
-                
+
                 if item:
                     items.append(item)
                     if session:

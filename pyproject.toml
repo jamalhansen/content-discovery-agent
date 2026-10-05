@@ -39,3 +39,6 @@ pythonpath = ["src"]
 markers = [
     "allow_network: test is permitted to make a real HTTP request",
 ]
+
+[tool.ruff]
+line-length = 120

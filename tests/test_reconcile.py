@@ -1,4 +1,5 @@
 """Tests for reconciling the Reader queue against vault notes."""
+
 from dataclasses import dataclass
 
 from discovery.reconcile import (
@@ -32,14 +33,16 @@ def _write_note(tmp_path, name, source_url=None, body="A claim."):
 
 class TestExtractSourceUrl:
     def test_reads_unquoted_value(self):
-        assert extract_source_url(
-            "---\ntype: note\nsource_url: https://example.com/a\n---\n\nbody\n"
-        ) == "https://example.com/a"
+        assert (
+            extract_source_url("---\ntype: note\nsource_url: https://example.com/a\n---\n\nbody\n")
+            == "https://example.com/a"
+        )
 
     def test_reads_quoted_value(self):
-        assert extract_source_url(
-            '---\ntype: note\nsource_url: "https://example.com/a"\n---\n\nbody\n'
-        ) == "https://example.com/a"
+        assert (
+            extract_source_url('---\ntype: note\nsource_url: "https://example.com/a"\n---\n\nbody\n')
+            == "https://example.com/a"
+        )
 
     def test_returns_empty_when_absent(self):
         assert extract_source_url("---\ntype: note\n---\n\nbody\n") == ""
@@ -51,10 +54,7 @@ class TestExtractSourceUrl:
         assert extract_source_url("# A note\n\nsource_url: https://example.com/a\n") == ""
 
     def test_ignores_a_mention_in_the_body(self):
-        text = (
-            "---\ntype: note\n---\n\n"
-            "The frontmatter convention is source_url: https://example.com/wrong\n"
-        )
+        text = "---\ntype: note\n---\n\nThe frontmatter convention is source_url: https://example.com/wrong\n"
         assert extract_source_url(text) == ""
 
 
@@ -82,7 +82,8 @@ class TestReconcile:
         archived = []
 
         result = reconcile(
-            str(tmp_path), "tok",
+            str(tmp_path),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )
@@ -96,7 +97,8 @@ class TestReconcile:
         archived = []
 
         result = reconcile(
-            str(tmp_path), "tok",
+            str(tmp_path),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )
@@ -110,7 +112,8 @@ class TestReconcile:
         archived = []
 
         reconcile(
-            str(tmp_path), "tok",
+            str(tmp_path),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )
@@ -122,7 +125,9 @@ class TestReconcile:
         archived = []
 
         result = reconcile(
-            str(tmp_path), "tok", dry_run=True,
+            str(tmp_path),
+            "tok",
+            dry_run=True,
             list_refs=lambda _t, location, **_: refs[location],
             archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )
@@ -135,7 +140,8 @@ class TestReconcile:
         refs = {"new": [FakeRef("doc1", "https://example.com/a")], "later": []}
 
         result = reconcile(
-            str(tmp_path), "tok",
+            str(tmp_path),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             archive=lambda _t, _d, **_: False,
         )
@@ -149,7 +155,8 @@ class TestReconcile:
         archived = []
 
         result = reconcile(
-            str(tmp_path), "tok",
+            str(tmp_path),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )
@@ -165,7 +172,9 @@ class TestSourceUrlCounting:
         _write_note(tmp_path, "no-url.md")
 
         result = reconcile(
-            str(tmp_path), "tok", dry_run=True,
+            str(tmp_path),
+            "tok",
+            dry_run=True,
             list_refs=lambda _t, location, **_: [],
             archive=lambda _t, _d, **_: True,
         )
@@ -180,7 +189,8 @@ class TestSourceUrlCounting:
         archived = []
 
         result = reconcile(
-            str(tmp_path), "tok",
+            str(tmp_path),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             archive=lambda _t, doc_id, **_: archived.append(doc_id) or True,
         )

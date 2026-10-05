@@ -1,4 +1,5 @@
 """Tests for the contexta_inbox_routing feature in run_discovery()."""
+
 from unittest.mock import MagicMock, patch
 
 from local_first_common.testing import MockProvider
@@ -18,26 +19,34 @@ def _make_feed_item(url="https://example.com/article", title="Test Article"):
 
 def _run(provider, items, threshold, dry_run, routing, inbox_path, store_path):
     """Run run_discovery with all heavy I/O patched out."""
-    with patch("discovery.orchestrator.fetch_feed", return_value=items), \
-         patch("discovery.store.init_db"), \
-         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
-         patch("discovery.store.get_examples", return_value={}), \
-         patch("discovery.store.is_seen", return_value=False), \
-         patch("discovery.store.upsert_item"), \
-         patch("discovery.store.mark_item"), \
-         patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", routing), \
-         patch("discovery.orchestrator.CONTEXTA_INBOX_PATH", inbox_path), \
-         patch("discovery.orchestrator.save_to_vault_inbox") as mock_save:
+    with (
+        patch("discovery.orchestrator.fetch_feed", return_value=items),
+        patch("discovery.store.init_db"),
+        patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}),
+        patch("discovery.store.get_examples", return_value={}),
+        patch("discovery.store.is_seen", return_value=False),
+        patch("discovery.store.upsert_item"),
+        patch("discovery.store.mark_item"),
+        patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", routing),
+        patch("discovery.orchestrator.CONTEXTA_INBOX_PATH", inbox_path),
+        patch("discovery.orchestrator.save_to_vault_inbox") as mock_save,
+    ):
         run_discovery(
-            provider, "rss", None, threshold,
-            True, False, False, None, str(store_path),
+            provider,
+            "rss",
+            None,
+            threshold,
+            True,
+            False,
+            False,
+            None,
+            str(store_path),
             dry_run=dry_run,
         )
     return mock_save
 
 
 class TestContextaInboxRouting:
-
     def test_routing_disabled_by_default(self, tmp_path):
         """save_to_vault_inbox is NOT called when CONTEXTA_INBOX_ROUTING is False."""
         provider = MockProvider(response='{"score": 0.9, "tags": ["ai"], "summary": "Good.", "language": "en"}')
@@ -50,7 +59,8 @@ class TestContextaInboxRouting:
         item = _make_feed_item()
         mock_save = _run(provider, [item], 0.5, False, True, str(tmp_path), tmp_path)
         mock_save.assert_called_once_with(
-            str(tmp_path), item.url,
+            str(tmp_path),
+            item.url,
             title=item.title,
             summary="Good.",
             tags=["ai"],
@@ -81,22 +91,31 @@ class TestContextaInboxRouting:
         """The two routing destinations are independent, not mutually exclusive."""
         provider = MockProvider(response='{"score": 0.9, "tags": ["ai"], "summary": "Good.", "language": "en"}')
         item = _make_feed_item()
-        with patch("discovery.orchestrator.fetch_feed", return_value=[item]), \
-             patch("discovery.store.init_db"), \
-         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
-             patch("discovery.store.get_examples", return_value={}), \
-             patch("discovery.store.is_seen", return_value=False), \
-             patch("discovery.store.upsert_item"), \
-             patch("discovery.store.mark_item"), \
-             patch("discovery.orchestrator.READWISE_ROUTING", True), \
-             patch("discovery.orchestrator.READWISE_TOKEN", "tok_abc"), \
-             patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", True), \
-             patch("discovery.orchestrator.CONTEXTA_INBOX_PATH", str(tmp_path)), \
-             patch("discovery.orchestrator.save_to_readwise") as mock_rw, \
-             patch("discovery.orchestrator.save_to_vault_inbox") as mock_inbox:
+        with (
+            patch("discovery.orchestrator.fetch_feed", return_value=[item]),
+            patch("discovery.store.init_db"),
+            patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}),
+            patch("discovery.store.get_examples", return_value={}),
+            patch("discovery.store.is_seen", return_value=False),
+            patch("discovery.store.upsert_item"),
+            patch("discovery.store.mark_item"),
+            patch("discovery.orchestrator.READWISE_ROUTING", True),
+            patch("discovery.orchestrator.READWISE_TOKEN", "tok_abc"),
+            patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", True),
+            patch("discovery.orchestrator.CONTEXTA_INBOX_PATH", str(tmp_path)),
+            patch("discovery.orchestrator.save_to_readwise") as mock_rw,
+            patch("discovery.orchestrator.save_to_vault_inbox") as mock_inbox,
+        ):
             run_discovery(
-                provider, "rss", None, 0.5,
-                True, False, False, None, str(tmp_path),
+                provider,
+                "rss",
+                None,
+                0.5,
+                True,
+                False,
+                False,
+                None,
+                str(tmp_path),
                 dry_run=False,
             )
         mock_rw.assert_called_once()

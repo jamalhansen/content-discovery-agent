@@ -106,7 +106,9 @@ class TestParseResponse:
         assert result.score == 0.0
 
     def test_excess_tags_capped_at_two(self):
-        raw = '{"score": 0.8, "tags": ["a", "b", "c", "d", "e", "f", "g"], "summary": "Too many tags.", "language": "en"}'
+        raw = (
+            '{"score": 0.8, "tags": ["a", "b", "c", "d", "e", "f", "g"], "summary": "Too many tags.", "language": "en"}'
+        )
         result = parse_response(raw)
         assert result is not None
         assert result.tags == ["a", "b"]
@@ -214,9 +216,7 @@ class TestScoreItemWithRetest:
         from local_first_common.scoring import ScoredItem
 
         scorer = MagicMock()
-        scorer.score.side_effect = [
-            None if s is None else ScoredItem(score=s, tags=["t"], summary="s") for s in scores
-        ]
+        scorer.score.side_effect = [None if s is None else ScoredItem(score=s, tags=["t"], summary="s") for s in scores]
         return scorer
 
     def _run(self, scorer, margin=0.10):

@@ -113,8 +113,7 @@ class TestFetchArticleMetadata:
         assert item is None
 
     def test_returns_none_for_non_html_content_type(self):
-        with patch("local_first_common.http.fetch_url",
-                   return_value="%PDF-1.4", content_type="application/pdf"):
+        with patch("local_first_common.http.fetch_url", return_value="%PDF-1.4", content_type="application/pdf"):
             item = fetch_article_metadata("https://example.com/doc.pdf")
 
         assert item is None

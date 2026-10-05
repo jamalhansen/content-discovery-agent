@@ -6,6 +6,7 @@ write entirely") and local-first-common's shared dry_run_option ("do not
 write to disk/vault/DB"). Found when a dry-run test left 5 items sitting in
 the local store as status='new' with no visible trace anywhere else.
 """
+
 from unittest.mock import MagicMock, patch
 
 from local_first_common.scoring import ScoredItem
@@ -28,20 +29,29 @@ def _make_feed_item(url="https://example.com/article", title="Test Article"):
 
 
 def _run(score, threshold, dry_run, tmp_path):
-    with patch("discovery.orchestrator.fetch_feed", return_value=[_make_feed_item()]), \
-         patch("discovery.orchestrator.store.init_db"), \
-         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
-         patch("discovery.orchestrator.store.get_examples", return_value={}), \
-         patch("discovery.orchestrator.store.is_seen", return_value=False), \
-         patch("discovery.orchestrator.store.upsert_item") as mock_upsert, \
-         patch("discovery.orchestrator.store.mark_item") as mock_mark, \
-         patch("discovery.orchestrator.READWISE_ROUTING", False), \
-         patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False), \
-         patch("discovery.orchestrator.score_item") as mock_score:
+    with (
+        patch("discovery.orchestrator.fetch_feed", return_value=[_make_feed_item()]),
+        patch("discovery.orchestrator.store.init_db"),
+        patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}),
+        patch("discovery.orchestrator.store.get_examples", return_value={}),
+        patch("discovery.orchestrator.store.is_seen", return_value=False),
+        patch("discovery.orchestrator.store.upsert_item") as mock_upsert,
+        patch("discovery.orchestrator.store.mark_item") as mock_mark,
+        patch("discovery.orchestrator.READWISE_ROUTING", False),
+        patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False),
+        patch("discovery.orchestrator.score_item") as mock_score,
+    ):
         mock_score.return_value = ScoredItem(score=score, tags=[], summary="s", language="en")
         result = run_discovery(
-            MockProvider(), "rss", None, threshold,
-            True, False, False, None, str(tmp_path / "store.db"),
+            MockProvider(),
+            "rss",
+            None,
+            threshold,
+            True,
+            False,
+            False,
+            None,
+            str(tmp_path / "store.db"),
             dry_run=dry_run,
         )
     return result, mock_upsert, mock_mark

@@ -40,9 +40,7 @@ def _fetch_and_parse_or_raise(feed_url: str):
         raise FeedParseError(f"Error parsing feed {feed_url}: {e}") from e
 
     if parsed.bozo and not parsed.entries:
-        raise FeedParseError(
-            f"Failed to parse feed {feed_url}: {parsed.bozo_exception}"
-        )
+        raise FeedParseError(f"Failed to parse feed {feed_url}: {parsed.bozo_exception}")
 
     return parsed
 

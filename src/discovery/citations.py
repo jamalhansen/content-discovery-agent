@@ -34,6 +34,7 @@ content citation), and (2) capturing the anchor text and surrounding
 sentence for the LLM to judge citation intent from -- see the CITATION
 description prefix below and scorer.py's matching prompt instruction.
 """
+
 import logging
 from urllib.parse import urlparse
 
@@ -51,17 +52,30 @@ logger = logging.getLogger(__name__)
 # First path segment implies a homepage/account/CTA page rather than a
 # specific piece of content, regardless of what topic the LLM thinks it
 # smells like from the title/description alone.
-_MARKETING_PATH_SEGMENTS = frozenset({
-    "pricing", "signup", "sign-up", "login", "log-in", "get-started",
-    "getting-started", "download", "contact", "about", "careers", "jobs",
-    "demo", "request-demo", "book-a-demo", "waitlist",
-})
+_MARKETING_PATH_SEGMENTS = frozenset(
+    {
+        "pricing",
+        "signup",
+        "sign-up",
+        "login",
+        "log-in",
+        "get-started",
+        "getting-started",
+        "download",
+        "contact",
+        "about",
+        "careers",
+        "jobs",
+        "demo",
+        "request-demo",
+        "book-a-demo",
+        "waitlist",
+    }
+)
 
 # Prefix marker scorer.py's SYSTEM_PROMPT is written to recognize -- keep
 # these in sync if either changes.
-_CITATION_CONTEXT_TEMPLATE = (
-    '[Cited via: anchor text "{anchor}"; surrounding text: "{surrounding}"]\n\n{description}'
-)
+_CITATION_CONTEXT_TEMPLATE = '[Cited via: anchor text "{anchor}"; surrounding text: "{surrounding}"]\n\n{description}'
 
 
 def _registrable_domain(netloc: str) -> str:
@@ -157,7 +171,8 @@ def discover_citation_candidates(
                 continue
 
             item.description = _CITATION_CONTEXT_TEMPLATE.format(
-                anchor=lc.anchor_text, surrounding=lc.surrounding_text,
+                anchor=lc.anchor_text,
+                surrounding=lc.surrounding_text,
                 description=item.description,
             )
             found += 1

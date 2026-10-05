@@ -1,5 +1,6 @@
 """Tests for citation mining: turning outbound links from kept articles into
 candidate FeedItems (see discovery/citations.py for the rationale)."""
+
 from local_first_common.article_fetcher import FeedItem
 
 from discovery.citations import discover_citation_candidates
@@ -7,8 +8,12 @@ from discovery.citations import discover_citation_candidates
 
 def _feed_item(url, source="other.com"):
     return FeedItem(
-        title=f"Title for {url}", description="desc", url=url, source=source,
-        found_at=None, platform="citations",
+        title=f"Title for {url}",
+        description="desc",
+        url=url,
+        source=source,
+        found_at=None,
+        platform="citations",
     )
 
 
@@ -27,9 +32,7 @@ class TestDiscoverCitationCandidates:
             return _feed_item(url)
 
         kept = [{"url": "https://origin.com/a", "title": "Origin"}]
-        result = discover_citation_candidates(
-            kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher
-        )
+        result = discover_citation_candidates(kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher)
 
         assert len(result) == 1
         assert result[0].url == "https://other.com/post"
@@ -40,7 +43,7 @@ class TestDiscoverCitationCandidates:
     def test_skips_self_links(self):
         def page_fetcher(url):
             return (
-                '<article>'
+                "<article>"
                 '<a href="https://origin.com/other-post">Self link</a>'
                 '<a href="https://other.com/post">External</a>'
                 "</article>"
@@ -50,16 +53,14 @@ class TestDiscoverCitationCandidates:
             return _feed_item(url)
 
         kept = [{"url": "https://origin.com/a", "title": "Origin"}]
-        result = discover_citation_candidates(
-            kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher
-        )
+        result = discover_citation_candidates(kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher)
 
         assert [i.url for i in result] == ["https://other.com/post"]
 
     def test_skips_blocked_domains_without_fetching_metadata(self):
         def page_fetcher(url):
             return (
-                '<article>'
+                "<article>"
                 '<a href="https://blocked.com/post">Blocked</a>'
                 '<a href="https://other.com/post">OK</a>'
                 "</article>"
@@ -111,9 +112,7 @@ class TestDiscoverCitationCandidates:
             {"url": "https://origin-a.com/1", "title": "A"},
             {"url": "https://origin-b.com/1", "title": "B"},
         ]
-        result = discover_citation_candidates(
-            kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher
-        )
+        result = discover_citation_candidates(kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher)
 
         assert len(calls) == 1
         assert len(result) == 1
@@ -126,9 +125,7 @@ class TestDiscoverCitationCandidates:
             return None
 
         kept = [{"url": "https://origin.com/a", "title": "Origin"}]
-        result = discover_citation_candidates(
-            kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher
-        )
+        result = discover_citation_candidates(kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher)
 
         assert result == []
 
@@ -145,9 +142,7 @@ class TestDiscoverCitationCandidates:
             {"url": "https://bad-origin.com/a", "title": "Bad"},
             {"url": "https://good-origin.com/a", "title": "Good"},
         ]
-        result = discover_citation_candidates(
-            kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher
-        )
+        result = discover_citation_candidates(kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher)
 
         assert len(result) == 1
 
@@ -159,8 +154,6 @@ class TestDiscoverCitationCandidates:
             return _feed_item(url)
 
         kept = [{"url": "https://origin.com/a", "title": "Origin"}]
-        result = discover_citation_candidates(
-            kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher
-        )
+        result = discover_citation_candidates(kept, page_fetcher=page_fetcher, metadata_fetcher=metadata_fetcher)
 
         assert result == []

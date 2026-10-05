@@ -76,9 +76,7 @@ def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
     return any(row[1] == column for row in rows)
 
 
-def _ensure_column(
-    conn: sqlite3.Connection, table: str, column: str, definition: str
-) -> None:
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
     if _column_exists(conn, table, column):
         return
     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
@@ -123,23 +121,17 @@ def is_seen(url: str, path: str) -> bool:
 
         # 2. Legacy fallback: check with a trailing slash
         if not url.endswith("/"):
-            row = conn.execute(
-                "SELECT 1 FROM items WHERE url = ?", (url + "/",)
-            ).fetchone()
+            row = conn.execute("SELECT 1 FROM items WHERE url = ?", (url + "/",)).fetchone()
             if row:
                 return True
 
         # 3. Legacy fallback: check http version if searching for https
         if url.startswith("https://"):
             base = url[8:]
-            row = conn.execute(
-                "SELECT 1 FROM items WHERE url = ?", ("http://" + base,)
-            ).fetchone()
+            row = conn.execute("SELECT 1 FROM items WHERE url = ?", ("http://" + base,)).fetchone()
             if row:
                 return True
-            row = conn.execute(
-                "SELECT 1 FROM items WHERE url = ?", ("http://" + base + "/",)
-            ).fetchone()
+            row = conn.execute("SELECT 1 FROM items WHERE url = ?", ("http://" + base + "/",)).fetchone()
             if row:
                 return True
 
@@ -197,9 +189,7 @@ def get_new_items(path: str) -> list[dict]:
     Tags are deserialized from local_first_commonJSON to list[str].
     """
     with _connect(path) as conn:
-        rows = conn.execute(
-            "SELECT * FROM items WHERE status = 'new' ORDER BY score DESC"
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM items WHERE status = 'new' ORDER BY score DESC").fetchall()
     result = []
     for row in rows:
         d = dict(row)
@@ -211,9 +201,7 @@ def get_new_items(path: str) -> list[dict]:
 def mark_item(url: str, status: str, path: str) -> None:
     """Update an item's status and stamp reviewed_at with the current UTC time."""
     if status not in ("new", "kept", "dismissed"):
-        raise ValueError(
-            f"Invalid status: {status!r}. Must be 'new', 'kept', or 'dismissed'."
-        )
+        raise ValueError(f"Invalid status: {status!r}. Must be 'new', 'kept', or 'dismissed'.")
     now = datetime.now(UTC).isoformat()
     with _connect(path) as conn:
         conn.execute(
@@ -257,7 +245,9 @@ def dismiss_items_by_urls(urls: list[str], path: str) -> int:
     placeholders = ",".join("?" * len(urls))
     with _connect(path) as conn:
         # placeholders contains only '?' characters; URL values are parameterized — not an injection risk
-        query = f"UPDATE items SET status = 'dismissed', reviewed_at = ? WHERE url IN ({placeholders}) AND status = 'new'"  # nosec B608
+        query = (
+            f"UPDATE items SET status = 'dismissed', reviewed_at = ? WHERE url IN ({placeholders}) AND status = 'new'"  # nosec B608
+        )
         cursor = conn.execute(query, [now, *urls])
     return cursor.rowcount
 
@@ -332,9 +322,7 @@ def get_tag_counts(path: str, status: str = "kept", limit: int = 15) -> list[dic
     Each dict has keys: tag, count.
     """
     with _connect(path) as conn:
-        rows = conn.execute(
-            "SELECT tags FROM items WHERE status = ?", (status,)
-        ).fetchall()
+        rows = conn.execute("SELECT tags FROM items WHERE status = ?", (status,)).fetchall()
 
     counts: dict[str, int] = {}
     for row in rows:
@@ -356,9 +344,7 @@ def get_kept_tag_counts_for_date(path: str, date: str) -> dict[str, int]:
     whether the Nth+1 needs a higher bar.
     """
     with _connect(path) as conn:
-        rows = conn.execute(
-            "SELECT tags FROM items WHERE status = 'kept' AND fetched_at = ?", (date,)
-        ).fetchall()
+        rows = conn.execute("SELECT tags FROM items WHERE status = 'kept' AND fetched_at = ?", (date,)).fetchall()
 
     counts: dict[str, int] = {}
     for row in rows:
@@ -444,9 +430,7 @@ def resolve_item(ref: str | int, path: str) -> dict:
             rows = conn.execute("SELECT * FROM items WHERE url = ?", (ref,)).fetchall()
             if not rows:
                 like = f"%{ref}%"
-                rows = conn.execute(
-                    "SELECT * FROM items WHERE url LIKE ? OR title LIKE ?", (like, like)
-                ).fetchall()
+                rows = conn.execute("SELECT * FROM items WHERE url LIKE ? OR title LIKE ?", (like, like)).fetchall()
     if len(rows) != 1:
         raise LookupError(f"{len(rows)} items match {ref!r}; be more specific")
     d = dict(rows[0])
@@ -486,14 +470,9 @@ def verdict_candidates(
     the status, so a position never says what the model did with the item.
     """
     since = (datetime.now(UTC) - timedelta(days=recent_days)).date().isoformat()
-    base = (
-        "SELECT * FROM items WHERE human_verdict IS NULL "
-        "AND source != 'readwise-reader' AND status = ? "
-    )
+    base = "SELECT * FROM items WHERE human_verdict IS NULL AND source != 'readwise-reader' AND status = ? "
     with _connect(path) as conn:
-        routed = conn.execute(
-            base + "ORDER BY reviewed_at DESC LIMIT ?", ("kept", n_routed)
-        ).fetchall()
+        routed = conn.execute(base + "ORDER BY reviewed_at DESC LIMIT ?", ("kept", n_routed)).fetchall()
         rejected = conn.execute(
             base + "AND score < ? AND fetched_at >= ? ORDER BY score DESC, reviewed_at DESC LIMIT ?",
             ("dismissed", threshold, since, n_rejected),
@@ -515,9 +494,7 @@ def get_verdict_stats(path: str, n_examples: int = 20, n_dismissed_examples: int
     many of the few-shot examples the scorer currently sees are his vs the model's.
     """
     with _connect(path) as conn:
-        rows = conn.execute(
-            "SELECT score, status, human_verdict FROM items WHERE human_verdict IS NOT NULL"
-        ).fetchall()
+        rows = conn.execute("SELECT score, status, human_verdict FROM items WHERE human_verdict IS NOT NULL").fetchall()
     total = len(rows)
     agreed = sum(1 for r in rows if _STATUS_FOR_VERDICT[r["human_verdict"]] == r["status"])
     buckets: dict[str, dict[str, int]] = {}
@@ -549,9 +526,7 @@ def get_score_distribution(path: str, status: str = "new") -> list[dict]:
     Score 1.0 is counted in the 0.9 bucket.
     """
     with _connect(path) as conn:
-        rows = conn.execute(
-            "SELECT score FROM items WHERE status = ?", (status,)
-        ).fetchall()
+        rows = conn.execute("SELECT score FROM items WHERE status = ?", (status,)).fetchall()
 
     buckets: dict[str, int] = {f"{i / 10:.1f}": 0 for i in range(10)}
     for row in rows:
@@ -615,8 +590,7 @@ def get_recent_kept(path: str, limit: int = 10) -> list[dict]:
     """
     with _connect(path) as conn:
         rows = conn.execute(
-            "SELECT url, title FROM items WHERE status = 'kept' "
-            "ORDER BY reviewed_at DESC LIMIT ?",
+            "SELECT url, title FROM items WHERE status = 'kept' ORDER BY reviewed_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
     return [dict(r) for r in rows]
@@ -634,8 +608,7 @@ def get_recent_kept_diverse(path: str, limit: int = 10, max_per_tag: int = 2) ->
     """
     with _connect(path) as conn:
         rows = conn.execute(
-            "SELECT url, title, tags FROM items WHERE status = 'kept' "
-            "ORDER BY reviewed_at DESC"
+            "SELECT url, title, tags FROM items WHERE status = 'kept' ORDER BY reviewed_at DESC"
         ).fetchall()
 
     tag_counts: dict[str, int] = {}
@@ -686,10 +659,7 @@ def search_kept_items(
         item = dict(r)
         item_tags: list[str] = []
         try:
-            item_tags = [
-                str(t).strip().lower()
-                for t in json.loads(item.get("tags") or "[]")
-            ]
+            item_tags = [str(t).strip().lower() for t in json.loads(item.get("tags") or "[]")]
         except (json.JSONDecodeError, TypeError):
             pass
         item["tags"] = item_tags
@@ -700,13 +670,15 @@ def search_kept_items(
 
         # If query specified, check against title, summary, description, source, tags
         if target_query:
-            searchable = " ".join([
-                item.get("title") or "",
-                item.get("summary") or "",
-                item.get("description") or "",
-                item.get("source") or "",
-                " ".join(item_tags),
-            ]).lower()
+            searchable = " ".join(
+                [
+                    item.get("title") or "",
+                    item.get("summary") or "",
+                    item.get("description") or "",
+                    item.get("source") or "",
+                    " ".join(item_tags),
+                ]
+            ).lower()
             if target_query not in searchable:
                 continue
 
@@ -775,23 +747,17 @@ def migrate_all_urls(path: str) -> tuple[int, int]:
                 # Collision! Merge logic: keep the more "advanced" status
                 # kept > dismissed > new
                 status_map = {"kept": 2, "dismissed": 1, "new": 0}
-                if status_map.get(row["status"], 0) > status_map.get(
-                    existing["status"], 0
-                ):
+                if status_map.get(row["status"], 0) > status_map.get(existing["status"], 0):
                     # Current item is more important — replace existing one
                     conn.execute("DELETE FROM items WHERE id = ?", (existing["id"],))
-                    conn.execute(
-                        "UPDATE items SET url = ? WHERE id = ?", (norm_url, item_id)
-                    )
+                    conn.execute("UPDATE items SET url = ? WHERE id = ?", (norm_url, item_id))
                 else:
                     # Existing item is more important (or equal) — delete current one
                     conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
                 merged += 1
             else:
                 # No collision, just update
-                conn.execute(
-                    "UPDATE items SET url = ? WHERE id = ?", (norm_url, item_id)
-                )
+                conn.execute("UPDATE items SET url = ? WHERE id = ?", (norm_url, item_id))
                 updated += 1
 
         conn.commit()

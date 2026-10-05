@@ -13,6 +13,7 @@ same frontmatter convention and normalized-URL matching as `reconcile`, read
 from both notes/ and inbox/ (including inbox/archive/) so a file that has not
 been through /reduce yet does not get fetched a second time.
 """
+
 import os
 from dataclasses import dataclass, field
 

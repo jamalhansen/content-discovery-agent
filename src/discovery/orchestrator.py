@@ -106,7 +106,9 @@ def run_discovery(
                     new_items.append(i)
 
             source = items[0].source if items else feed_url
-            typer.echo(f"  {source}: {len(items)} item{'s' if len(items) != 1 else ''} ({len(new_items)} new){cache_label}")
+            typer.echo(
+                f"  {source}: {len(items)} item{'s' if len(items) != 1 else ''} ({len(new_items)} new){cache_label}"
+            )
             all_new_items.extend(new_items)
 
     # --- Bluesky source ---
@@ -164,7 +166,10 @@ def run_discovery(
             else:
                 typer.echo(f"Fetching Reader ({READER_LOCATION})...")
                 reader_items = list_reader_documents(
-                    READWISE_TOKEN, location=READER_LOCATION, category=READER_CATEGORY, tool=_TOOL,
+                    READWISE_TOKEN,
+                    location=READER_LOCATION,
+                    category=READER_CATEGORY,
+                    tool=_TOOL,
                 )
                 if cached and reader_items:
                     save_cached_reader(READER_LOCATION, READER_CATEGORY, reader_items)
@@ -172,14 +177,18 @@ def run_discovery(
             reader_new = [i for i in reader_items if i.url and not session.should_skip_url(i.url)]
             for i in reader_new:
                 session.mark_seen(i.url)
-            typer.echo(f"  Reader: {len(reader_items)} item{'s' if len(reader_items) != 1 else ''} fetched ({len(reader_new)} new){cache_label}")
+            typer.echo(
+                f"  Reader: {len(reader_items)} item{'s' if len(reader_items) != 1 else ''} fetched ({len(reader_new)} new){cache_label}"
+            )
             all_new_items.extend(reader_new)
         else:
             typer.echo("  Reader: skipped (no READWISE_TOKEN set)")
 
     # --- Citations source: mine outbound links from recently-kept articles ---
     if "citations" in source_list:
-        recent_kept = store.get_recent_kept_diverse(store_path, limit=CITATION_KEPT_LIMIT, max_per_tag=CITATION_MAX_PER_TAG)
+        recent_kept = store.get_recent_kept_diverse(
+            store_path, limit=CITATION_KEPT_LIMIT, max_per_tag=CITATION_MAX_PER_TAG
+        )
         if recent_kept:
             typer.echo(f"Crawling citations from {len(recent_kept)} recently kept item(s)...")
             citation_items = discover_citation_candidates(
@@ -190,7 +199,9 @@ def run_discovery(
             citation_new = [i for i in citation_items if not session.should_skip_url(i.url)]
             for i in citation_new:
                 session.mark_seen(i.url)
-            typer.echo(f"  Citations: {len(citation_items)} link{'s' if len(citation_items) != 1 else ''} found ({len(citation_new)} new)")
+            typer.echo(
+                f"  Citations: {len(citation_items)} link{'s' if len(citation_items) != 1 else ''} found ({len(citation_new)} new)"
+            )
             all_new_items.extend(citation_new)
         else:
             typer.echo("  Citations: skipped (no kept items yet)")
@@ -259,8 +270,16 @@ def run_discovery(
         llm_provider.source_location = item.title
         llm_provider.item_count = 1
         result = score_item_with_retest(
-            llm_provider, item.title, item.description, INTEREST_PROFILE, threshold, BORDERLINE_MARGIN,
-            examples, INTEREST_EXCLUSIONS, scorer=scorer, score_fn=score_item,
+            llm_provider,
+            item.title,
+            item.description,
+            INTEREST_PROFILE,
+            threshold,
+            BORDERLINE_MARGIN,
+            examples,
+            INTEREST_EXCLUSIONS,
+            scorer=scorer,
+            score_fn=score_item,
         )
         heartbeat()
         if result is None:
@@ -290,10 +309,15 @@ def run_discovery(
         # -- the store write is not exempt from that.
         if not dry_run:
             store.upsert_item(
-                url=item.url, title=item.title, source=item.source,
-                description=item.description or "", score=result.score,
-                tags=result.tags, summary=result.summary,
-                fetched_at=today, published_at=item.published,
+                url=item.url,
+                title=item.title,
+                source=item.source,
+                description=item.description or "",
+                score=result.score,
+                tags=result.tags,
+                summary=result.summary,
+                fetched_at=today,
+                published_at=item.published,
                 found_at=item.found_at,
                 search_term=item.search_term,
                 platform=item.platform,
@@ -310,10 +334,15 @@ def run_discovery(
         if is_english and result.score >= effective_threshold:
             for t in item_tags:
                 cluster_counts[t] = cluster_counts.get(t, 0) + 1
-            candidates.append({
-                "title": item.title, "url": item.url, "score": result.score,
-                "tags": result.tags, "summary": result.summary,
-            })
+            candidates.append(
+                {
+                    "title": item.title,
+                    "url": item.url,
+                    "score": result.score,
+                    "tags": result.tags,
+                    "summary": result.summary,
+                }
+            )
             routed = False
             if READWISE_ROUTING and READWISE_TOKEN and item.source != "readwise-reader":
                 if dry_run:
@@ -367,12 +396,10 @@ def run_discovery(
         # Diagnostic only -- not persisted (the LLM call itself is logged
         # once, inside the gateway; this counts a scoring-loop-wide repair
         # rate, not any single call).
-        typer.echo(
-            f"  ({scorer.xml_fallback_count} XML fallbacks, "
-            f"{scorer.parse_error_count} parse errors this run)"
-        )
+        typer.echo(f"  ({scorer.xml_fallback_count} XML fallbacks, {scorer.parse_error_count} parse errors this run)")
 
     return candidates, scored_count, skipped_count, dismissed_this_run
+
 
 def _maybe_route_probe(
     pool: list[tuple[FeedItem, ScoredItem]],
@@ -512,6 +539,7 @@ def run_review(store_path: str, readwise_token: str):
 
     return kept, dismissed
 
+
 def run_save(
     url: str,
     provider,
@@ -543,8 +571,12 @@ def run_save(
         examples = store.get_examples(20, store_path, n_dismissed=40)
         typer.echo("Scoring ...")
         scored = score_item(
-            provider, item.title, item.description,
-            INTEREST_PROFILE, examples=examples, exclusions=INTEREST_EXCLUSIONS,
+            provider,
+            item.title,
+            item.description,
+            INTEREST_PROFILE,
+            examples=examples,
+            exclusions=INTEREST_EXCLUSIONS,
         )
         if scored is None:
             typer.echo("Error: Scoring failed \u2014 LLM returned invalid response.", err=True)
@@ -557,9 +589,13 @@ def run_save(
         return True
 
     store.upsert_item(
-        url=item.url, title=item.title, source=item.source,
-        description=item.description, score=scored.score,
-        tags=scored.tags, summary=scored.summary,
+        url=item.url,
+        title=item.title,
+        source=item.source,
+        description=item.description,
+        score=scored.score,
+        tags=scored.tags,
+        summary=scored.summary,
         fetched_at=datetime.now().astimezone().date().isoformat(),
         published_at=item.published,
         platform="manual",
@@ -568,7 +604,8 @@ def run_save(
     store.mark_item(item.url, "kept", store_path)
 
     ok = save_to_readwise(
-        readwise_token, item.url,
+        readwise_token,
+        item.url,
         title=item.title,
         summary=scored.summary,
         tags=scored.tags,

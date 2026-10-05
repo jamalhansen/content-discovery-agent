@@ -1,4 +1,5 @@
 """Tests for the 'reader' source in run_discovery() — pulling from Reader's unread queue."""
+
 from unittest.mock import MagicMock, patch
 
 from local_first_common.testing import MockProvider
@@ -18,26 +19,34 @@ def _make_reader_item(url="https://example.com/original-article", title="Test Ar
 
 def _run(provider, items, sources="reader", token="tok_abc", routing=False, no_dedup=True):
     """Run run_discovery with reader fetch patched, all other I/O patched out."""
-    with patch("discovery.orchestrator.list_reader_documents", return_value=items) as mock_list, \
-         patch("discovery.store.init_db"), \
-         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
-         patch("discovery.store.get_examples", return_value={}), \
-         patch("discovery.store.is_seen", return_value=False), \
-         patch("discovery.store.upsert_item"), \
-         patch("discovery.store.mark_item"), \
-         patch("discovery.orchestrator.READWISE_TOKEN", token), \
-         patch("discovery.orchestrator.READWISE_ROUTING", routing), \
-         patch("discovery.orchestrator.save_to_readwise") as mock_save:
+    with (
+        patch("discovery.orchestrator.list_reader_documents", return_value=items) as mock_list,
+        patch("discovery.store.init_db"),
+        patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}),
+        patch("discovery.store.get_examples", return_value={}),
+        patch("discovery.store.is_seen", return_value=False),
+        patch("discovery.store.upsert_item"),
+        patch("discovery.store.mark_item"),
+        patch("discovery.orchestrator.READWISE_TOKEN", token),
+        patch("discovery.orchestrator.READWISE_ROUTING", routing),
+        patch("discovery.orchestrator.save_to_readwise") as mock_save,
+    ):
         candidates, scored, skipped, _dismissed = run_discovery(
-            provider, sources, None, 0.5,
-            no_dedup, False, False, None, "unused.db",
+            provider,
+            sources,
+            None,
+            0.5,
+            no_dedup,
+            False,
+            False,
+            None,
+            "unused.db",
             dry_run=False,
         )
     return mock_list, mock_save, candidates, scored, skipped
 
 
 class TestReaderSource:
-
     def test_skipped_when_no_token(self):
         provider = MockProvider(response='{"score": 0.9, "tags": ["ai"], "summary": "Good.", "language": "en"}')
         mock_list, _, _candidates, scored, _ = _run(provider, [_make_reader_item()], token="")
@@ -70,15 +79,17 @@ class TestReaderSource:
         """Sanity check: the reader-source guard doesn't suppress routing for other sources."""
         provider = MockProvider(response='{"score": 0.9, "tags": ["ai"], "summary": "Good.", "language": "en"}')
         item = _make_reader_item(source="Some Blog")
-        with patch("discovery.orchestrator.fetch_feed", return_value=[item]), \
-             patch("discovery.store.init_db"), \
-         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
-             patch("discovery.store.get_examples", return_value={}), \
-             patch("discovery.store.is_seen", return_value=False), \
-             patch("discovery.store.upsert_item"), \
-             patch("discovery.store.mark_item"), \
-             patch("discovery.orchestrator.READWISE_TOKEN", "tok_abc"), \
-             patch("discovery.orchestrator.READWISE_ROUTING", True), \
-             patch("discovery.orchestrator.save_to_readwise") as mock_save:
+        with (
+            patch("discovery.orchestrator.fetch_feed", return_value=[item]),
+            patch("discovery.store.init_db"),
+            patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}),
+            patch("discovery.store.get_examples", return_value={}),
+            patch("discovery.store.is_seen", return_value=False),
+            patch("discovery.store.upsert_item"),
+            patch("discovery.store.mark_item"),
+            patch("discovery.orchestrator.READWISE_TOKEN", "tok_abc"),
+            patch("discovery.orchestrator.READWISE_ROUTING", True),
+            patch("discovery.orchestrator.save_to_readwise") as mock_save,
+        ):
             run_discovery(provider, "rss", None, 0.5, True, False, False, None, "unused.db", dry_run=False)
         mock_save.assert_called_once()

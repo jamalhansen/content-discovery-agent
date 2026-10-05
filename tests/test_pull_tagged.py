@@ -3,7 +3,14 @@ from pathlib import Path
 from discovery.pull_tagged import SOURCE_TYPE, collect_tagged, pull_tagged_items
 from discovery.vault_inbox import save_to_vault_inbox
 
-ARTICLE = {"id": "a1", "category": "article", "source_url": "https://example.com/post", "title": "A Post", "notes": "why I kept it", "tags": {"contexta": {}, "ai governance": {}}}
+ARTICLE = {
+    "id": "a1",
+    "category": "article",
+    "source_url": "https://example.com/post",
+    "title": "A Post",
+    "notes": "why I kept it",
+    "tags": {"contexta": {}, "ai governance": {}},
+}
 HIGHLIGHTS = [
     {"id": "h2", "category": "highlight", "parent_id": "a1", "content": "second", "highlight_location": 20},
     {"id": "h1", "category": "highlight", "parent_id": "a1", "content": "first", "highlight_location": 10},
@@ -20,6 +27,7 @@ def fake_list(tagged, by_id=None):
         if params.get("category") == "highlight":
             return HIGHLIGHTS
         return []
+
     return list_docs
 
 
@@ -55,7 +63,9 @@ def test_writes_tagged_item_with_highlights_and_source_type(tmp_path: Path):
     def save(inbox_path, url, title, **kw):
         return save_to_vault_inbox(inbox_path, url, title, body_fetcher=lambda u: ("body text " * 200, ""), **kw)
 
-    result = pull_tagged_items(str(notes), str(inbox), "t", list_docs=fake_list([ARTICLE]), save=save, update=lambda *a: True)
+    result = pull_tagged_items(
+        str(notes), str(inbox), "t", list_docs=fake_list([ARTICLE]), save=save, update=lambda *a: True
+    )
     assert result.imported == ["A Post"]
     text = next(inbox.glob("*.md")).read_text()
     assert f"source_type: {SOURCE_TYPE}" in text
@@ -70,7 +80,12 @@ def test_already_captured_url_is_skipped(tmp_path: Path):
     (inbox / "existing.md").write_text("---\nsource_url: https://example.com/post\n---\n")
     saved = []
     result = pull_tagged_items(
-        str(notes), str(inbox), "t", list_docs=fake_list([ARTICLE]), save=lambda *a, **k: saved.append(a) or True, update=lambda *a: True
+        str(notes),
+        str(inbox),
+        "t",
+        list_docs=fake_list([ARTICLE]),
+        save=lambda *a, **k: saved.append(a) or True,
+        update=lambda *a: True,
     )
     assert result.already_captured == 1
     assert saved == []
@@ -90,7 +105,12 @@ def test_source_archived_in_a_subfolder_counts_as_captured(tmp_path: Path):
     (nested / "2026-09-27-a-post.md").write_text("---\nsource_url: https://example.com/post\n---\n")
     saved = []
     result = pull_tagged_items(
-        str(notes), str(inbox), "t", list_docs=fake_list([ARTICLE]), save=lambda *a, **k: saved.append(a) or True, update=lambda *a: True
+        str(notes),
+        str(inbox),
+        "t",
+        list_docs=fake_list([ARTICLE]),
+        save=lambda *a, **k: saved.append(a) or True,
+        update=lambda *a: True,
     )
     assert result.already_captured == 1
     assert saved == []
@@ -109,8 +129,13 @@ def _run(tmp_path, tagged, by_id=None, update=None, dry_run=False, captured_url=
         return True if update is None else update(token, item_id, tags)
 
     result = pull_tagged_items(
-        str(notes), str(inbox), "t", list_docs=fake_list(tagged, by_id), save=lambda *a, **k: True,
-        update=fake_update, dry_run=dry_run,
+        str(notes),
+        str(inbox),
+        "t",
+        list_docs=fake_list(tagged, by_id),
+        save=lambda *a, **k: True,
+        update=fake_update,
+        dry_run=dry_run,
     )
     return result, calls
 
@@ -122,7 +147,13 @@ def test_successful_pull_swaps_tag_and_keeps_other_tags(tmp_path: Path):
 
 
 def test_tag_on_a_highlight_is_swapped_on_that_highlight(tmp_path: Path):
-    tagged_highlight = {"id": "h1", "category": "highlight", "parent_id": "a1", "content": "first", "tags": {"contexta": {}}}
+    tagged_highlight = {
+        "id": "h1",
+        "category": "highlight",
+        "parent_id": "a1",
+        "content": "first",
+        "tags": {"contexta": {}},
+    }
     _, calls = _run(tmp_path, [tagged_highlight], by_id=[ARTICLE])
     assert calls == [("h1", ["contexta-pulled"])]
 

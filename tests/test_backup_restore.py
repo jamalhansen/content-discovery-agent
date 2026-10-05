@@ -30,11 +30,11 @@ def test_run_report_with_data(mock_db):
     for i in range(6):
         conn.execute(
             "INSERT INTO items (url, title, source, score, fetched_at, status) VALUES (?, ?, ?, ?, ?, ?)",
-            (f"url{i}", f"t{i}", "source1", 0.9, "2026-03-20", "kept")
+            (f"url{i}", f"t{i}", "source1", 0.9, "2026-03-20", "kept"),
         )
     conn.commit()
     conn.close()
-    
+
     db_commands.run_report(mock_db, 7)
 
 
@@ -50,17 +50,17 @@ def test_run_purge_blocked_with_data(mock_db):
         conn = sqlite3.connect(mock_db)
         conn.execute(
             "INSERT INTO items (url, title, source, score, fetched_at, status) VALUES (?, ?, ?, ?, ?, ?)",
-            ("http://spam.com/1", "Spam", "src", 0.1, "2026-03-20", "new")
+            ("http://spam.com/1", "Spam", "src", 0.1, "2026-03-20", "new"),
         )
         conn.execute(
             "INSERT INTO items (url, title, source, score, fetched_at, status) VALUES (?, ?, ?, ?, ?, ?)",
-            ("http://good.com/1", "Good", "src", 0.8, "2026-03-20", "new")
+            ("http://good.com/1", "Good", "src", 0.8, "2026-03-20", "new"),
         )
         conn.commit()
         conn.close()
-        
+
         db_commands.run_purge_blocked(mock_db)
-        
+
         conn = sqlite3.connect(mock_db)
         spam_status = conn.execute("SELECT status FROM items WHERE url LIKE '%spam.com%'").fetchone()[0]
         good_status = conn.execute("SELECT status FROM items WHERE url LIKE '%good.com%'").fetchone()[0]
@@ -74,13 +74,13 @@ def test_run_dismiss_source(mock_db):
     conn = sqlite3.connect(mock_db)
     conn.execute(
         "INSERT INTO items (url, title, source, score, fetched_at, status) VALUES (?, ?, ?, ?, ?, ?)",
-        ("u1", "t1", "Bluesky: keywords", 0.5, "2026-03-20", "new")
+        ("u1", "t1", "Bluesky: keywords", 0.5, "2026-03-20", "new"),
     )
     conn.commit()
     conn.close()
-    
+
     db_commands.run_dismiss_source("Bluesky", mock_db)
-    
+
     conn = sqlite3.connect(mock_db)
     status = conn.execute("SELECT status FROM items").fetchone()[0]
     assert status == "dismissed"
@@ -97,7 +97,7 @@ def test_run_backup_success(mock_db, tmp_path):
     """Creates a backup file."""
     backup_dir = tmp_path / "backups"
     db_commands.run_backup(mock_db, str(backup_dir))
-    
+
     assert backup_dir.exists()
     backups = list(backup_dir.glob("content-discovery-*.db"))
     assert len(backups) == 1
@@ -109,13 +109,13 @@ def test_run_restore_latest(mock_db, tmp_path):
     backup_dir.mkdir()
     backup_file = backup_dir / "content-discovery-2026-03-20-120000.db"
     shutil.copy2(mock_db, backup_file)
-    
+
     # Modify original DB
     conn = sqlite3.connect(mock_db)
     conn.execute("DELETE FROM items")
     conn.commit()
     conn.close()
-    
+
     db_commands.run_restore(None, True, mock_db, str(backup_dir))
     assert os.path.exists(mock_db)
 
@@ -127,9 +127,9 @@ def test_run_restore_selection(mock_prompt, mock_db, tmp_path):
     backup_dir.mkdir()
     backup_file = backup_dir / "content-discovery-2026-03-20-120000.db"
     shutil.copy2(mock_db, backup_file)
-    
+
     mock_prompt.return_value = "1"
     with patch("typer.confirm", return_value=True):
         db_commands.run_restore(None, False, mock_db, str(backup_dir))
-    
+
     assert os.path.exists(mock_db)

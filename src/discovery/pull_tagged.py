@@ -12,6 +12,7 @@ so Reader shows what has reached the vault. The ``source_url`` check against
 notes/ and inbox/ (including inbox/archive/) stays as the backstop if a swap
 fails.
 """
+
 import os
 import time
 from dataclasses import dataclass, field

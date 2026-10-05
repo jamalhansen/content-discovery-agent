@@ -1,4 +1,5 @@
 """Tests for per-item destination routing in run_review()."""
+
 from unittest.mock import patch
 
 from discovery.orchestrator import run_review
@@ -19,13 +20,15 @@ def _make_item(url="https://example.com/article", title="Test Article"):
 
 
 def _run(items, inputs, contexta_routing):
-    with patch("discovery.orchestrator.store.get_new_items", return_value=items), \
-         patch("discovery.orchestrator.store.mark_item"), \
-         patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", contexta_routing), \
-         patch("discovery.orchestrator.CONTEXTA_INBOX_PATH", "/fake/inbox"), \
-         patch("builtins.input", side_effect=inputs), \
-         patch("discovery.orchestrator.save_to_readwise", return_value=True) as mock_rw, \
-         patch("discovery.orchestrator.save_to_vault_inbox", return_value=True) as mock_inbox:
+    with (
+        patch("discovery.orchestrator.store.get_new_items", return_value=items),
+        patch("discovery.orchestrator.store.mark_item"),
+        patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", contexta_routing),
+        patch("discovery.orchestrator.CONTEXTA_INBOX_PATH", "/fake/inbox"),
+        patch("builtins.input", side_effect=inputs),
+        patch("discovery.orchestrator.save_to_readwise", return_value=True) as mock_rw,
+        patch("discovery.orchestrator.save_to_vault_inbox", return_value=True) as mock_inbox,
+    ):
         result = run_review("/fake/store.db", "tok_abc")
     return result, mock_rw, mock_inbox
 

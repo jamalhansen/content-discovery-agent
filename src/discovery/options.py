@@ -1,4 +1,3 @@
-
 import typer
 from local_first_common.cli import resolve_provider
 from local_first_common.config import get_setting
@@ -46,9 +45,7 @@ def model_opt():
 
 def scoring_provider_opt():
     val = get_setting(TOOL_NAME, "scoring_provider", default=DEFAULT_SCORING_PROVIDER)
-    return typer.Option(
-        val, "--scoring-provider", help=f"LLM backend for fetch/score (default: {val})"
-    )
+    return typer.Option(val, "--scoring-provider", help=f"LLM backend for fetch/score (default: {val})")
 
 
 def scoring_model_opt():
@@ -58,9 +55,7 @@ def scoring_model_opt():
 
 def review_provider_opt():
     val = get_setting(TOOL_NAME, "review_provider", default=DEFAULT_REVIEW_PROVIDER)
-    return typer.Option(
-        val, "--review-provider", help=f"LLM backend for review (default: {val})"
-    )
+    return typer.Option(val, "--review-provider", help=f"LLM backend for review (default: {val})")
 
 
 def review_model_opt():
@@ -70,9 +65,7 @@ def review_model_opt():
 
 def threshold_opt():
     val = get_setting(TOOL_NAME, "threshold", default=DEFAULT_THRESHOLD)
-    return typer.Option(
-        val, "--threshold", "-t", help="Minimum relevance score 0.0-1.0"
-    )
+    return typer.Option(val, "--threshold", "-t", help="Minimum relevance score 0.0-1.0")
 
 
 def store_opt():
@@ -83,7 +76,9 @@ def store_opt():
 def sources_opt():
     val = get_setting(TOOL_NAME, "sources", default=DEFAULT_SOURCES)
     return typer.Option(
-        val, "--sources", "-s",
+        val,
+        "--sources",
+        "-s",
         help=f"Sources: rss,bluesky,mastodon,reader,citations (default: {val})",
     )
 

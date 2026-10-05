@@ -5,6 +5,7 @@ per-item context (title, item_count) travels to the gateway via
 llm_provider.source_location/llm_provider.item_count instead of a second
 write, and this repo writes nothing to processing_log itself.
 """
+
 from unittest.mock import MagicMock, patch
 
 from local_first_common.scoring import ScoredItem
@@ -34,18 +35,27 @@ def test_source_location_and_item_count_set_on_provider_before_scoring(tmp_path)
         assert llm.item_count == 1
         return ScoredItem(score=0.9, tags=[], summary="s", language="en")
 
-    with patch("discovery.orchestrator.fetch_feed", return_value=[_make_feed_item()]), \
-         patch("discovery.orchestrator.store.init_db"), \
-         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
-         patch("discovery.orchestrator.store.get_examples", return_value={}), \
-         patch("discovery.orchestrator.store.is_seen", return_value=False), \
-         patch("discovery.orchestrator.store.upsert_item"), \
-         patch("discovery.orchestrator.store.mark_item"), \
-         patch("discovery.orchestrator.READWISE_ROUTING", False), \
-         patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False), \
-         patch("discovery.orchestrator.score_item", side_effect=fake_score_item):
+    with (
+        patch("discovery.orchestrator.fetch_feed", return_value=[_make_feed_item()]),
+        patch("discovery.orchestrator.store.init_db"),
+        patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}),
+        patch("discovery.orchestrator.store.get_examples", return_value={}),
+        patch("discovery.orchestrator.store.is_seen", return_value=False),
+        patch("discovery.orchestrator.store.upsert_item"),
+        patch("discovery.orchestrator.store.mark_item"),
+        patch("discovery.orchestrator.READWISE_ROUTING", False),
+        patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False),
+        patch("discovery.orchestrator.score_item", side_effect=fake_score_item),
+    ):
         run_discovery(
-            llm, "rss", None, 0.5,
-            True, False, False, None, str(tmp_path / "store.db"),
+            llm,
+            "rss",
+            None,
+            0.5,
+            True,
+            False,
+            False,
+            None,
+            str(tmp_path / "store.db"),
             dry_run=True,
         )

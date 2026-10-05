@@ -1,4 +1,5 @@
 """Tests for the vault inbox capture module."""
+
 from unittest.mock import patch
 
 from discovery.vault_inbox import (
@@ -20,7 +21,9 @@ class _FakeResponse:
 class TestSaveToVaultInbox:
     def test_writes_file_with_expected_name(self, tmp_path):
         ok = save_to_vault_inbox(
-            str(tmp_path), "https://example.com/article", title="A Great Article",
+            str(tmp_path),
+            "https://example.com/article",
+            title="A Great Article",
         )
         assert ok is True
         files = list(tmp_path.glob("*.md"))
@@ -42,7 +45,9 @@ class TestSaveToVaultInbox:
 
     def test_body_contains_title_and_summary(self, tmp_path):
         save_to_vault_inbox(
-            str(tmp_path), "https://example.com/article", title="My Title",
+            str(tmp_path),
+            "https://example.com/article",
+            title="My Title",
             summary="A useful summary.",
         )
         content = next(iter(tmp_path.glob("*.md"))).read_text()
@@ -52,7 +57,9 @@ class TestSaveToVaultInbox:
 
     def test_tags_included_when_provided(self, tmp_path):
         save_to_vault_inbox(
-            str(tmp_path), "https://example.com/article", title="Title",
+            str(tmp_path),
+            "https://example.com/article",
+            title="Title",
             tags=["python", "ai"],
         )
         content = next(iter(tmp_path.glob("*.md"))).read_text()
@@ -72,8 +79,12 @@ class TestSaveToVaultInbox:
 
     def test_optional_fields_included_when_provided(self, tmp_path):
         save_to_vault_inbox(
-            str(tmp_path), "https://example.com/article", title="Title",
-            published_date="2026-03-10", search_term="local AI", platform="bluesky",
+            str(tmp_path),
+            "https://example.com/article",
+            title="Title",
+            published_date="2026-03-10",
+            search_term="local AI",
+            platform="bluesky",
         )
         content = next(iter(tmp_path.glob("*.md"))).read_text()
         assert "published: 2026-03-10" in content
@@ -144,9 +155,7 @@ class TestFetchArticleBody:
 
     def test_truncates_overlong_bodies_and_marks_it(self):
         huge = "x" * (MAX_BODY_CHARS + 500)
-        body, err = fetch_article_body(
-            "https://example.com/a", fetcher=lambda _u: huge, extractor=lambda h: h
-        )
+        body, err = fetch_article_body("https://example.com/a", fetcher=lambda _u: huge, extractor=lambda h: h)
         assert err == ""
         assert "[truncated at" in body
         assert len(body) < len(huge)
@@ -155,7 +164,9 @@ class TestFetchArticleBody:
 class TestBodyInInboxFile:
     def test_writes_the_article_body(self, tmp_path):
         ok = save_to_vault_inbox(
-            str(tmp_path), "https://example.com/a", "A Title",
+            str(tmp_path),
+            "https://example.com/a",
+            "A Title",
             summary="One line.",
             body_fetcher=lambda _u: ("The full article text. " * 100, ""),
         )
@@ -167,7 +178,9 @@ class TestBodyInInboxFile:
 
     def test_records_a_failed_fetch_instead_of_writing_a_stub(self, tmp_path):
         ok = save_to_vault_inbox(
-            str(tmp_path), "https://example.com/a", "A Title",
+            str(tmp_path),
+            "https://example.com/a",
+            "A Title",
             summary="One line.",
             body_fetcher=lambda _u: ("", "HTTPError: 403 Forbidden"),
         )
@@ -184,7 +197,9 @@ class TestBodyInInboxFile:
         quality column), so a stub here wouldn't add anything worth
         reducing, unlike a genuine fetch failure."""
         ok = save_to_vault_inbox(
-            str(tmp_path), "https://example.com/a", "A Title",
+            str(tmp_path),
+            "https://example.com/a",
+            "A Title",
             summary="One line.",
             body_fetcher=lambda _u: ("", "LOW_QUALITY: extraction quality too low to use (22 chars)"),
         )
@@ -196,8 +211,11 @@ class TestBodyInInboxFile:
             raise AssertionError("fetcher must not be called when include_body is False")
 
         ok = save_to_vault_inbox(
-            str(tmp_path), "https://example.com/a", "A Title",
-            include_body=False, body_fetcher=should_not_run,
+            str(tmp_path),
+            "https://example.com/a",
+            "A Title",
+            include_body=False,
+            body_fetcher=should_not_run,
         )
         assert ok is True
         text = next(iter(tmp_path.glob("*.md"))).read_text()
@@ -207,7 +225,9 @@ class TestBodyInInboxFile:
 class TestThinExtraction:
     def test_marks_a_short_body_as_thin_and_warns(self, tmp_path):
         save_to_vault_inbox(
-            str(tmp_path), "https://example.com/a", "A Title",
+            str(tmp_path),
+            "https://example.com/a",
+            "A Title",
             body_fetcher=lambda _u: ("Nav Home About Contact", ""),
         )
         text = next(iter(tmp_path.glob("*.md"))).read_text()
@@ -217,7 +237,9 @@ class TestThinExtraction:
 
     def test_a_full_body_is_not_marked_thin(self, tmp_path):
         save_to_vault_inbox(
-            str(tmp_path), "https://example.com/a", "A Title",
+            str(tmp_path),
+            "https://example.com/a",
+            "A Title",
             body_fetcher=lambda _u: ("word " * 500, ""),
         )
         text = next(iter(tmp_path.glob("*.md"))).read_text()
@@ -230,9 +252,11 @@ class TestRenderFallback:
         body, err = fetch_article_body(
             "https://x.com/a/status/1",
             fetcher=lambda _u: "<html><body>JavaScript is not available.</body></html>",
-            extractor=lambda h: "Full rendered tweet content, much longer than the noscript wall."
-            if "rendered-html-marker" in h
-            else "JavaScript is not available.",
+            extractor=lambda h: (
+                "Full rendered tweet content, much longer than the noscript wall."
+                if "rendered-html-marker" in h
+                else "JavaScript is not available."
+            ),
             attempt_render=True,
             renderer=lambda _u: "<html>rendered-html-marker</html>",
         )
@@ -368,9 +392,7 @@ class TestUrlNormalizationBeforeFetch:
         def broken_normalize(_u):
             raise ValueError("boom")
 
-        monkeypatch.setattr(
-            "local_first_common.url.normalize_url", broken_normalize
-        )
+        monkeypatch.setattr("local_first_common.url.normalize_url", broken_normalize)
         seen_urls = []
         fetch_article_body(
             "https://example.com/a",

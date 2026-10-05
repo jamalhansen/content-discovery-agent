@@ -1,4 +1,5 @@
 """Tests for the pre-scoring title and domain filters in run_discovery()."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,32 +20,36 @@ def _make_feed_item(url="https://example.com/article", title="Test Article"):
 
 def _scored_titles(items, store_path, title_patterns=("(sponsor)",)):
     """Run run_discovery over items; return the titles that reached the scorer."""
-    provider = MockProvider(
-        ['{"score": 0.9, "tags": ["t"], "summary": "s", "language": "en"}'] * 20
-    )
-    with patch("discovery.orchestrator.fetch_feed", return_value=items), \
-         patch("discovery.store.init_db"), \
-         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
-         patch("discovery.store.get_examples", return_value={}), \
-         patch("discovery.store.is_seen", return_value=False), \
-         patch("discovery.store.upsert_item"), \
-         patch("discovery.store.mark_item"), \
-         patch("discovery.orchestrator.READWISE_ROUTING", False), \
-         patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False), \
-         patch("discovery.orchestrator.BLOCKED_TITLE_PATTERNS", title_patterns), \
-         patch("discovery.orchestrator.score_item") as mock_score:
-        mock_score.return_value = MagicMock(
-            score=0.9, tags=["t"], summary="s", language="en"
-        )
+    provider = MockProvider(['{"score": 0.9, "tags": ["t"], "summary": "s", "language": "en"}'] * 20)
+    with (
+        patch("discovery.orchestrator.fetch_feed", return_value=items),
+        patch("discovery.store.init_db"),
+        patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}),
+        patch("discovery.store.get_examples", return_value={}),
+        patch("discovery.store.is_seen", return_value=False),
+        patch("discovery.store.upsert_item"),
+        patch("discovery.store.mark_item"),
+        patch("discovery.orchestrator.READWISE_ROUTING", False),
+        patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", False),
+        patch("discovery.orchestrator.BLOCKED_TITLE_PATTERNS", title_patterns),
+        patch("discovery.orchestrator.score_item") as mock_score,
+    ):
+        mock_score.return_value = MagicMock(score=0.9, tags=["t"], summary="s", language="en")
         run_discovery(
-            provider, "rss", None, 0.5,
-            True, False, False, None, str(store_path),
+            provider,
+            "rss",
+            None,
+            0.5,
+            True,
+            False,
+            False,
+            None,
+            str(store_path),
         )
     return [call.args[1] for call in mock_score.call_args_list]
 
 
 class TestTitleFilter:
-
     def test_sponsor_items_never_reach_the_scorer(self, tmp_path):
         items = [
             _make_feed_item(title="Real Article About Agents"),
@@ -72,7 +77,6 @@ class TestTitleFilter:
 
 
 class TestDomainFilter:
-
     @pytest.fixture(autouse=True)
     def known_blocklist(self, monkeypatch):
         """These tests check that RSS applies the blocklist, not what's in it.
@@ -93,9 +97,7 @@ class TestDomainFilter:
         same code path.
         """
         items = [
-            _make_feed_item(
-                url="https://bsky.app/profile/tempo/post/123", title="A Bluesky Post"
-            ),
+            _make_feed_item(url="https://bsky.app/profile/tempo/post/123", title="A Bluesky Post"),
             _make_feed_item(
                 url="https://simonwillison.net/2026/Aug/21/qwen/",
                 title="A Real Post",
@@ -107,8 +109,6 @@ class TestDomainFilter:
         assert scored == ["A Real Post"]
 
     def test_subdomains_of_blocked_hosts_are_dropped(self, tmp_path):
-        items = [
-            _make_feed_item(url="https://www.youtube.com/watch?v=abc", title="A Video")
-        ]
+        items = [_make_feed_item(url="https://www.youtube.com/watch?v=abc", title="A Video")]
 
         assert _scored_titles(items, tmp_path) == []

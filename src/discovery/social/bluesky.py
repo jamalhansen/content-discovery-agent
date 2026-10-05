@@ -69,7 +69,7 @@ class BlueskyReader(SocialReader):
                             continue
                     elif normalize_url(url) in _local_seen:
                         continue
-                    
+
                     item = fetch_article_metadata(
                         url,
                         blocked_domains=self._blocked_domains,
@@ -79,7 +79,7 @@ class BlueskyReader(SocialReader):
                         search_term=keyword,
                         session=session,
                     )
-                    
+
                     if item:
                         items.append(item)
                         if session:

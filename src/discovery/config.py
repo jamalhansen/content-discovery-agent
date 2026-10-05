@@ -28,19 +28,16 @@ INTEREST_EXCLUSIONS: str = _interests.get("exclusions", "")
 # Applied before scoring, so matches never reach the LLM, the store, or review.
 # Sponsored posts are written to read as on-topic and score well otherwise.
 BLOCKED_TITLE_PATTERNS: tuple[str, ...] = tuple(
-    str(p).lower()
-    for p in _interests.get("blocked_title_patterns", ["(sponsor)", "(sponsored)"])
+    str(p).lower() for p in _interests.get("blocked_title_patterns", ["(sponsor)", "(sponsored)"])
 )
 
-DEFAULT_THRESHOLD: float = get_setting(
-    TOOL_NAME, "threshold", default=_settings.get("threshold", 0.81)
-)
+DEFAULT_THRESHOLD: float = get_setting(TOOL_NAME, "threshold", default=_settings.get("threshold", 0.81))
 
 # Items scoring within this distance of the threshold get a second score and the two
 # are averaged -- see scorer.score_item_with_retest. 0 disables.
-BORDERLINE_MARGIN: float = float(get_setting(
-    TOOL_NAME, "borderline_margin", default=_settings.get("borderline_margin", 0.10)
-))
+BORDERLINE_MARGIN: float = float(
+    get_setting(TOOL_NAME, "borderline_margin", default=_settings.get("borderline_margin", 0.10))
+)
 
 # Same-day topic-cluster cap (Jamal 2026-09-22: "it can't all be relevant and
 # unique" -- a single viral news event (e.g. the 2026-09-17 Meta/OpenAI agent
@@ -49,19 +46,17 @@ BORDERLINE_MARGIN: float = float(get_setting(
 # sharing a tag are already kept today, an additional item needs
 # CLUSTER_SCORE_BONUS above the normal threshold to also get kept -- raises
 # the bar for the Nth article on today's story instead of hard-blocking it.
-CLUSTER_CAP: int = int(get_setting(
-    TOOL_NAME, "cluster_cap", default=_settings.get("cluster_cap", 3)
-))
-CLUSTER_SCORE_BONUS: float = float(get_setting(
-    TOOL_NAME, "cluster_score_bonus", default=_settings.get("cluster_score_bonus", 0.10)
-))
+CLUSTER_CAP: int = int(get_setting(TOOL_NAME, "cluster_cap", default=_settings.get("cluster_cap", 3)))
+CLUSTER_SCORE_BONUS: float = float(
+    get_setting(TOOL_NAME, "cluster_score_bonus", default=_settings.get("cluster_score_bonus", 0.10))
+)
 DEFAULT_PROVIDER: str = get_setting(
-    TOOL_NAME, "provider", env_var="MODEL_PROVIDER",
+    TOOL_NAME,
+    "provider",
+    env_var="MODEL_PROVIDER",
     default=_settings.get("provider", "local"),
 )
-DEFAULT_MODEL: str | None = get_setting(
-    TOOL_NAME, "model", env_var="MODEL_NAME", default=_settings.get("model")
-)
+DEFAULT_MODEL: str | None = get_setting(TOOL_NAME, "model", env_var="MODEL_NAME", default=_settings.get("model"))
 DEFAULT_SOURCES: str = _as_csv_sources(_settings.get("sources", "rss"))
 
 DEFAULT_SCORING_PROVIDER: str = _settings.get("scoring_provider", DEFAULT_PROVIDER)
@@ -72,7 +67,9 @@ DEFAULT_REVIEW_MODEL: str | None = _settings.get("review_model") or None
 CONTEXTA_INBOX_ROUTING: bool = bool(_settings.get("contexta_inbox_routing", False))
 CONTEXTA_INBOX_PATH: str = os.path.expanduser(
     get_setting(
-        TOOL_NAME, "contexta_inbox_path", env_var="CONTEXTA_INBOX_PATH",
+        TOOL_NAME,
+        "contexta_inbox_path",
+        env_var="CONTEXTA_INBOX_PATH",
         default=_settings.get("contexta_inbox_path", "~/vaults/Contexta/inbox"),
     )
 )
@@ -81,7 +78,9 @@ CONTEXTA_INBOX_PATH: str = os.path.expanduser(
 # treats a note as a read receipt for the article it was made from.
 CONTEXTA_NOTES_PATH: str = os.path.expanduser(
     get_setting(
-        TOOL_NAME, "contexta_notes_path", env_var="CONTEXTA_NOTES_PATH",
+        TOOL_NAME,
+        "contexta_notes_path",
+        env_var="CONTEXTA_NOTES_PATH",
         default=_settings.get("contexta_notes_path", "~/vaults/Contexta/notes"),
     )
 )
@@ -94,8 +93,7 @@ CONTEXTA_NOTES_PATH: str = os.path.expanduser(
 # installed, or if you never want the slower rendered fetch attempted.
 JS_RENDER_ENABLED: bool = bool(_settings.get("js_render_enabled", True))
 JS_RENDER_DOMAINS: frozenset[str] = frozenset(
-    str(d).lower().removeprefix("www.")
-    for d in _settings.get("js_render_domains", ["x.com", "twitter.com"])
+    str(d).lower().removeprefix("www.") for d in _settings.get("js_render_domains", ["x.com", "twitter.com"])
 )
 
 STORE_PATH = os.path.expanduser(
@@ -129,9 +127,7 @@ CITATION_MAX_LINKS_PER_ITEM: int = int(_settings.get("citation_max_links_per_ite
 CITATION_MAX_PER_TAG: int = int(_settings.get("citation_max_per_tag", 2))
 
 SOCIAL_KEYWORDS: list[str] = _social.get("keywords", [])
-SOCIAL_MASTODON_INSTANCES: list[str] = _social.get(
-    "mastodon_instances", ["mastodon.social"]
-)
+SOCIAL_MASTODON_INSTANCES: list[str] = _social.get("mastodon_instances", ["mastodon.social"])
 SOCIAL_BLOCKED_DOMAINS: frozenset[str] = frozenset(_social.get("blocked_domains", []))
 
 BLUESKY_HANDLE: str = os.environ.get("BLUESKY_HANDLE", "")
@@ -146,9 +142,7 @@ READWISE_ROUTING: bool = bool(_settings.get("readwise_routing", False))
 # Retired 2026-10-02 (default 0): `discover verdict pending` puts the model's
 # near-misses in front of Jamal directly, blind, so false negatives get judged
 # without unmarked rejects landing in Reader. Set probe_weekly_cap to re-enable.
-PROBE_WEEKLY_CAP: int = int(get_setting(
-    TOOL_NAME, "probe_weekly_cap", default=_settings.get("probe_weekly_cap", 0)
-))
+PROBE_WEEKLY_CAP: int = int(get_setting(TOOL_NAME, "probe_weekly_cap", default=_settings.get("probe_weekly_cap", 0)))
 
 READER_LOCATION: str = _settings.get("reader_location", "new")
 READER_CATEGORY: str | None = _settings.get("reader_category")

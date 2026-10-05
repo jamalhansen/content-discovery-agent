@@ -6,6 +6,7 @@ articles that are still redundant as a group. Once CLUSTER_CAP items
 sharing a tag are already kept today, an additional item needs
 CLUSTER_SCORE_BONUS above the normal threshold to also get kept.
 """
+
 from unittest.mock import MagicMock, patch
 
 from local_first_common.testing import MockProvider
@@ -24,21 +25,30 @@ def _make_feed_item(url, title="Test Article"):
 
 
 def _run(provider, items, threshold, kept_today, cluster_cap=3, cluster_bonus=0.10):
-    with patch("discovery.orchestrator.fetch_feed", return_value=items), \
-         patch("discovery.store.init_db"), \
-         patch("discovery.store.get_examples", return_value={}), \
-         patch("discovery.store.is_seen", return_value=False), \
-         patch("discovery.store.upsert_item"), \
-         patch("discovery.store.mark_item"), \
-         patch("discovery.orchestrator.CLUSTER_CAP", cluster_cap), \
-         patch("discovery.orchestrator.CLUSTER_SCORE_BONUS", cluster_bonus), \
-         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value=dict(kept_today)), \
-         patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", True), \
-         patch("discovery.orchestrator.CONTEXTA_INBOX_PATH", "/fake"), \
-         patch("discovery.orchestrator.save_to_vault_inbox") as mock_save:
+    with (
+        patch("discovery.orchestrator.fetch_feed", return_value=items),
+        patch("discovery.store.init_db"),
+        patch("discovery.store.get_examples", return_value={}),
+        patch("discovery.store.is_seen", return_value=False),
+        patch("discovery.store.upsert_item"),
+        patch("discovery.store.mark_item"),
+        patch("discovery.orchestrator.CLUSTER_CAP", cluster_cap),
+        patch("discovery.orchestrator.CLUSTER_SCORE_BONUS", cluster_bonus),
+        patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value=dict(kept_today)),
+        patch("discovery.orchestrator.CONTEXTA_INBOX_ROUTING", True),
+        patch("discovery.orchestrator.CONTEXTA_INBOX_PATH", "/fake"),
+        patch("discovery.orchestrator.save_to_vault_inbox") as mock_save,
+    ):
         candidates, _scored, _skipped, _dismissed = run_discovery(
-            provider, "rss", None, threshold,
-            True, False, False, None, "fake-store-path",
+            provider,
+            "rss",
+            None,
+            threshold,
+            True,
+            False,
+            False,
+            None,
+            "fake-store-path",
             dry_run=False,
         )
     return candidates, mock_save

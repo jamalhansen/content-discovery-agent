@@ -1,4 +1,5 @@
 """Tests for pulling the existing Readwise backlog into the Contexta inbox."""
+
 from dataclasses import dataclass
 
 from discovery.import_reader import import_reader_backlog
@@ -13,15 +14,11 @@ class FakeRef:
 
 
 def _write_note(tmp_path, name, source_url):
-    (tmp_path / name).write_text(
-        f'---\ntype: note\nsource_url: "{source_url}"\n---\n\nbody\n'
-    )
+    (tmp_path / name).write_text(f'---\ntype: note\nsource_url: "{source_url}"\n---\n\nbody\n')
 
 
 def _write_inbox_file(tmp_path, name, source_url):
-    (tmp_path / name).write_text(
-        f"---\nsource_type: content-discovery-agent\nsource_url: {source_url}\n---\n\nbody\n"
-    )
+    (tmp_path / name).write_text(f"---\nsource_type: content-discovery-agent\nsource_url: {source_url}\n---\n\nbody\n")
 
 
 class TestImportReaderBacklog:
@@ -34,7 +31,9 @@ class TestImportReaderBacklog:
         saved = []
 
         result = import_reader_backlog(
-            str(notes), str(inbox), "tok",
+            str(notes),
+            str(inbox),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
@@ -51,7 +50,9 @@ class TestImportReaderBacklog:
         saved = []
 
         result = import_reader_backlog(
-            str(notes), str(inbox), "tok",
+            str(notes),
+            str(inbox),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
@@ -69,7 +70,9 @@ class TestImportReaderBacklog:
         saved = []
 
         result = import_reader_backlog(
-            str(notes), str(inbox), "tok",
+            str(notes),
+            str(inbox),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
@@ -88,7 +91,9 @@ class TestImportReaderBacklog:
         saved = []
 
         result = import_reader_backlog(
-            str(notes), str(inbox), "tok",
+            str(notes),
+            str(inbox),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
@@ -105,7 +110,10 @@ class TestImportReaderBacklog:
         saved = []
 
         result = import_reader_backlog(
-            str(notes), str(inbox), "tok", limit=2,
+            str(notes),
+            str(inbox),
+            "tok",
+            limit=2,
             list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
@@ -121,7 +129,10 @@ class TestImportReaderBacklog:
         saved = []
 
         result = import_reader_backlog(
-            str(notes), str(inbox), "tok", dry_run=True,
+            str(notes),
+            str(inbox),
+            "tok",
+            dry_run=True,
             list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )
@@ -136,7 +147,9 @@ class TestImportReaderBacklog:
         refs = {"new": [FakeRef("doc1", "https://example.com/a", "New One")], "later": []}
 
         result = import_reader_backlog(
-            str(notes), str(inbox), "tok",
+            str(notes),
+            str(inbox),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: False,
         )
@@ -153,7 +166,9 @@ class TestImportReaderBacklog:
         saved = []
 
         result = import_reader_backlog(
-            str(notes), str(inbox), "tok",
+            str(notes),
+            str(inbox),
+            "tok",
             list_refs=lambda _t, location, **_: refs[location],
             save=lambda *a, **kw: saved.append(a) or True,
         )

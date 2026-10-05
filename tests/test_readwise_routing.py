@@ -1,4 +1,5 @@
 """Tests for the readwise_routing feature in run_discovery()."""
+
 from unittest.mock import MagicMock, patch
 
 from local_first_common.testing import MockProvider
@@ -18,26 +19,34 @@ def _make_feed_item(url="https://example.com/article", title="Test Article"):
 
 def _run(provider, items, threshold, dry_run, routing, token, store_path):
     """Run run_discovery with all heavy I/O patched out."""
-    with patch("discovery.orchestrator.fetch_feed", return_value=items), \
-         patch("discovery.store.init_db"), \
-         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
-         patch("discovery.store.get_examples", return_value={}), \
-         patch("discovery.store.is_seen", return_value=False), \
-         patch("discovery.store.upsert_item"), \
-         patch("discovery.store.mark_item") as mock_mark, \
-         patch("discovery.orchestrator.READWISE_ROUTING", routing), \
-         patch("discovery.orchestrator.READWISE_TOKEN", token), \
-         patch("discovery.orchestrator.save_to_readwise") as mock_save:
+    with (
+        patch("discovery.orchestrator.fetch_feed", return_value=items),
+        patch("discovery.store.init_db"),
+        patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}),
+        patch("discovery.store.get_examples", return_value={}),
+        patch("discovery.store.is_seen", return_value=False),
+        patch("discovery.store.upsert_item"),
+        patch("discovery.store.mark_item") as mock_mark,
+        patch("discovery.orchestrator.READWISE_ROUTING", routing),
+        patch("discovery.orchestrator.READWISE_TOKEN", token),
+        patch("discovery.orchestrator.save_to_readwise") as mock_save,
+    ):
         run_discovery(
-            provider, "rss", None, threshold,
-            True, False, False, None, str(store_path),
+            provider,
+            "rss",
+            None,
+            threshold,
+            True,
+            False,
+            False,
+            None,
+            str(store_path),
             dry_run=dry_run,
         )
     return mock_save, mock_mark
 
 
 class TestReadwiseRouting:
-
     def test_routing_disabled_by_default(self, tmp_path):
         """save_to_readwise is NOT called when READWISE_ROUTING is False."""
         provider = MockProvider(response='{"score": 0.9, "tags": ["ai"], "summary": "Good.", "language": "en"}')
@@ -50,7 +59,8 @@ class TestReadwiseRouting:
         item = _make_feed_item()
         mock_save, _mock_mark = _run(provider, [item], 0.5, False, True, "tok_abc", tmp_path)
         mock_save.assert_called_once_with(
-            "tok_abc", item.url,
+            "tok_abc",
+            item.url,
             title=item.title,
             summary="Good.",
             tags=["ai"],

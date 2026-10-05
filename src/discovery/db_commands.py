@@ -64,6 +64,7 @@ def run_report(store_path: str, days: int, json_output: bool = False):
     finally:
         conn.close()
 
+
 def run_purge_blocked(store_path: str):
     """Dismiss pending items from blocked domains."""
     if not SOCIAL_BLOCKED_DOMAINS:
@@ -84,19 +85,20 @@ def run_purge_blocked(store_path: str):
         conn.close()
     typer.echo(f"Purged {purged} items from blocked domains.")
 
+
 def run_dismiss_source(query: str, store_path: str):
     """Dismiss pending items from a specific source."""
     store.init_db(store_path)
     conn = sqlite3.connect(store_path)
     try:
         count = conn.execute(
-            "UPDATE items SET status = 'dismissed' WHERE status = 'new' AND source LIKE ?",
-            (f"%{query}%",)
+            "UPDATE items SET status = 'dismissed' WHERE status = 'new' AND source LIKE ?", (f"%{query}%",)
         ).rowcount
         conn.commit()
         typer.echo(f"Dismissed {count} pending items from sources matching '{query}'.")
     finally:
         conn.close()
+
 
 def run_fix_urls(store_path: str):
     """Normalize all URLs in the database to prevent duplicates."""
@@ -115,20 +117,21 @@ def run_backup(store_path: str, backup_dir: str):
 
     dest_dir = os.path.expanduser(backup_dir)
     os.makedirs(dest_dir, exist_ok=True)
-    
+
     timestamp = datetime.now().astimezone().strftime("%Y-%m-%d-%H%M%S")
     backup_path = os.path.join(dest_dir, f"content-discovery-{timestamp}.db")
-    
+
     shutil.copy2(db_path, backup_path)
     size_kb = os.path.getsize(backup_path) / 1024
     typer.echo(f"Backed up to: {backup_path}")
     typer.echo(f"Size: {size_kb:.1f} KB")
 
+
 def run_restore(file: str | None, latest: bool, store_path: str, backup_dir: str):
     """Restore the database from a backup."""
     db = os.path.expanduser(store_path)
     dest_dir = os.path.expanduser(backup_dir)
-    
+
     if file:
         backup_path = os.path.expanduser(file)
         if not os.path.exists(backup_path):
@@ -160,7 +163,9 @@ def run_restore(file: str | None, latest: bool, store_path: str, backup_dir: str
                 typer.echo("Invalid selection.", err=True)
                 raise typer.Exit(1) from None
 
-    if not latest and not typer.confirm(f"Restore from {os.path.basename(backup_path)}? This will overwrite your current DB."):
+    if not latest and not typer.confirm(
+        f"Restore from {os.path.basename(backup_path)}? This will overwrite your current DB."
+    ):
         raise typer.Abort()
 
     shutil.copy2(backup_path, db)

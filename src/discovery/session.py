@@ -7,6 +7,7 @@ from . import store
 
 logger = logging.getLogger(__name__)
 
+
 class DiscoverySession:
     """Tracks state for a single discovery run to handle deduplication and failures."""
 
@@ -23,18 +24,18 @@ class DiscoverySession:
             return True
 
         norm_url = normalize_url(url)
-        
+
         # 1. Check in-memory session cache (fastest)
         if norm_url in self.seen_urls:
             return True
         if norm_url in self.failed_urls:
             return True
-            
+
         # 2. Check domain-level blacklist (403/429 errors)
         domain = urlparse(norm_url).netloc.lower()
         if domain in self.failed_domains:
             return True
-            
+
         # 3. Check persistent database
         return not self.no_dedup and store.is_seen(norm_url, self.store_path)
 
@@ -46,7 +47,7 @@ class DiscoverySession:
         """Record a fetch failure and optionally blacklist the domain for this session."""
         norm_url = normalize_url(url)
         self.failed_urls.add(norm_url)
-        
+
         # Blacklist domains that explicitly reject us (403) or rate limit us (429)
         if status_code in (403, 429):
             domain = urlparse(norm_url).netloc.lower()

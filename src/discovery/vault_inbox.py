@@ -10,6 +10,7 @@ exactly what happened to the April 2026 batch: notes written from summaries
 asserted things their sources never said. Capture the text or capture the
 failure, but do not capture a stub and call it a source.
 """
+
 import logging
 import os
 import re
@@ -322,10 +323,7 @@ def save_to_vault_inbox(
 
         if include_body:
             if fetch_error:
-                lines.append(
-                    "> [MANUAL EXTRACTION REQUIRED] The article body could not be "
-                    f"retrieved: {fetch_error}."
-                )
+                lines.append(f"> [MANUAL EXTRACTION REQUIRED] The article body could not be retrieved: {fetch_error}.")
                 lines.append(
                     "> Open the URL and paste the text below, or delete this file. "
                     "Do not reduce it from the summary alone: a one-line summary "

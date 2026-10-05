@@ -1,4 +1,5 @@
 """The scoring loop heartbeats per item so process-doctor doesn't mistake gateway waits for a hang."""
+
 from unittest.mock import MagicMock, patch
 
 from local_first_common.testing import MockProvider
@@ -19,14 +20,16 @@ def _item(n):
 def test_heartbeat_once_before_and_once_per_scored_item(tmp_path):
     provider = MockProvider(response='{"score": 0.9, "tags": ["ai"], "summary": "Good.", "language": "en"}')
     items = [_item(i) for i in range(3)]
-    with patch("discovery.orchestrator.fetch_feed", return_value=items), \
-         patch("discovery.store.init_db"), \
-         patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}), \
-         patch("discovery.store.get_examples", return_value={}), \
-         patch("discovery.store.is_seen", return_value=False), \
-         patch("discovery.store.upsert_item"), \
-         patch("discovery.store.mark_item"), \
-         patch("discovery.orchestrator.heartbeat") as beat:
+    with (
+        patch("discovery.orchestrator.fetch_feed", return_value=items),
+        patch("discovery.store.init_db"),
+        patch("discovery.orchestrator.store.get_kept_tag_counts_for_date", return_value={}),
+        patch("discovery.store.get_examples", return_value={}),
+        patch("discovery.store.is_seen", return_value=False),
+        patch("discovery.store.upsert_item"),
+        patch("discovery.store.mark_item"),
+        patch("discovery.orchestrator.heartbeat") as beat,
+    ):
         run_discovery(provider, "rss", None, 0.5, True, False, False, None, str(tmp_path), dry_run=True)
     assert beat.call_count == 1 + len(items)
 
