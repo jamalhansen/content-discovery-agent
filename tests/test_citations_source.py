@@ -4,11 +4,11 @@ other source (see discovery/citations.py for why)."""
 
 from unittest.mock import patch
 
-from local_first_common.article_fetcher import FeedItem
-from local_first_common.scoring import ScoredItem
 from local_first_common.testing import MockProvider
 
 from discovery.orchestrator import run_discovery
+from discovery.support.article_fetcher import FeedItem
+from discovery.support.scoring import ScoredItem
 
 
 def _citation_item(url="https://cited.example.com/post"):

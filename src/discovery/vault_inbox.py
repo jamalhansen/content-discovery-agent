@@ -34,7 +34,7 @@ THIN_BODY_CHARS = 1_200
 # pipeline below, instead of this module's own local_first_common.http/html/
 # js_render calls. Unset by default. This is the higher-value of the two
 # content-discovery-agent integration points (see fetch_article_metadata's
-# equivalent in local_first_common.article_fetcher): unlike that one, this
+# equivalent in discovery.support.article_fetcher): unlike that one, this
 # function runs in discovery-loop's actual daily production path and is what
 # currently forces content-discovery-agent to bundle its own separate
 # Playwright install and use a hand-rolled extractor instead of the
@@ -108,13 +108,13 @@ def _try_render(url: str, extractor, renderer) -> str:
     for a best-effort fallback.
     """
     if renderer is None:
-        from local_first_common.js_render import fetch_rendered_html
+        from discovery.support.js_render import fetch_rendered_html
 
         renderer = fetch_rendered_html
     try:
         html = renderer(url) or ""
     except Exception as e:  # noqa: BLE001 - rendering is a best-effort fallback; both branches below already log and degrade to ""
-        from local_first_common.js_render import RenderUnavailable
+        from discovery.support.js_render import RenderUnavailable
 
         if isinstance(e, RenderUnavailable):
             logger.warning("Rendered fetch requested for %s but unavailable: %s", url, e)
@@ -153,7 +153,7 @@ def fetch_article_body(
 
     ``attempt_render`` controls whether a thin/empty plain-fetch result gets
     a second attempt via a real headless-Chromium render (``renderer``,
-    default ``local_first_common.js_render.fetch_rendered_html``, imported
+    default ``discovery.support.js_render.fetch_rendered_html``, imported
     lazily so this module never requires playwright to be installed). No
     per-domain allowlist here, unlike fetch_article_metadata's scoring-time
     render fallback: that one runs at much higher volume (every scored

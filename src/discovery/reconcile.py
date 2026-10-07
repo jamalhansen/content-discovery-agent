@@ -100,7 +100,7 @@ def reconcile(
     shared Readwise helpers. ``tool`` is forwarded to both for api_call_log logging.
     """
     if list_refs is None or archive is None:
-        from local_first_common.readwise import (
+        from discovery.support.readwise import (
             archive_reader_document,
             list_reader_refs,
         )

@@ -219,6 +219,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "feedparser" },
+    { name = "httpx" },
     { name = "local-first-common", extra = ["anthropic"] },
     { name = "requests" },
     { name = "typer" },
@@ -238,6 +239,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "feedparser", specifier = ">=6.0.12" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "local-first-common", extras = ["anthropic"], git = "https://github.com/jamalhansen/local-first-common.git?branch=main" },
     { name = "playwright", marker = "extra == 'playwright'", specifier = ">=1.40" },
     { name = "requests", specifier = ">=2.32.5" },

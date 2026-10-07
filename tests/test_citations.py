@@ -1,9 +1,8 @@
 """Tests for citation mining: turning outbound links from kept articles into
 candidate FeedItems (see discovery/citations.py for the rationale)."""
 
-from local_first_common.article_fetcher import FeedItem
-
 from discovery.citations import discover_citation_candidates
+from discovery.support.article_fetcher import FeedItem
 
 
 def _feed_item(url, source="other.com"):

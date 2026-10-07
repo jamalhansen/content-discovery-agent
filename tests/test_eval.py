@@ -4,11 +4,11 @@ historical kept/dismissed decisions without mutating the stored data.
 
 from unittest.mock import patch
 
-from local_first_common.scoring import ScoredItem
 from local_first_common.testing import MockProvider
 
 from discovery import store
 from discovery.eval import run_eval
+from discovery.support.scoring import ScoredItem
 
 
 def _seed(path, *, kept: list[dict] | None = None, dismissed: list[dict] | None = None):

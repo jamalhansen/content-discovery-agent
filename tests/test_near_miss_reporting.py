@@ -10,13 +10,13 @@ pulled from earlier runs the same day, mislabeled "from this run".
 """
 from unittest.mock import MagicMock, patch
 
-from local_first_common.scoring import ScoredItem
 from local_first_common.testing import MockProvider
 from typer.testing import CliRunner
 
 from discovery import store
 from discovery.cli import app
 from discovery.orchestrator import run_discovery
+from discovery.support.scoring import ScoredItem
 
 
 @pytest.fixture(autouse=True)

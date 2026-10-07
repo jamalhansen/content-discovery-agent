@@ -1,7 +1,8 @@
 import logging
 
 from local_first_common.providers.base import BaseProvider
-from local_first_common.scoring import BaseScorer, ScoredItem
+
+from discovery.support.scoring import BaseScorer, ScoredItem
 
 logger = logging.getLogger(__name__)
 

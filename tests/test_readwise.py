@@ -11,7 +11,7 @@ class TestSaveToReadwise:
     def test_returns_true_on_201(self):
         mock_resp = MagicMock()
         mock_resp.status_code = 201
-        with patch("local_first_common.readwise.requests.post", return_value=mock_resp) as mock_post:
+        with patch("discovery.support.readwise.requests.post", return_value=mock_resp) as mock_post:
             result = save_to_readwise("tok_abc", "https://example.com/article")
         assert result is True
         mock_post.assert_called_once()
@@ -19,7 +19,7 @@ class TestSaveToReadwise:
     def test_returns_true_on_200(self):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
-        with patch("local_first_common.readwise.requests.post", return_value=mock_resp):
+        with patch("discovery.support.readwise.requests.post", return_value=mock_resp):
             result = save_to_readwise("tok_abc", "https://example.com/article")
         assert result is True
 
@@ -27,12 +27,12 @@ class TestSaveToReadwise:
         mock_resp = MagicMock()
         mock_resp.status_code = 429
         mock_resp.text = "rate limited"
-        with patch("local_first_common.readwise.requests.post", return_value=mock_resp):
+        with patch("discovery.support.readwise.requests.post", return_value=mock_resp):
             result = save_to_readwise("tok_abc", "https://example.com/article")
         assert result is False
 
     def test_returns_false_on_network_error(self):
-        with patch("local_first_common.readwise.requests.post", side_effect=requests.ConnectionError("timeout")):
+        with patch("discovery.support.readwise.requests.post", side_effect=requests.ConnectionError("timeout")):
             result = save_to_readwise("tok_abc", "https://example.com/article")
         assert result is False
 
@@ -43,7 +43,7 @@ class TestSaveToReadwise:
     def test_sends_url_in_payload(self):
         mock_resp = MagicMock()
         mock_resp.status_code = 201
-        with patch("local_first_common.readwise.requests.post", return_value=mock_resp) as mock_post:
+        with patch("discovery.support.readwise.requests.post", return_value=mock_resp) as mock_post:
             save_to_readwise("tok_abc", "https://example.com/article")
         _, kwargs = mock_post.call_args
         assert kwargs["json"]["url"] == "https://example.com/article"
@@ -51,7 +51,7 @@ class TestSaveToReadwise:
     def test_sends_authorization_header(self):
         mock_resp = MagicMock()
         mock_resp.status_code = 201
-        with patch("local_first_common.readwise.requests.post", return_value=mock_resp) as mock_post:
+        with patch("discovery.support.readwise.requests.post", return_value=mock_resp) as mock_post:
             save_to_readwise("tok_secret", "https://example.com/article")
         _, kwargs = mock_post.call_args
         assert kwargs["headers"]["Authorization"] == "Token tok_secret"
@@ -59,7 +59,7 @@ class TestSaveToReadwise:
     def test_optional_fields_omitted_when_empty(self):
         mock_resp = MagicMock()
         mock_resp.status_code = 201
-        with patch("local_first_common.readwise.requests.post", return_value=mock_resp) as mock_post:
+        with patch("discovery.support.readwise.requests.post", return_value=mock_resp) as mock_post:
             save_to_readwise("tok_abc", "https://example.com/article")
         _, kwargs = mock_post.call_args
         payload = kwargs["json"]
@@ -71,7 +71,7 @@ class TestSaveToReadwise:
     def test_optional_fields_included_when_provided(self):
         mock_resp = MagicMock()
         mock_resp.status_code = 201
-        with patch("local_first_common.readwise.requests.post", return_value=mock_resp) as mock_post:
+        with patch("discovery.support.readwise.requests.post", return_value=mock_resp) as mock_post:
             save_to_readwise(
                 "tok_abc",
                 "https://example.com/article",
@@ -90,7 +90,7 @@ class TestSaveToReadwise:
     def test_empty_tags_list_omitted(self):
         mock_resp = MagicMock()
         mock_resp.status_code = 201
-        with patch("local_first_common.readwise.requests.post", return_value=mock_resp) as mock_post:
+        with patch("discovery.support.readwise.requests.post", return_value=mock_resp) as mock_post:
             save_to_readwise("https://example.com/article", "tok_abc", tags=[])
         _, kwargs = mock_post.call_args
         assert "tags" not in kwargs["json"]

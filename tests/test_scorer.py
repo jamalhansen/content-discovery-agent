@@ -213,7 +213,7 @@ class TestScoreItemWithRetest:
 
     @staticmethod
     def _scorer(*scores):
-        from local_first_common.scoring import ScoredItem
+        from discovery.support.scoring import ScoredItem
 
         scorer = MagicMock()
         scorer.score.side_effect = [None if s is None else ScoredItem(score=s, tags=["t"], summary="s") for s in scores]

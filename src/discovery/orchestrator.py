@@ -4,15 +4,16 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 import typer
-from local_first_common.article_fetcher import (
+from local_first_common.heartbeat import heartbeat
+from local_first_common.tracking import register_tool
+from local_first_common.url import normalize_url
+
+from discovery.support.article_fetcher import (
     _DEFAULT_BLOCKED_DOMAINS,
     _is_blocked,
     fetch_article_metadata,
 )
-from local_first_common.heartbeat import heartbeat
-from local_first_common.readwise import list_reader_documents
-from local_first_common.tracking import register_tool
-from local_first_common.url import normalize_url
+from discovery.support.readwise import list_reader_documents
 
 from . import store
 from .citations import discover_citation_candidates

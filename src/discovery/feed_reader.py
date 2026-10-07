@@ -3,10 +3,11 @@ import time as _time
 
 import feedparser
 import requests
-from local_first_common.article_fetcher import (
+from local_first_common.url import normalize_url
+
+from discovery.support.article_fetcher import (
     FeedItem,
 )
-from local_first_common.url import normalize_url
 
 logger = logging.getLogger(__name__)
 

@@ -8,10 +8,10 @@ write, and this repo writes nothing to processing_log itself.
 
 from unittest.mock import MagicMock, patch
 
-from local_first_common.scoring import ScoredItem
 from local_first_common.testing import MockProvider
 
 from discovery.orchestrator import run_discovery
+from discovery.support.scoring import ScoredItem
 
 
 def _make_feed_item():

@@ -27,6 +27,12 @@ def no_live_side_effects(monkeypatch):
     # their patched fetch_feed anything on a machine that has that file: 18 tests
     # failed in CI (2026-10-04), where it doesn't exist. One fake feed, everywhere.
     monkeypatch.setattr(orch, "FEEDS", ["https://example.com/test-feed.xml"], raising=False)
+    # article_fetcher reads HTTP_RETRIEVER_URL once at import (it is set in .zshenv), so
+    # patch the attribute, not just the env var -- moved here from local-first-common.
+    from discovery.support import article_fetcher
+
+    monkeypatch.setattr(article_fetcher, "HTTP_RETRIEVER_URL", None, raising=False)
+    monkeypatch.delenv("HTTP_RETRIEVER_URL", raising=False)
 
 
 @pytest.fixture(autouse=True)

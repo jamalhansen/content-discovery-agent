@@ -65,7 +65,7 @@ def import_reader_backlog(
     for api_call_log logging.
     """
     if list_refs is None:
-        from local_first_common.readwise import list_reader_refs
+        from discovery.support.readwise import list_reader_refs
 
         list_refs = list_reader_refs
     if save is None:
