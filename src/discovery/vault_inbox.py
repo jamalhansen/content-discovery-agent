@@ -56,6 +56,7 @@ def _fetch_body_via_retriever(url: str) -> tuple[str, str]:
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
+    assert HTTP_RETRIEVER_URL, "only called when HTTP_RETRIEVER_URL is set"
     try:
         response = httpx.post(
             f"{HTTP_RETRIEVER_URL.rstrip('/')}/fetch",

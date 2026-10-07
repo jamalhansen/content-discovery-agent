@@ -53,8 +53,8 @@ class TestLoadCachedFeed:
         save_cached_feed("https://feed-a.com", items_a)
         save_cached_feed("https://feed-b.com", items_b)
 
-        assert load_cached_feed("https://feed-a.com")[0].title == "A"
-        assert load_cached_feed("https://feed-b.com")[0].title == "B"
+        assert (load_cached_feed("https://feed-a.com") or [])[0].title == "A"
+        assert (load_cached_feed("https://feed-b.com") or [])[0].title == "B"
 
     def test_returns_none_for_stale_cache(self, monkeypatch):
         save_cached_feed("https://example.com/feed", make_items())
@@ -78,7 +78,8 @@ class TestSaveCachedFeed:
         original = make_items()
         save_cached_feed("https://example.com/feed", original)
         loaded = load_cached_feed("https://example.com/feed")
-        for orig, got in zip(original, loaded):
+        assert loaded is not None
+        for orig, got in zip(original, loaded, strict=True):
             assert orig.title == got.title
             assert orig.description == got.description
             assert orig.url == got.url
@@ -130,8 +131,8 @@ class TestSocialCache:
         mastodon_items = [FeedItem("Mastodon", "d", "https://m.com", "src")]
         save_cached_social("bluesky", ["duckdb"], bluesky_items)
         save_cached_social("mastodon", ["duckdb"], mastodon_items)
-        assert load_cached_social("bluesky", ["duckdb"])[0].title == "Bluesky"
-        assert load_cached_social("mastodon", ["duckdb"])[0].title == "Mastodon"
+        assert (load_cached_social("bluesky", ["duckdb"]) or [])[0].title == "Bluesky"
+        assert (load_cached_social("mastodon", ["duckdb"]) or [])[0].title == "Mastodon"
 
     def test_cache_key_is_keyword_order_independent(self):
         items = make_items()
@@ -146,8 +147,8 @@ class TestSocialCache:
         items_b = [FeedItem("B", "d", "https://b.com", "src")]
         save_cached_social("bluesky", ["duckdb"], items_a)
         save_cached_social("bluesky", ["python"], items_b)
-        assert load_cached_social("bluesky", ["duckdb"])[0].title == "A"
-        assert load_cached_social("bluesky", ["python"])[0].title == "B"
+        assert (load_cached_social("bluesky", ["duckdb"]) or [])[0].title == "A"
+        assert (load_cached_social("bluesky", ["python"]) or [])[0].title == "B"
 
     def test_creates_social_cache_dir_if_missing(self, tmp_path, monkeypatch):
         social_dir = str(tmp_path / "social")
@@ -188,16 +189,16 @@ class TestReaderCache:
         archive_items = [FeedItem("Archive", "d", "https://b.com", "src")]
         save_cached_reader("new", None, new_items)
         save_cached_reader("archive", None, archive_items)
-        assert load_cached_reader("new", None)[0].title == "New"
-        assert load_cached_reader("archive", None)[0].title == "Archive"
+        assert (load_cached_reader("new", None) or [])[0].title == "New"
+        assert (load_cached_reader("archive", None) or [])[0].title == "Archive"
 
     def test_different_categories_have_separate_caches(self):
         article_items = [FeedItem("Article", "d", "https://a.com", "src")]
         pdf_items = [FeedItem("PDF", "d", "https://b.com", "src")]
         save_cached_reader("new", "article", article_items)
         save_cached_reader("new", "pdf", pdf_items)
-        assert load_cached_reader("new", "article")[0].title == "Article"
-        assert load_cached_reader("new", "pdf")[0].title == "PDF"
+        assert (load_cached_reader("new", "article") or [])[0].title == "Article"
+        assert (load_cached_reader("new", "pdf") or [])[0].title == "PDF"
 
     def test_creates_reader_cache_dir_if_missing(self, tmp_path, monkeypatch):
         reader_dir = str(tmp_path / "reader")

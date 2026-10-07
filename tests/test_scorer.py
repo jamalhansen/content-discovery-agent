@@ -224,20 +224,25 @@ class TestScoreItemWithRetest:
 
         return score_item_with_retest(MagicMock(), "T", "D", "profile", 0.75, margin, scorer=scorer)
 
+    def _scored(self, scorer, margin=0.10):
+        result = self._run(scorer, margin)
+        assert result is not None
+        return result
+
     def test_far_from_threshold_scores_once(self):
         scorer = self._scorer(0.30)
-        assert self._run(scorer).score == 0.30
+        assert self._scored(scorer).score == 0.30
         assert scorer.score.call_count == 1
 
     def test_borderline_is_rescored_and_averaged(self):
         scorer = self._scorer(0.80, 0.60)
-        result = self._run(scorer)
+        result = self._scored(scorer)
         assert scorer.score.call_count == 2
         assert result.score == 0.70
         assert result.tags == ["t"]
 
     def test_failed_second_score_keeps_the_first(self):
-        assert self._run(self._scorer(0.72, None)).score == 0.72
+        assert self._scored(self._scorer(0.72, None)).score == 0.72
 
     def test_failed_first_score_is_not_retried(self):
         scorer = self._scorer(None)

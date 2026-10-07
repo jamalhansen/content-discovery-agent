@@ -1,6 +1,7 @@
 """Exploration probes: a few rejected items a week go to Reader, blind, for the calibration study."""
 
 import random
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 from discovery import store
@@ -81,7 +82,8 @@ def test_no_probe_when_the_dice_say_no():
 
 
 def test_disabled_by_zero_cap_or_no_routing():
-    for kw in ({"cap": 0}, {"routing": False}, {"token": ""}):
+    cases: list[dict[str, Any]] = [{"cap": 0}, {"routing": False}, {"token": ""}]
+    for kw in cases:
         picked, save, _ = _run([(_item(), _result())], _AlwaysRng(), **kw)
         assert picked is None
         save.assert_not_called()

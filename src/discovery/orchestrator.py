@@ -372,8 +372,8 @@ def run_discovery(
                         summary=result.summary,
                         tags=result.tags,
                         published_date=item.published or "",
-                        search_term=item.search_term,
-                        platform=item.platform,
+                        search_term=item.search_term or "",
+                        platform=item.platform or "",
                     )
                     routed = True
 
